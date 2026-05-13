@@ -1,0 +1,6 @@
+[submodule "go-graphql-connector"]
+	path = go-graphql-connector
+	url = https://github.com/raywall/go-graphql-connector.git
+[submodule "custom-business-metrics"]
+	path = custom-business-metrics
+	url = https://github.com/raywall/custom-business-metrics.git

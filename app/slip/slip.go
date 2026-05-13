@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
@@ -65,6 +66,24 @@ func (m *Message) NextStep() (StepDef, bool) {
 	return s, true
 }
 
+func (m *Message) currentCursor() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cursor
+}
+
+func (m *Message) setCursor(cursor int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(m.slip) {
+		cursor = len(m.slip)
+	}
+	m.cursor = cursor
+}
+
 // Set writes a value into the payload (thread-safe).
 func (m *Message) Set(key string, value any) {
 	m.mu.Lock()
@@ -78,6 +97,28 @@ func (m *Message) Get(key string) (any, bool) {
 	defer m.mu.RUnlock()
 	v, ok := m.Payload[key]
 	return v, ok
+}
+
+// GetPath reads a nested payload value using dot notation.
+func (m *Message) GetPath(path string) (any, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if path == "" {
+		return nil, false
+	}
+	parts := strings.Split(path, ".")
+	var current any = m.Payload
+	for _, part := range parts {
+		values, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = values[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 // GetString reads a string value from the payload.
@@ -118,6 +159,11 @@ func (m *Message) RemainingSteps() int {
 	return len(m.slip) - m.cursor
 }
 
+// Cursor returns the next step index to execute.
+func (m *Message) Cursor() int {
+	return m.currentCursor()
+}
+
 // ---------------------------------------------------------------------------
 // Routing Slip definition
 // ---------------------------------------------------------------------------
@@ -141,6 +187,106 @@ type StepError struct {
 	Step      string
 	Err       error
 	Timestamp time.Time
+}
+
+// MessageSnapshot is a serializable view of a message execution state.
+// Persisting this snapshot enables a stopped workflow to resume from the
+// current cursor without repeating already completed steps.
+type MessageSnapshot struct {
+	ID        string
+	CreatedAt time.Time
+	Payload   map[string]any
+	Headers   map[string]string
+	Slip      []StepDef
+	Cursor    int
+	History   []HistoryEntry
+	Errors    []SerializableStepError
+	UpdatedAt time.Time
+}
+
+// SerializableStepError stores an error message without depending on a concrete
+// error implementation, making snapshots safe to persist as JSON.
+type SerializableStepError struct {
+	Step      string
+	Error     string
+	Timestamp time.Time
+}
+
+// Snapshot copies the message state for persistence.
+func (m *Message) Snapshot() MessageSnapshot {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	payload := make(map[string]any, len(m.Payload))
+	for k, v := range m.Payload {
+		payload[k] = v
+	}
+	headers := make(map[string]string, len(m.Headers))
+	for k, v := range m.Headers {
+		headers[k] = v
+	}
+	slip := append([]StepDef(nil), m.slip...)
+	history := append([]HistoryEntry(nil), m.History...)
+
+	errs := make([]SerializableStepError, 0, len(m.Errors))
+	for _, e := range m.Errors {
+		errText := ""
+		if e.Err != nil {
+			errText = e.Err.Error()
+		}
+		errs = append(errs, SerializableStepError{
+			Step:      e.Step,
+			Error:     errText,
+			Timestamp: e.Timestamp,
+		})
+	}
+
+	return MessageSnapshot{
+		ID:        m.ID,
+		CreatedAt: m.CreatedAt,
+		Payload:   payload,
+		Headers:   headers,
+		Slip:      slip,
+		Cursor:    m.cursor,
+		History:   history,
+		Errors:    errs,
+		UpdatedAt: time.Now(),
+	}
+}
+
+// MessageFromSnapshot restores a message so Router.Process can continue from
+// the persisted cursor.
+func MessageFromSnapshot(snapshot MessageSnapshot) *Message {
+	payload := make(map[string]any, len(snapshot.Payload))
+	for k, v := range snapshot.Payload {
+		payload[k] = v
+	}
+	headers := make(map[string]string, len(snapshot.Headers))
+	for k, v := range snapshot.Headers {
+		headers[k] = v
+	}
+
+	errs := make([]StepError, 0, len(snapshot.Errors))
+	for _, e := range snapshot.Errors {
+		errs = append(errs, StepError{
+			Step:      e.Step,
+			Err:       errors.New(e.Error),
+			Timestamp: e.Timestamp,
+		})
+	}
+
+	msg := &Message{
+		ID:        snapshot.ID,
+		CreatedAt: snapshot.CreatedAt,
+		Payload:   payload,
+		Headers:   headers,
+		slip:      append([]StepDef(nil), snapshot.Slip...),
+		cursor:    snapshot.Cursor,
+		History:   append([]HistoryEntry(nil), snapshot.History...),
+		Errors:    errs,
+	}
+	msg.setCursor(snapshot.Cursor)
+	return msg
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +338,12 @@ func WithMiddleware(mw ...Middleware) RouterOption {
 	return func(r *Router) { r.middleware = append(r.middleware, mw...) }
 }
 
+// WithStateStore enables resumable processing by saving message snapshots
+// before and after each step.
+func WithStateStore(store StateStore) RouterOption {
+	return func(r *Router) { r.stateStore = store }
+}
+
 // Middleware wraps a Handler, enabling cross-cutting concerns (logging, metrics, etc.).
 type Middleware func(next Handler) Handler
 
@@ -201,6 +353,7 @@ type Router struct {
 	errorPolicy ErrorPolicy
 	logger      *slog.Logger
 	middleware  []Middleware
+	stateStore  StateStore
 }
 
 // NewRouter creates a Router with the given options.
@@ -236,22 +389,37 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		slog.String("message_id", msg.ID),
 		slog.Int("total_steps", len(msg.slip)),
 	)
+	if err := r.saveState(ctx, msg); err != nil {
+		return err
+	}
 
 	for {
 		if err := ctx.Err(); err != nil {
+			_ = r.saveState(context.Background(), msg)
 			return fmt.Errorf("context cancelled before completing slip: %w", err)
 		}
 
+		stepIndex := msg.currentCursor()
 		step, ok := msg.NextStep()
 		if !ok {
 			break
 		}
+		msg.setCursor(stepIndex)
+		if err := r.saveState(ctx, msg); err != nil {
+			return err
+		}
+		msg.setCursor(stepIndex + 1)
 
 		h, found := r.handlers[step.Name]
 		if !found {
 			err := fmt.Errorf("no handler registered for step %q", step.Name)
 			msg.AddError(StepError{Step: step.Name, Err: err, Timestamp: time.Now()})
 			if r.errorPolicy == StopOnError {
+				msg.setCursor(stepIndex)
+				_ = r.saveState(context.Background(), msg)
+				return err
+			}
+			if err := r.saveState(ctx, msg); err != nil {
 				return err
 			}
 			continue
@@ -275,17 +443,28 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			)
 			switch r.errorPolicy {
 			case StopOnError:
+				msg.setCursor(stepIndex)
+				_ = r.saveState(context.Background(), msg)
 				return fmt.Errorf("step %q: %w", step.Name, err)
 			case ContinueOnError:
 				msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration})
+				if err := r.saveState(ctx, msg); err != nil {
+					return err
+				}
 				continue
 			case SkipOnError:
 				msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration, Skipped: true})
+				if err := r.saveState(ctx, msg); err != nil {
+					return err
+				}
 				continue
 			}
 		}
 
 		msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration})
+		if err := r.saveState(ctx, msg); err != nil {
+			return err
+		}
 
 		if !proceed {
 			r.logger.Info("router: step requested stop", slog.String("step", step.Name))
@@ -298,6 +477,16 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		slog.Int("steps_executed", len(msg.History)),
 		slog.Bool("has_errors", msg.HasErrors()),
 	)
+	return nil
+}
+
+func (r *Router) saveState(ctx context.Context, msg *Message) error {
+	if r.stateStore == nil {
+		return nil
+	}
+	if err := r.stateStore.Save(ctx, msg.Snapshot()); err != nil {
+		return fmt.Errorf("routing-slip: save state: %w", err)
+	}
 	return nil
 }
 

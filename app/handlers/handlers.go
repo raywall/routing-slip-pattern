@@ -103,7 +103,7 @@ func (TransformHandler) Handle(ctx context.Context, msg *slip.Message, params ma
 		target = field
 	}
 
-	raw, ok := msg.Get(field)
+	raw, ok := msg.GetPath(field)
 	if !ok {
 		return true, fmt.Errorf("transform: field %q not found in payload", field)
 	}
@@ -145,7 +145,7 @@ func (ConditionGate) Name() string { return "condition" }
 
 func (ConditionGate) Handle(ctx context.Context, msg *slip.Message, params map[string]any) (bool, error) {
 	field, _ := params["field"].(string)
-	val, _ := msg.Get(field)
+	val, _ := msg.GetPath(field)
 	current := fmt.Sprintf("%v", val)
 
 	if expected, ok := params["equals"]; ok {
@@ -270,7 +270,7 @@ func (AuditHandler) Handle(ctx context.Context, msg *slip.Message, params map[st
 		slog.Time("timestamp", time.Now()),
 	}
 	for _, f := range fields {
-		v, _ := msg.Get(f)
+		v, _ := msg.GetPath(f)
 		attrs = append(attrs, slog.Any(f, v))
 	}
 	slog.Info("audit", attrs...)

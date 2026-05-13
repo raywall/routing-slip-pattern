@@ -27,6 +27,35 @@ Construir uma fundação técnica para workflows que precisam:
 
 ## Projetos Relacionados
 
+Os projetos internos devem ser incorporados ao repositório principal como **Git submodules**. Isso preserva a autonomia de cada projeto, evita copiar código privado para dentro do app e permite versionar exatamente qual revisão do conector GraphQL e da plataforma de métricas foi usada em cada versão do routing slip.
+
+Topologia proposta:
+
+```text
+routing-slip-pattern/
+├── app/
+│   └── modulo Go do routing slip
+├── go-graphql-connector/
+│   └── submodule privado para integracoes externas
+├── custom-business-metrics/
+│   └── submodule para metricas, DynamoDB e webview
+├── docker-compose.yml
+├── Makefile
+└── DOCUMENTATION.md
+```
+
+Comandos úteis:
+
+```bash
+git submodule update --init --recursive
+make prepare
+make run
+make test
+make compose-up
+```
+
+Para validação local integrada, use `make prepare` antes de `make run`. O prepare sobe a stack de observabilidade com DynamoDB, metrics service, metrics agent, webview e serviços mockados de integração externa. O `make run` fica responsável por executar os cenários de workflow e popular o dashboard.
+
 ### `routing-slip-pattern`
 
 Fornece o núcleo de orquestração:
@@ -36,6 +65,8 @@ Fornece o núcleo de orquestração:
 - `Handler`: contrato para qualquer etapa de processamento.
 - `Router`: executor do workflow, registry de handlers, middlewares e política de erro.
 - `SlipBuilder`: API fluente para montar rotas em código.
+- `StateStore`: contrato para persistir snapshots e permitir retomada.
+- `MessageSnapshot`: estado serializável da mensagem, incluindo cursor.
 - `config`: carregamento de workflows via JSON.
 
 ### `go-graphql-connector`
@@ -149,6 +180,7 @@ Responsabilidades:
 - armazenar histórico por etapa;
 - aplicar políticas de erro;
 - permitir parada graciosa com `proceed=false`.
+- persistir o cursor para retomar processamentos interrompidos.
 
 Políticas de erro:
 
@@ -157,6 +189,72 @@ Políticas de erro:
 | `stop` | Para o workflow no primeiro erro. |
 | `continue` | Registra o erro e segue para a próxima etapa. |
 | `skip` | Registra o erro e marca a etapa como pulada. |
+
+### 1.1. Retomada e Reprocessamento
+
+Um diferencial essencial da proposta é permitir que um workflow pare em uma etapa e seja retomado sem repetir etapas anteriores. Isso evita o problema comum em orquestrações estáticas: quando uma execução falha no meio, o reprocessamento precisa voltar ao início e pode executar novamente ações que já produziram efeitos.
+
+O modelo usa um `MessageSnapshot` persistido a cada mudança relevante de estado:
+
+- antes do workflow iniciar;
+- imediatamente antes de executar uma etapa;
+- depois de uma etapa concluir;
+- quando uma etapa falha;
+- quando o workflow termina.
+
+O campo mais importante é o `cursor`, que representa o índice da próxima etapa a executar. Quando uma etapa falha com política `StopOnError`, o router reposiciona o cursor para a etapa que falhou. Assim, o próximo reprocessamento reexecuta aquela etapa e segue o fluxo a partir dela.
+
+```mermaid
+flowchart TD
+    A[Carregar snapshot] --> B{Cursor aponta para qual etapa?}
+    B --> C[Executar etapa atual]
+    C --> D{Sucesso?}
+    D -- Sim --> E[Avancar cursor]
+    E --> F[Salvar snapshot]
+    F --> G{Ha proxima etapa?}
+    G -- Sim --> C
+    G -- Nao --> H[Workflow concluido]
+    D -- Nao --> I[Reposicionar cursor na etapa atual]
+    I --> J[Salvar erro e snapshot]
+    J --> K[Parar workflow]
+    K --> L[Reprocessamento futuro continua no cursor salvo]
+```
+
+Exemplo conceitual:
+
+```go
+store := slip.NewMemoryStateStore()
+router := slip.NewRouter(
+    slip.WithErrorPolicy(slip.StopOnError),
+    slip.WithStateStore(store),
+)
+
+err := router.Process(ctx, msg)
+if err != nil {
+    snapshot, _ := store.Load(ctx, msg.ID)
+    resumed := slip.MessageFromSnapshot(snapshot)
+    _ = router.Process(ctx, resumed)
+}
+```
+
+Em produção, o `MemoryStateStore` deve ser substituído por um adapter persistente, como DynamoDB. A tabela de estado do workflow pode ser separada da tabela de métricas.
+
+Modelo sugerido para estado:
+
+| Atributo | Uso |
+|---|---|
+| `pk` | `MESSAGE#<message_id>` |
+| `sk` | `STATE#CURRENT` |
+| `workflow` | Nome do workflow |
+| `cursor` | Próxima etapa a executar |
+| `status` | `running`, `failed`, `completed`, `stopped` |
+| `payload` | Payload atual ou referência externa |
+| `slip` | Lista versionada das etapas |
+| `history` | Etapas concluídas |
+| `errors` | Erros por etapa |
+| `updated_at` | Controle operacional |
+
+Para etapas com efeitos colaterais, a recomendação é combinar retomada com idempotência por `message_id`, `step` e `attempt`. Assim, mesmo que uma falha ocorra após uma chamada externa, o handler consegue detectar se a ação já foi aplicada.
 
 ### 2. Handler de Enriquecimento via GraphQL
 

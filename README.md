@@ -14,17 +14,24 @@ em Go — modular, parametrizável e pronto para workflows reais.
 
 ```
 routing-slip/
-├── slip/
-│   ├── slip.go          # Message, StepDef, Handler interface, Router, SlipBuilder
-│   └── middleware.go    # LoggingMiddleware, RecoveryMiddleware
-├── handlers/
-│   └── handlers.go      # 6 handlers prontos: validate, enrich, transform, condition, notify, audit
-├── config/
-│   └── config.go        # Loader JSON → []StepDef
-├── examples/
-│   └── order_workflow.json  # Workflow de pedido (configurado em JSON)
-├── main.go              # 5 demos comentados
-└── go.mod
+├── app/
+│   ├── slip/
+│   │   ├── slip.go          # Message, StepDef, Handler, Router, snapshots
+│   │   ├── middleware.go    # LoggingMiddleware, RecoveryMiddleware
+│   │   └── state_store.go   # StateStore e MemoryStateStore
+│   ├── handlers/
+│   │   └── handlers.go      # 6 handlers prontos
+│   ├── config/
+│   │   └── config.go        # Loader JSON -> []StepDef
+│   ├── examples/
+│   │   └── order_workflow.json
+│   ├── main.go              # Demos, incluindo retomada por cursor
+│   └── go.mod
+├── go-graphql-connector/    # submodule privado para integracoes externas
+├── custom-business-metrics/ # submodule para metricas e webview real-time
+├── docker-compose.yml       # ambiente local integrado
+├── Makefile
+└── DOCUMENTATION.md
 ```
 
 ---
@@ -52,6 +59,13 @@ Retornar `proceed=false` encerra o workflow graciosamente (sem erro).
 - Aplica **middleware** (logging, recovery) em todos os handlers
 - Suporta 3 **ErrorPolicy**: `StopOnError`, `ContinueOnError`, `SkipOnError`
 - Respeita **context.Context** (cancelamento/timeout)
+
+### Processamento retomável
+- O `Router` aceita um `StateStore` plugável via `WithStateStore`.
+- O estado da mensagem é persistido como `MessageSnapshot`.
+- O snapshot guarda payload, headers, routing slip, histórico, erros e `cursor`.
+- Em erro com `StopOnError`, o cursor volta para a etapa que falhou.
+- Ao reprocessar, `MessageFromSnapshot` restaura a mensagem e o fluxo segue do ponto salvo.
 
 ### Evolução proposta
 - Handler de enriquecimento externo via GraphQL para consultar APIs, DynamoDB,
@@ -101,7 +115,44 @@ Etapas com `"enabled": false` são ignoradas na carga.
 ## Executar
 
 ```bash
-go run .
+make submodules
+make run
+```
+
+O `make run` executa uma suíte de cenários parametrizados:
+
+- `order-ok`: processamento completo com validação, enriquecimento GraphQL, decisão, transformação e auditoria.
+- `order-stopped-by-decision`: payload enriquecido via GraphQL, mas represado por decisão funcional.
+- `order-fail-and-resume`: falha técnica em uma etapa intermediária e reprocessamento a partir do cursor salvo.
+
+## Testar
+
+```bash
+make test
+```
+
+## Ambiente local com Docker
+
+```bash
+make prepare
+make run
+```
+
+Serviços expostos:
+
+- Metrics Service: `http://localhost:8080`
+- Metrics Webview: `http://localhost:5173`
+- DynamoDB Local: `http://localhost:8000`
+- Agent UDP: `localhost:8125`
+- GraphQL Connector mock: `http://localhost:8090/graphql`
+- External API mock: `http://localhost:8091`
+
+O `make prepare` sobe DynamoDB, serviço de métricas, agent, webview, API externa mockada e um mock GraphQL que simula a função local do `go-graphql-connector` buscando dados nessa API externa. Em seguida, `make run` envia métricas para o dashboard e executa os workflows.
+
+Para parar:
+
+```bash
+make compose-down
 ```
 
 ---
@@ -135,4 +186,3 @@ router := slip.NewRouter(
     slip.WithMiddleware(slip.RecoveryMiddleware(), metricsMiddleware),
 )
 ```
-# routing-slip-pattern
