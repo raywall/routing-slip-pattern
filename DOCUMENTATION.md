@@ -36,9 +36,11 @@ routing-slip-pattern/
 ├── app/
 │   └── modulo Go do routing slip
 ├── go-graphql-connector/
-│   └── submodule privado para integracoes externas
+│   └── submodule privado para integracoes externas (branch develop)
 ├── custom-business-metrics/
 │   └── submodule para metricas, DynamoDB e webview
+├── docker/
+│   └── Dockerfiles customizaveis por servico
 ├── docker-compose.yml
 ├── Makefile
 └── DOCUMENTATION.md
@@ -55,6 +57,21 @@ make compose-up
 ```
 
 Para validação local integrada, use `make prepare` antes de `make run`. O prepare sobe a stack de observabilidade com DynamoDB, metrics service, metrics agent, webview e serviços mockados de integração externa. O `make run` fica responsável por executar os cenários de workflow e popular o dashboard.
+
+### Dockerfiles e CA Interna
+
+O `docker-compose.yml` referencia Dockerfiles explícitos no diretório `docker/`, em vez de usar apenas imagens diretas. Isso facilita adaptar a execução para ambientes corporativos onde é necessário instalar certificados internos, configurar proxy, ajustar variáveis de ambiente ou preparar bundles de CA para SDKs.
+
+Padrão recomendado para imagens Alpine, como `golang:1.22-alpine`, `golang:1.24-alpine`, `golang:1.25-alpine` e `nginx:alpine`:
+
+```dockerfile
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+COPY certs/internal-ca.crt /usr/local/share/ca-certificates/internal-ca.crt
+RUN update-ca-certificates
+ENV AWS_CA_BUNDLE=/usr/local/share/ca-certificates/internal-ca.crt
+```
+
+Para imagens baseadas em AWS CLI ou DynamoDB Local, valide o sistema operacional base antes de instalar pacotes. O AWS CLI respeita `AWS_CA_BUNDLE`; já o DynamoDB Local roda em JVM e pode exigir importação da CA no truststore Java com `keytool`, além do bundle Linux.
 
 ### `routing-slip-pattern`
 

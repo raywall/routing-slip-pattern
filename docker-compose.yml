@@ -1,6 +1,10 @@
 services:
   routing-slip-app:
-    image: golang:1.25
+    build:
+      context: ./app
+      dockerfile: ../docker/app/Dockerfile
+      args:
+        APP_CMD: "."
     working_dir: /workspace/app
     volumes:
       - ./app:/workspace/app
@@ -9,7 +13,6 @@ services:
       METRICS_ENDPOINT: "http://metrics-service:8080/v1/metrics"
       GRAPHQL_ENDPOINT: "http://go-graphql-connector:8090/graphql"
       GOCACHE: "/workspace/.gocache"
-    command: ["go", "run", "."]
     depends_on:
       metrics-service:
         condition: service_started
@@ -17,19 +20,26 @@ services:
         condition: service_started
 
   mock-external-api:
-    image: golang:1.25
+    build:
+      context: ./app
+      dockerfile: ../docker/app/Dockerfile
+      args:
+        APP_CMD: "./cmd/mock-external-api"
     working_dir: /workspace/app
     volumes:
       - ./app:/workspace/app
       - ./.gocache:/workspace/.gocache
     environment:
       GOCACHE: "/workspace/.gocache"
-    command: ["go", "run", "./cmd/mock-external-api"]
     ports:
       - "8091:8091"
 
   go-graphql-connector:
-    image: golang:1.25
+    build:
+      context: ./app
+      dockerfile: ../docker/app/Dockerfile
+      args:
+        APP_CMD: "./cmd/mock-graphql"
     working_dir: /workspace/app
     volumes:
       - ./app:/workspace/app
@@ -37,21 +47,24 @@ services:
     environment:
       EXTERNAL_API_URL: "http://mock-external-api:8091"
       GOCACHE: "/workspace/.gocache"
-    command: ["go", "run", "./cmd/mock-graphql"]
     depends_on:
       - mock-external-api
     ports:
       - "8090:8090"
 
   dynamodb:
-    image: amazon/dynamodb-local:2.5.2
+    build:
+      context: .
+      dockerfile: docker/dynamodb-local/Dockerfile
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
     working_dir: /home/dynamodblocal
     ports:
       - "8000:8000"
 
   dynamodb-init:
-    image: amazon/aws-cli:2.17.57
+    build:
+      context: .
+      dockerfile: docker/dynamodb-init/Dockerfile
     depends_on:
       - dynamodb
     environment:
@@ -78,6 +91,7 @@ services:
   metrics-service:
     build:
       context: ./custom-business-metrics/service
+      dockerfile: ../../docker/metrics-service/Dockerfile
     depends_on:
       dynamodb-init:
         condition: service_completed_successfully
@@ -96,6 +110,7 @@ services:
   metrics-agent:
     build:
       context: ./custom-business-metrics/agent
+      dockerfile: ../../docker/metrics-agent/Dockerfile
     depends_on:
       - metrics-service
     environment:
@@ -109,6 +124,7 @@ services:
   metrics-webview:
     build:
       context: ./custom-business-metrics/webview
+      dockerfile: ../../docker/metrics-webview/Dockerfile
     depends_on:
       - metrics-service
     ports:

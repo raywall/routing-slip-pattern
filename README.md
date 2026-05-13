@@ -29,10 +29,13 @@ routing-slip/
 │   └── go.mod
 ├── go-graphql-connector/    # submodule privado para integracoes externas
 ├── custom-business-metrics/ # submodule para metricas e webview real-time
+├── docker/                  # Dockerfiles customizaveis por servico
 ├── docker-compose.yml       # ambiente local integrado
 ├── Makefile
 └── DOCUMENTATION.md
 ```
+
+O submodule `go-graphql-connector` acompanha a branch `develop`.
 
 ---
 
@@ -148,6 +151,8 @@ Serviços expostos:
 - External API mock: `http://localhost:8091`
 
 O `make prepare` sobe DynamoDB, serviço de métricas, agent, webview, API externa mockada e um mock GraphQL que simula a função local do `go-graphql-connector` buscando dados nessa API externa. Em seguida, `make run` envia métricas para o dashboard e executa os workflows.
+
+Os serviços do compose usam Dockerfiles explícitos em `docker/`. Eles incluem notas de customização para ambientes corporativos, como instalação de `ca-certificates`, caminho para CAs internas em `/usr/local/share/ca-certificates`, execução de `update-ca-certificates` e uso de `AWS_CA_BUNDLE` quando necessário.
 
 Para parar:
 
