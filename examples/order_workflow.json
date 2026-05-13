@@ -1,0 +1,69 @@
+{
+  "name": "order-processing",
+  "description": "Valida, enriquece e notifica pedidos de e-commerce",
+  "error_policy": "stop",
+  "steps": [
+    {
+      "name": "validate",
+      "enabled": true,
+      "params": {
+        "required": ["customer_id", "product_id", "quantity"],
+        "stop_on_failure": true
+      }
+    },
+    {
+      "name": "audit",
+      "enabled": true,
+      "params": {
+        "event": "order.received",
+        "fields": ["customer_id", "product_id", "quantity"]
+      }
+    },
+    {
+      "name": "enrich",
+      "enabled": true,
+      "params": {
+        "prefix": "order_",
+        "data": {
+          "status": "PENDING",
+          "source": "api-v2",
+          "region": "br-southeast"
+        }
+      }
+    },
+    {
+      "name": "transform",
+      "enabled": true,
+      "params": {
+        "field": "customer_id",
+        "operation": "uppercase",
+        "target": "customer_id"
+      }
+    },
+    {
+      "name": "condition",
+      "enabled": true,
+      "params": {
+        "field": "order_status",
+        "equals": "PENDING"
+      }
+    },
+    {
+      "name": "notify",
+      "enabled": true,
+      "params": {
+        "channel": "email",
+        "recipient": "ops@example.com",
+        "template": "Novo pedido {customer_id} – produto {product_id} (qty: {quantity})"
+      }
+    },
+    {
+      "name": "audit",
+      "enabled": true,
+      "params": {
+        "event": "order.processed",
+        "fields": ["customer_id", "order_status", "notification_channel"]
+      }
+    }
+  ]
+}
