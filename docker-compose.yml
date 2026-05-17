@@ -12,11 +12,14 @@ services:
     environment:
       METRICS_ENDPOINT: "http://metrics-service:8080/v1/metrics"
       GRAPHQL_ENDPOINT: "http://go-graphql-connector:8090/graphql"
+      EXTERNAL_API_URL: "http://mock-external-api:8091"
       GOCACHE: "/workspace/.gocache"
     depends_on:
       metrics-service:
         condition: service_started
       go-graphql-connector:
+        condition: service_started
+      mock-external-api:
         condition: service_started
 
   mock-external-api:

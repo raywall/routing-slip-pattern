@@ -376,6 +376,47 @@ Consultas habilitadas:
 - histórico granular por `message_id`, `correlation_id` ou `trace_id`;
 - throughput por workflow, domínio ou origem.
 
+## Exemplo Principal: Pagamento para Fulfillment
+
+O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais próximo de um processo real:
+
+1. recebe um evento `PAGAMENTO_APROVADO`;
+2. usa `payload.pedido_id` para consultar o pedido via GraphQL Connector;
+3. aciona uma integração que representa a Lambda de emissão de nota fiscal;
+4. confirma a nota fiscal emitida antes de acionar a expedição;
+5. baixa o estoque dos itens vendidos;
+6. registra auditoria e métricas por etapa para acompanhamento no dashboard.
+
+```mermaid
+flowchart LR
+    A[Evento de pagamento efetuado] --> B[Validar payload]
+    B --> C{Evento aprovado?}
+    C -- Nao --> X[Parar por decisao funcional]
+    C -- Sim --> D[Consultar pedido via GraphQL]
+    D --> E[Emitir nota fiscal]
+    E --> F{Nota emitida?}
+    F -- Nao --> Y[Parar para reprocessamento]
+    F -- Sim --> G[Acionar expedicao]
+    G --> H[Baixar estoque]
+    H --> I[Auditar e publicar metricas]
+```
+
+Payload de entrada:
+
+```json
+{
+  "evento": "PAGAMENTO_APROVADO",
+  "payload": {
+    "pagamento_id": "PAG-5544",
+    "pedido_id": "PED-9988",
+    "valor_pago": 150
+  },
+  "correlation_id": "corr-payment-fulfillment-001"
+}
+```
+
+Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor persistivel, pode ser observada individualmente e pode ser retomada do ponto de falha sem repetir chamadas anteriores que ja produziram efeito, como emissão fiscal ou baixa de estoque.
+
 ## Modelo de Workflow Proposto
 
 ```json

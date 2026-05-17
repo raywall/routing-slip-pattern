@@ -2,8 +2,10 @@ package slip
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -73,31 +75,39 @@ func (m *metricsHandler) Name() string { return m.next.Name() }
 
 func (m *metricsHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
 	start := time.Now()
-	m.emit(ctx, msg, "routing_slip.step.started", "running", 1, "event", 0)
+	input := summarizeInput(m.next.Name(), msg, params)
+	rule := summarizeRule(m.next.Name(), params)
+	m.emit(ctx, msg, "routing_slip.step.started", "running", 1, "event", 0, input, rule, "", "")
 	proceed, err := m.next.Handle(ctx, msg, params)
 	duration := time.Since(start)
+	output := summarizeOutput(m.next.Name(), msg, params)
 
 	status := "success"
 	name := "routing_slip.step.completed"
+	failureReason := ""
 	if err != nil {
 		status = "failed"
 		name = "routing_slip.step.failed"
+		failureReason = err.Error()
 	} else if !proceed {
 		status = "stopped"
 		name = "routing_slip.step.stopped"
+		failureReason = "handler requested workflow stop"
 	}
-	m.emit(ctx, msg, name, status, 1, "event", duration)
-	m.emit(ctx, msg, "routing_slip.step.duration_ms", status, float64(duration.Milliseconds()), "ms", duration)
+	m.emit(ctx, msg, name, status, 1, "event", duration, input, rule, output, failureReason)
+	m.emit(ctx, msg, "routing_slip.step.duration_ms", status, float64(duration.Milliseconds()), "ms", duration, input, rule, output, failureReason)
 	return proceed, err
 }
 
-func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status string, value float64, unit string, duration time.Duration) {
+func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status string, value float64, unit string, duration time.Duration, input, rule, output, failureReason string) {
 	if m.emitter == nil {
 		return
 	}
 	tags := map[string]string{
-		"message_id": msg.ID,
-		"handler":    m.next.Name(),
+		"message_id":  msg.ID,
+		"handler":     m.next.Name(),
+		"step_index":  fmt.Sprintf("%d", max(0, msg.currentCursor()-1)),
+		"total_steps": fmt.Sprintf("%d", len(msg.slip)),
 	}
 	for k, v := range m.opts.Tags {
 		tags[k] = v
@@ -111,8 +121,27 @@ func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status st
 	if productID := msg.GetString("product_id"); productID != "" {
 		tags["product_id"] = productID
 	}
+	addTagFromPath(tags, msg, "pagamento_id", "payload.pagamento_id")
+	addTagFromPath(tags, msg, "pedido_id", "payload.pedido_id", "pedido.pedido_id")
+	addTagFromPath(tags, msg, "id_cliente", "pedido.cliente_id", "customer_id")
+	addTagFromPath(tags, msg, "cliente_id", "pedido.cliente_id", "customer_id")
+	addTagFromPath(tags, msg, "nota_fiscal_id", "nota_fiscal.nota_fiscal_id")
+	addTagFromPath(tags, msg, "expedicao_id", "expedicao.expedicao_id")
+	addTagFromPath(tags, msg, "codigo_rastreio", "expedicao.codigo_rastreio")
 	if duration > 0 {
 		tags["duration_ms"] = fmt.Sprintf("%d", duration.Milliseconds())
+	}
+	if input != "" {
+		tags["input_value"] = input
+	}
+	if rule != "" {
+		tags["rule_applied"] = rule
+	}
+	if output != "" {
+		tags["output_value"] = output
+	}
+	if failureReason != "" {
+		tags["failure_reason"] = failureReason
 	}
 
 	event := MetricEvent{
@@ -133,5 +162,115 @@ func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status st
 	}
 	if err := m.emitter.Emit(ctx, event); err != nil && m.logger != nil {
 		m.logger.Warn("metrics: emit failed", slog.String("error", err.Error()))
+	}
+}
+
+func summarizeInput(step string, msg *Message, params map[string]any) string {
+	switch step {
+	case "validate":
+		return summarizeRequiredValues(msg, params)
+	case "condition":
+		field := fmt.Sprintf("%v", params["field"])
+		value, _ := msg.GetPath(field)
+		return compactJSON(map[string]any{"field": field, "value": value})
+	case "graphql_enrich":
+		return compactJSON(map[string]any{"query": params["query"], "variables": params["variables"]})
+	case "rest_call":
+		return compactJSON(map[string]any{"method": params["method"], "endpoint": params["endpoint"], "body": params["body"]})
+	case "transform":
+		field := fmt.Sprintf("%v", params["field"])
+		value, _ := msg.GetPath(field)
+		return compactJSON(map[string]any{"field": field, "value": value})
+	case "enrich":
+		return compactJSON(params["data"])
+	default:
+		return compactJSON(params)
+	}
+}
+
+func summarizeRule(step string, params map[string]any) string {
+	switch step {
+	case "validate":
+		return compactJSON(map[string]any{"required": params["required"], "stop_on_failure": params["stop_on_failure"]})
+	case "condition":
+		return compactJSON(map[string]any{"field": params["field"], "equals": params["equals"]})
+	case "graphql_enrich":
+		return compactJSON(map[string]any{"target": params["target"], "result_path": params["result_path"], "required": params["required"]})
+	case "rest_call":
+		return compactJSON(map[string]any{"method": params["method"], "endpoint": params["endpoint"], "target": params["target"], "required": params["required"]})
+	case "transform":
+		return compactJSON(map[string]any{"field": params["field"], "operation": params["operation"], "target": params["target"]})
+	case "enrich":
+		return compactJSON(map[string]any{"prefix": params["prefix"]})
+	default:
+		return compactJSON(params)
+	}
+}
+
+func summarizeOutput(step string, msg *Message, params map[string]any) string {
+	switch step {
+	case "validate":
+		return compactJSON(map[string]any{"validation_passed": msg.Payload["validation_passed"]})
+	case "condition":
+		return compactJSON(map[string]any{"gate_stopped": msg.Payload["gate_stopped"]})
+	case "graphql_enrich", "rest_call":
+		target := fmt.Sprintf("%v", params["target"])
+		value, _ := msg.GetPath(target)
+		return compactJSON(map[string]any{target: value})
+	case "transform":
+		target := fmt.Sprintf("%v", params["target"])
+		if target == "" || target == "<nil>" {
+			target = fmt.Sprintf("%v", params["field"])
+		}
+		value, _ := msg.GetPath(target)
+		return compactJSON(map[string]any{target: value})
+	case "enrich":
+		return compactJSON(map[string]any{"payload": msg.Payload})
+	default:
+		return compactJSON(map[string]any{"status": "processed"})
+	}
+}
+
+func summarizeRequiredValues(msg *Message, params map[string]any) string {
+	required, ok := params["required"].([]string)
+	if !ok {
+		return compactJSON(params["required"])
+	}
+	values := make(map[string]any, len(required))
+	for _, field := range required {
+		value, _ := msg.GetPath(field)
+		values[field] = value
+	}
+	return compactJSON(values)
+}
+
+func compactJSON(value any) string {
+	if value == nil {
+		return ""
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return truncateText(fmt.Sprintf("%v", value), 900)
+	}
+	return truncateText(string(data), 900)
+}
+
+func truncateText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit-3] + "..."
+}
+
+func addTagFromPath(tags map[string]string, msg *Message, tag string, paths ...string) {
+	for _, path := range paths {
+		if value, ok := msg.GetPath(path); ok && value != nil {
+			text := fmt.Sprintf("%v", value)
+			if text != "" && text != "<nil>" {
+				tags[tag] = text
+				return
+			}
+		}
 	}
 }

@@ -28,32 +28,69 @@ func main() {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if orderID, ok := variable(req.Variables, "pedidoID", "orderID"); ok {
+			order, err := getJSON(client, externalBaseURL+"/pedidos/"+orderID)
+			if err != nil {
+				writeJSON(w, map[string]any{"errors": []map[string]string{{"message": err.Error()}}})
+				return
+			}
+			writeJSON(w, map[string]any{
+				"data": map[string]any{
+					"order": order,
+					"dataSources": map[string]any{
+						"order": order,
+					},
+				},
+			})
+			return
+		}
+
 		customerID := fmt.Sprintf("%v", req.Variables["customerID"])
 		customerID = strings.TrimSpace(customerID)
 		if customerID == "" {
-			writeJSON(w, map[string]any{"errors": []map[string]string{{"message": "customerID is required"}}})
+			writeJSON(w, map[string]any{"errors": []map[string]string{{"message": "customerID, pedidoID or orderID is required"}}})
 			return
 		}
-		resp, err := client.Get(externalBaseURL + "/customers/" + customerID)
+		customer, err := getJSON(client, externalBaseURL+"/customers/"+customerID)
 		if err != nil {
-			writeJSON(w, map[string]any{"errors": []map[string]string{{"message": err.Error()}}})
-			return
-		}
-		defer resp.Body.Close()
-		var customer map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&customer); err != nil {
 			writeJSON(w, map[string]any{"errors": []map[string]string{{"message": err.Error()}}})
 			return
 		}
 		writeJSON(w, map[string]any{
 			"data": map[string]any{
 				"customer": customer,
+				"dataSources": map[string]any{
+					"customer": customer,
+				},
 			},
 		})
 	})
 
 	log.Println("mock GraphQL connector listening on :8090")
 	log.Fatal(http.ListenAndServe(":8090", nil))
+}
+
+func getJSON(client *http.Client, url string) (map[string]any, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func variable(variables map[string]any, keys ...string) (string, bool) {
+	for _, key := range keys {
+		value := strings.TrimSpace(fmt.Sprintf("%v", variables[key]))
+		if value != "" && value != "<nil>" {
+			return value, true
+		}
+	}
+	return "", false
 }
 
 func writeJSON(w http.ResponseWriter, body any) {

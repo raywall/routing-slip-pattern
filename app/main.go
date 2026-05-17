@@ -42,6 +42,7 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 	r.MustRegister(&handlers.NotificationHandler{}) // pointer because Send field may be set
 	r.MustRegister(handlers.AuditHandler{})
 	r.MustRegister(handlers.GraphQLEnrichmentHandler{DefaultEndpoint: env("GRAPHQL_ENDPOINT", "http://localhost:8090/graphql")})
+	r.MustRegister(handlers.RESTCallHandler{})
 
 	return r
 }
@@ -319,8 +320,25 @@ func runWorkflowScenarios(logger *slog.Logger) {
 	fmt.Printf("  Metrics dashboard: http://localhost:5173\n")
 	fmt.Printf("  Metrics endpoint:  %s\n", env("METRICS_ENDPOINT", "http://localhost:8080/v1/metrics"))
 	fmt.Printf("  GraphQL endpoint:  %s\n", env("GRAPHQL_ENDPOINT", "http://localhost:8090/graphql"))
+	fmt.Printf("  External API:       %s\n", env("EXTERNAL_API_URL", "http://localhost:8091"))
 
 	scenarios := []WorkflowScenario{
+		{
+			Name:        "payment-event-fulfillment",
+			MessageID:   "PAYMENT-EVENT-001",
+			Description: "Evento de pagamento aprovado consulta pedido, emite nota fiscal, aciona expedicao e baixa estoque",
+			Payload: map[string]any{
+				"evento": "PAGAMENTO_APROVADO",
+				"payload": map[string]any{
+					"pagamento_id": "PAG-5544",
+					"pedido_id":    "PED-9988",
+					"valor_pago":   150.0,
+				},
+				"correlation_id": "corr-payment-fulfillment-001",
+				"received_at":    "2026-05-13T21:55:00Z",
+			},
+			Steps: paymentFulfillmentSteps(),
+		},
 		{
 			Name:        "order-ok",
 			MessageID:   "SCN-OK-001",
@@ -403,16 +421,102 @@ func runScenario(logger *slog.Logger, scenario WorkflowScenario) {
 	printResult(msg)
 }
 
+func paymentFulfillmentSteps() []slip.StepDef {
+	externalAPI := env("EXTERNAL_API_URL", "http://localhost:8091")
+	externalAPISerial := env("EXTERNAL_API_SERIAL", "b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4")
+
+	return slip.NewSlip().
+		Step("validate", map[string]any{
+			"required": []string{"evento", "payload.pagamento_id", "payload.pedido_id", "payload.valor_pago"},
+		}).
+		Step("condition", map[string]any{
+			"field":  "evento",
+			"equals": "PAGAMENTO_APROVADO",
+		}).
+		Step("graphql_enrich", map[string]any{
+			"query":       "query ($pedidoID: String!) { dataSources(pedidoID: $pedidoID) { order { pedido_id cliente_id status valor_total endereco_entrega itens { produto_id quantidade } } } }",
+			"variables":   map[string]any{"pedidoID": "{payload.pedido_id}"},
+			"target":      "pedido",
+			"result_path": "dataSources.order",
+			"timeout_ms":  1500,
+			"required":    true,
+		}).
+		Step("rest_call", map[string]any{
+			"base_url": externalAPI,
+			"method":   "POST",
+			"endpoint": "/lambda/notas-fiscais",
+			"target":   "nota_fiscal",
+			"headers": map[string]any{
+				"X-Serial-Number": externalAPISerial,
+			},
+			"body": map[string]any{
+				"pedido_id":    "{pedido.pedido_id}",
+				"cliente_id":   "{pedido.cliente_id}",
+				"valor_total":  "{pedido.valor_total}",
+				"itens":        "{pedido.itens}",
+				"pagamento_id": "{payload.pagamento_id}",
+			},
+			"required": true,
+		}).
+		Step("condition", map[string]any{
+			"field":  "nota_fiscal.status",
+			"equals": "EMITIDA",
+		}).
+		Step("rest_call", map[string]any{
+			"base_url": externalAPI,
+			"method":   "POST",
+			"endpoint": "/api/expedicao",
+			"target":   "expedicao",
+			"headers": map[string]any{
+				"X-Serial-Number": externalAPISerial,
+			},
+			"body": map[string]any{
+				"pedido_id":        "{pedido.pedido_id}",
+				"cliente_id":       "{pedido.cliente_id}",
+				"endereco_entrega": "{pedido.endereco_entrega}",
+				"itens":            "{pedido.itens}",
+				"nota_fiscal_id":   "{nota_fiscal.nota_fiscal_id}",
+			},
+			"required": true,
+		}).
+		Step("rest_call", map[string]any{
+			"base_url": externalAPI,
+			"method":   "PUT",
+			"endpoint": "/api/estoque/baixar",
+			"target":   "estoque_baixa",
+			"headers": map[string]any{
+				"X-Serial-Number": externalAPISerial,
+			},
+			"body": map[string]any{
+				"pedido_id": "{pedido.pedido_id}",
+				"itens":     "{pedido.itens}",
+			},
+			"required": true,
+		}).
+		Step("audit", map[string]any{
+			"event": "payment.fulfillment.completed",
+			"fields": []string{
+				"evento",
+				"payload.pedido_id",
+				"pedido.status",
+				"nota_fiscal.status",
+				"expedicao.codigo_rastreio",
+				"estoque_baixa.status",
+			},
+		}).
+		Build()
+}
+
 func standardEnrichedSteps() []slip.StepDef {
 	return slip.NewSlip().
 		Step("validate", map[string]any{
 			"required": []string{"customer_id", "product_id", "quantity"},
 		}).
 		Step("graphql_enrich", map[string]any{
-			"query":       "query ($customerID: String!) { customer(id: $customerID) { id status riskSegment creditLimit sourceSystem } }",
+			"query":       "query ($customerID: String!) { dataSources(customerID: $customerID) { customer { id status riskSegment creditLimit sourceSystem } } }",
 			"variables":   map[string]any{"customerID": "{customer_id}"},
 			"target":      "customer_profile",
-			"result_path": "customer",
+			"result_path": "dataSources.customer",
 			"timeout_ms":  1500,
 			"required":    true,
 		}).

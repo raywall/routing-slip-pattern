@@ -124,6 +124,7 @@ make run
 
 O `make run` executa uma suíte de cenários parametrizados:
 
+- `payment-event-fulfillment`: evento de pagamento aprovado, consulta do pedido via GraphQL, emissão de nota fiscal, acionamento da expedição e baixa de estoque.
 - `order-ok`: processamento completo com validação, enriquecimento GraphQL, decisão, transformação e auditoria.
 - `order-stopped-by-decision`: payload enriquecido via GraphQL, mas represado por decisão funcional.
 - `order-fail-and-resume`: falha técnica em uma etapa intermediária e reprocessamento a partir do cursor salvo.

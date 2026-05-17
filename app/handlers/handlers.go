@@ -34,7 +34,7 @@ func (ValidationHandler) Handle(ctx context.Context, msg *slip.Message, params m
 
 	var missing []string
 	for _, key := range required {
-		v, ok := msg.Get(key)
+		v, ok := msg.GetPath(key)
 		if !ok || v == nil || fmt.Sprintf("%v", v) == "" {
 			missing = append(missing, key)
 		}
