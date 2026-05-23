@@ -45,9 +45,11 @@ jobs:
         shell: bash
         run: |
           test -f studio/index.html
-          test -f studio/app.js
-          test -f studio/styles.css
-          node --check studio/app.js
+          test -f studio/scripts/routing-slip.studio.bootstrap.js
+          test -f studio/styles/routing-slip.studio.base.css
+          for file in studio/scripts/*.js studio/docs/*.js; do
+            node --check "$file"
+          done
 
       - name: montar artefato
         shell: bash

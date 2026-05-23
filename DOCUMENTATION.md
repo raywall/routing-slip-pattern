@@ -96,6 +96,56 @@ Pode ser usado como **Anti-Corruption Layer** e camada de integração:
 - carrega schema e conectores de arquivo local, variáveis de ambiente, SSM, Secrets Manager, S3 ou DynamoDB;
 - centraliza a forma como workflows acessam dados externos.
 
+Configuração mínima:
+
+```json
+{
+  "schema": "local:schema.json",
+  "connectors": "local:connectors.json",
+  "route": "/graphql",
+  "pretty": true,
+  "graphiql": true,
+  "allow_partial": false
+}
+```
+
+Exemplo de connector REST:
+
+```json
+{
+  "connectors": [
+    {
+      "field": "catalogo",
+      "adapter": "rest",
+      "adapterConfig": {
+        "baseUrl": "https://mock.raysouz.studio",
+        "endpoint": "/catalogo/produtos/{sku}",
+        "method": "GET"
+      },
+      "keyPattern": "/catalogo/produtos/{sku}",
+      "timeoutMs": 3000,
+      "retries": 1,
+      "responseTransform": {
+        "unwrapPath": "data",
+        "errorsPath": "errors",
+        "failOnErrors": true
+      }
+    }
+  ]
+}
+```
+
+Recursos relevantes:
+
+- adapters `rest`, `dynamodb`, `s3`, `rds` e `redis`;
+- `responseTransform.unwrapPath` para simplificar respostas;
+- `responseTransform.errorsPath` e `failOnErrors` para tratar erros funcionais de APIs;
+- `timeoutMs`, `retries`, `optional` e `allow_partial` para resiliência por fonte;
+- configuração com `local:`, `env:`, `ssm:`, `secret:`, `secrets:` e `s3:`;
+- configuração de token STS via `authorization.require_token_sts`.
+
+> Observação: a configuração de token STS cria o gerenciador de token no conector. Quando uma API REST precisar receber `Authorization: Bearer <token>`, valide se o adapter em uso injeta esse token automaticamente ou se será necessário plugar essa etapa na montagem dos headers.
+
 ### `custom-business-metrics`
 
 Inspira a camada de métricas e visualização:
@@ -105,6 +155,37 @@ Inspira a camada de métricas e visualização:
 - armazena eventos em DynamoDB ou memória;
 - permite consultas agregadas, séries temporais e dashboards em tempo real;
 - separa emissão de métricas do fluxo principal via agent ou API HTTP.
+
+Componentes:
+
+| Componente | Papel |
+|---|---|
+| `agent` | Recebe eventos JSON via UDP, agrupa e encaminha em lote. |
+| `service` | API HTTP para ingestão, consulta, agregação, retenção e dashboards. |
+| `webview` | Interface para visualizar e editar dashboards. |
+| `storage` | Memória para desenvolvimento ou DynamoDB/DynamoDB Local para persistência. |
+
+Endpoints principais:
+
+| Endpoint | Uso |
+|---|---|
+| `POST /v1/metrics` | Ingestão de eventos. |
+| `GET /v1/metrics/events` | Eventos crus filtrados. |
+| `GET /v1/metrics` | Agregações e sumários. |
+| `GET /v1/metrics/series` | Séries temporais por bucket. |
+| `GET /v1/metrics/dimensions` | Dimensões e tags disponíveis. |
+| `GET /v1/dashboards` | Listagem de dashboards. |
+| `POST /v1/dashboards` | Criação/atualização de dashboard. |
+| `DELETE /v1/dashboards/{id}` | Remoção de dashboard. |
+
+Benefícios para o routing slip:
+
+- visualizar em tempo real onde cada mensagem está;
+- acompanhar duração por step, falhas e integrações externas;
+- filtrar eventos por `workflow`, `step`, `status`, `correlation_id`, `message_id` e tags de negócio;
+- criar dashboards JSON sem alterar o runtime;
+- usar TTL no DynamoDB para retenção controlada;
+- enviar métricas diretamente por HTTP ou de forma desacoplada via UDP agent.
 
 ## Arquitetura Proposta
 
@@ -686,6 +767,65 @@ Exemplos úteis:
 
 No Studio, a simulação local cobre o subconjunto mais comum de CEL, como comparações, operadores booleanos, acesso por ponto, `size()` e `has()`. O runtime Go é a fonte de verdade para validação final das expressões.
 
+#### Handler `filter_array`
+
+O `filter_array` remove itens de um array que não atendem a uma condição. Ele pode alterar o array original ou gravar o resultado em outro campo.
+
+Use quando um enriquecimento retorna uma coleção maior do que o workflow deve processar, como catálogo, opções de entrega, itens elegíveis ou qualquer lista que precise ser reduzida antes das próximas etapas.
+
+Filtro declarativo no próprio array:
+
+```yaml
+- name: filter_array
+  params:
+    source: catalogo.produtos
+    where:
+      all:
+        - field: item.disponibilidade.status
+          equals: DISPONIVEL
+        - field: item.preco.valor
+          less_than_or_equal: 100
+```
+
+Nesse formato, `catalogo.produtos` passa a conter somente os itens mantidos.
+
+Filtro gravando em outro campo:
+
+```yaml
+- name: filter_array
+  params:
+    source: catalogo.produtos
+    target: produtos_elegiveis
+    where:
+      field: item.categoria
+      equals: ELETRONICOS
+```
+
+Filtro usando CEL por item:
+
+```yaml
+- name: filter_array
+  params:
+    source: entrega.opcoes
+    target: entrega.opcoes_validas
+    expr: "item.prazo_dias <= 3 && item.custo <= 25"
+```
+
+Durante a avaliação, o handler disponibiliza:
+
+| Variável | Descrição |
+|---|---|
+| `item` | Item atual do array. |
+| `index` | Índice do item no array original. |
+| payload original | Campos de primeiro nível do payload continuam disponíveis. |
+
+Campos gravados:
+
+| Campo | Descrição |
+|---|---|
+| `<target>_filtered_count` | Quantidade de itens mantidos. |
+| `<target>_removed_count` | Quantidade de itens removidos. |
+
 #### Exemplo: produto promocional
 
 Depois de enriquecer o payload via GraphQL:
@@ -1208,6 +1348,26 @@ Widgets recomendados:
 | Workflows em andamento | `status=started - completed` |
 | Enriquecimentos externos | `name=routing_slip.payload.enriched groupBy=target` |
 | Jornada por mensagem | `tag.message_id=MSG-001` |
+
+## Studio
+
+O `studio` oferece uma experiência local para construir, validar e simular workflows YAML antes de executar no runtime Go.
+
+Recursos principais:
+
+- workspace local com pastas representando contextos ou microserviços;
+- editor YAML com lint, atalhos, comentários e foco no step a partir dos logs;
+- payload de entrada editável;
+- simulação por fase/step;
+- reprocessamento local a partir do snapshot da execução anterior;
+- composição com `workflow_ref`;
+- exportação de workflow composto;
+- documentação navegável;
+- resumo final da execução com steps executados, erros, integrações acionadas, tempo total e diferença para o processamento anterior.
+
+O resumo final da execução contabiliza integrações acionadas por handlers como `graphql_enrich`, `rest_call` e `notify`. Quando as integrações reais estão desativadas, o Studio registra as chamadas simuladas para manter visível o desenho operacional do fluxo.
+
+O botão **Reprocessar** fica disponível após uma execução. Ele usa o snapshot anterior para retomar do cursor salvo, permitindo validar se o workflow continua do ponto registrado e comparar o tempo do processamento atual com o anterior.
 
 ## Segurança
 

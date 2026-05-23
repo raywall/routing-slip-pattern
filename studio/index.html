@@ -5,7 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Routing Slip Studio: editor, lint e simulador de workflows YAML." />
     <title>Routing Slip Studio</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="icon" href="./favicon.png" type="image/x-icon" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.base.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.sidebar.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.configuration.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.payload.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.editor.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.lint.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.workspace.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.documentation.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.execution.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.responsive.css" />
   </head>
   <body>
     <aside id="sidebar" class="sidebar">
@@ -100,11 +111,12 @@
         </div>
         <div id="lint-result" class="lint-result">Aguardando validacao.</div>
         <footer class="editor-actions">
-          <button id="toggle-comment" type="button">Comentar</button>
-          <button id="format-yaml" type="button">Organizar</button>
-          <button id="lint-now" type="button">Validar</button>
-          <button id="clear-logs" type="button">Limpar logs</button>
+          <button id="toggle-comment" class="editor-icon-button" type="button" title="Comentar" aria-label="Comentar"><i class="fa-solid fa-comment"></i></button>
+          <button id="format-yaml" class="editor-icon-button" type="button" title="Organizar" aria-label="Organizar"><i class="fa-solid fa-indent"></i></button>
+          <button id="lint-now" class="editor-icon-button" type="button" title="Validar" aria-label="Validar"><i class="fa-solid fa-check"></i></button>
+          <button id="clear-logs" class="editor-icon-button" type="button" title="Limpar logs" aria-label="Limpar logs"><i class="fa-solid fa-eraser"></i></button>
           <button id="run-test" class="primary" type="button">Executar</button>
+          <button id="reprocess-test" class="secondary" type="button" disabled>Reprocessar</button>
         </footer>
       </section>
     </aside>
@@ -134,6 +146,17 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="./docs/documentation.js"></script>
     <script src="./docs/viewer.js"></script>
-    <script src="./app.js"></script>
+    <script src="./scripts/routing-slip.studio.examples.js"></script>
+    <script src="./scripts/routing-slip.studio.core.js"></script>
+    <script src="./scripts/routing-slip.studio.configuration.js"></script>
+    <script src="./scripts/routing-slip.studio.editor.js"></script>
+    <script src="./scripts/routing-slip.studio.sidebar.js"></script>
+    <script src="./scripts/routing-slip.studio.workspace.js"></script>
+    <script src="./scripts/routing-slip.studio.lint.js"></script>
+    <script src="./scripts/routing-slip.studio.payload.js"></script>
+    <script src="./scripts/routing-slip.studio.runtime.js"></script>
+    <script src="./scripts/routing-slip.studio.logs.js"></script>
+    <script src="./scripts/routing-slip.studio.utils.js"></script>
+    <script src="./scripts/routing-slip.studio.bootstrap.js"></script>
   </body>
 </html>

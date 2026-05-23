@@ -93,16 +93,20 @@ func (CELHandler) NextCursor(msg *slip.Message, step slip.StepDef, currentIndex 
 }
 
 func evaluateCELExpression(msg *slip.Message, expr string) (bool, error) {
+	return evaluateCELExpressionForPayload(msg.Payload, msg.Headers, expr)
+}
+
+func evaluateCELExpressionForPayload(payload map[string]any, headers map[string]string, expr string) (bool, error) {
 	options := []cel.EnvOption{
 		cel.Variable("payload", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("headers", cel.MapType(cel.StringType, cel.StringType)),
 	}
 	activation := map[string]any{
-		"payload": msg.Payload,
-		"headers": msg.Headers,
+		"payload": payload,
+		"headers": headers,
 	}
 
-	for key, value := range msg.Payload {
+	for key, value := range payload {
 		if key == "payload" || key == "headers" || !isCELIdentifier(key) {
 			continue
 		}

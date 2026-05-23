@@ -184,6 +184,7 @@ Handlers sao unidades pequenas e combinaveis. Cada handler recebe o payload atua
 | \`assert\` | Falha o workflow quando uma regra obrigatoria nao e atendida. |
 | \`compute\` | Calcula e grava valores no payload. |
 | \`cel\` | Avalia expressoes CEL e decide erro, salto, continuidade ou parada. |
+| \`filter_array\` | Remove itens de arrays que nao atendem a uma condicao. |
 | \`jump_if\` | Altera o cursor para uma etapa posterior. |
 | \`enrich\` | Injeta dados estaticos no payload. |
 | \`transform\` | Normaliza texto. |
@@ -650,6 +651,373 @@ Quando \`on_false\` nao e informado e nao existe \`to\`, o comportamento padrao 
 \`\`\`
 
 O Studio simula o subconjunto mais comum de CEL: comparacoes, operadores booleanos, acesso por ponto, \`size()\` e \`has()\`. Para expressoes avancadas, valide tambem no runtime Go.`
+      },
+      {
+        id: "handlers-filter-array",
+        title: "Filter array",
+        content: `# Filter array
+
+Use \`filter_array\` para remover itens de um array antes das proximas etapas.
+
+O handler pode sobrescrever o array original ou gravar a lista filtrada em outro campo.
+
+## Filtro declarativo
+
+\`\`\`yaml
+- name: filter_array
+  params:
+    source: catalogo.produtos
+    where:
+      all:
+        - field: item.disponibilidade.status
+          equals: DISPONIVEL
+        - field: item.preco.valor
+          less_than_or_equal: 100
+\`\`\`
+
+## Gravar resultado em outro campo
+
+\`\`\`yaml
+- name: filter_array
+  params:
+    source: catalogo.produtos
+    target: produtos_elegiveis
+    where:
+      field: item.categoria
+      equals: ELETRONICOS
+\`\`\`
+
+## Usar CEL por item
+
+\`\`\`yaml
+- name: filter_array
+  params:
+    source: entrega.opcoes
+    target: entrega.opcoes_validas
+    expr: "item.prazo_dias <= 3 && item.custo <= 25"
+\`\`\`
+
+Durante a avaliacao:
+
+| Variavel | Uso |
+|---|---|
+| \`item\` | Item atual do array. |
+| \`index\` | Posicao do item no array original. |
+| payload original | Continua disponivel para comparacoes. |
+
+Campos gerados:
+
+| Campo | Descricao |
+|---|---|
+| \`<target>_filtered_count\` | Quantidade de itens mantidos. |
+| \`<target>_removed_count\` | Quantidade de itens removidos. |`
+      }
+    ]
+  },
+  {
+    title: "Projetos integrados",
+    items: [
+      {
+        id: "integracao-graphql-visao",
+        title: "go-graphql-connector",
+        content: `# go-graphql-connector
+
+O \`go-graphql-connector\` e a camada de integracao usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou servicos externos.
+
+Ele funciona como uma **Anti-Corruption Layer**: o workflow conhece uma query GraphQL estavel, enquanto o conector resolve como buscar os dados nas fontes configuradas.
+
+| Papel | Beneficio |
+|---|---|
+| API GraphQL dinamica | Expor um contrato unico para varias fontes externas. |
+| Connectors configuraveis | Trocar origem de dados sem mudar o workflow. |
+| Response transform | Simplificar respostas removendo wrappers desnecessarios. |
+| Timeout/retry/opcionalidade | Controlar resiliencia por fonte integrada. |
+| Configuracao por arquivo ou cloud | Usar local, env, SSM, Secrets Manager, S3 e DynamoDB. |
+
+\`\`\`mermaid
+flowchart LR
+    Workflow[Routing Slip] -->|graphql_enrich| GraphQL[go-graphql-connector]
+    GraphQL --> API[REST APIs]
+    GraphQL --> DynamoDB[DynamoDB]
+    GraphQL --> S3[S3]
+    GraphQL --> Redis[Redis]
+    GraphQL --> RDS[RDS]
+    GraphQL --> Payload[Payload enriquecido]
+\`\`\`
+
+No routing slip, o uso acontece pelo handler \`graphql_enrich\`:
+
+\`\`\`yaml
+- name: graphql_enrich
+  params:
+    endpoint: "\${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}"
+    query: "query ($sku: String!) { dataSources(sku: $sku) { catalogo { produtos { sku preco { valor } } } } }"
+    variables:
+      sku: "{itens.0.sku}"
+    target: catalogo
+    result_path: dataSources.catalogo
+    timeout_ms: 3000
+    required: true
+\`\`\``
+      },
+      {
+        id: "integracao-graphql-config",
+        title: "Configurar GraphQL Connector",
+        content: `# Configurar GraphQL Connector
+
+O conector usa tres configuracoes principais:
+
+| Arquivo | Finalidade |
+|---|---|
+| \`service.json\` | Define schema, connectors, mock, rota e autorizacao. |
+| \`schema.json\` | Descreve tipos, campos e argumentos GraphQL. |
+| \`connectors.json\` | Mapeia campos GraphQL para adapters externos. |
+
+Exemplo de \`service.json\` local:
+
+\`\`\`json
+{
+  "schema": "local:schema.json",
+  "connectors": "local:connectors.json",
+  "mock": "local:mock.json",
+  "route": "/graphql",
+  "pretty": true,
+  "graphiql": true,
+  "allow_partial": false
+}
+\`\`\`
+
+Exemplo de connector REST:
+
+\`\`\`json
+{
+  "connectors": [
+    {
+      "field": "catalogo",
+      "adapter": "rest",
+      "adapterConfig": {
+        "baseUrl": "https://mock.raysouz.studio",
+        "endpoint": "/catalogo/produtos/{sku}",
+        "method": "GET",
+        "headers": {
+          "x-correlation-id": "{correlation_id}"
+        }
+      },
+      "keyPattern": "/catalogo/produtos/{sku}",
+      "timeoutMs": 3000,
+      "retries": 1,
+      "responseTransform": {
+        "unwrapPath": "data",
+        "errorsPath": "errors",
+        "failOnErrors": true
+      }
+    }
+  ]
+}
+\`\`\`
+
+Fontes suportadas pelos paths de configuracao:
+
+| Prefixo | Uso |
+|---|---|
+| \`local:\` | Arquivo local relativo ao service.json. |
+| \`env:\` | Variavel de ambiente. |
+| \`ssm:\` | AWS Systems Manager Parameter Store. |
+| \`secret:\` ou \`secrets:\` | AWS Secrets Manager. |
+| \`s3:\` | Objeto no S3. |
+
+Adapters suportados no projeto:
+
+- \`rest\`;
+- \`dynamodb\`;
+- \`s3\`;
+- \`rds\`;
+- \`redis\`.`
+      },
+      {
+        id: "integracao-graphql-recursos",
+        title: "Recursos do conector",
+        content: `# Recursos do conector
+
+O \`go-graphql-connector\` permite compor uma fachada de dados sem espalhar logica de integracao dentro do workflow.
+
+## Transformacao de resposta
+
+Use \`responseTransform.unwrapPath\` para retornar somente o trecho relevante:
+
+\`\`\`json
+{
+  "responseTransform": {
+    "unwrapPath": "data",
+    "errorsPath": "errors",
+    "failOnErrors": true
+  }
+}
+\`\`\`
+
+Isso reduz payloads como:
+
+\`\`\`json
+{ "data": { "id": "P-100" }, "errors": [] }
+\`\`\`
+
+para:
+
+\`\`\`json
+{ "id": "P-100" }
+\`\`\`
+
+## Falha parcial
+
+\`allow_partial\` no service ou \`optional\` por connector permite que uma fonte falhe sem derrubar toda a query, quando isso fizer sentido para o processo.
+
+## Timeout e retry
+
+\`\`\`json
+{
+  "timeoutMs": 3000,
+  "retries": 2
+}
+\`\`\`
+
+## Token STS
+
+A configuracao de autorizacao ainda existe no conector:
+
+\`\`\`json
+{
+  "authorization": {
+    "require_token_sts": true,
+    "tokenService": {
+      "token_authorization_url": "env:STS_TOKEN_URL",
+      "Credentials": {
+        "client_id": "env:STS_CLIENT_ID",
+        "client_secret": "secrets:/graphql/dev/credentials:json"
+      }
+    }
+  }
+}
+\`\`\`
+
+Observacao: a configuracao cria o gerenciador de token. Se uma API REST precisar receber \`Authorization: Bearer <token>\`, confirme no runtime se o adapter esta injetando o token automaticamente ou se sera necessario plugar esse token nos headers do connector.`
+      },
+      {
+        id: "integracao-metricas-visao",
+        title: "custom-business-metrics",
+        content: `# custom-business-metrics
+
+O \`custom-business-metrics\` e a camada usada para observar o processamento em tempo real com metricas de negocio, eventos de etapa e dashboards configuraveis.
+
+Ele complementa logs tecnicos: em vez de responder apenas "a aplicacao esta de pe?", ele ajuda a responder "onde esta cada processamento?", "qual etapa falhou?", "quanto falta?" e "qual fluxo esta demorando mais?".
+
+Componentes principais:
+
+| Componente | Papel |
+|---|---|
+| \`agent\` | Recebe eventos JSON via UDP, agrupa e encaminha em lote. |
+| \`service\` | API HTTP de ingestao, consulta, agregacao, retencao e dashboards. |
+| \`webview\` | Interface para visualizar e editar dashboards. |
+| \`storage\` | Memoria para desenvolvimento ou DynamoDB/DynamoDB Local para persistencia. |
+
+\`\`\`mermaid
+flowchart LR
+    Router[Routing Slip] -->|metricas HTTP| Service[Metrics Service]
+    Router -. UDP JSON .-> Agent[Metrics Agent]
+    Agent -->|batch HTTP| Service
+    Service --> Store[(DynamoDB ou memoria)]
+    Webview[Webview] -->|consultas| Service
+\`\`\``
+      },
+      {
+        id: "integracao-metricas-eventos",
+        title: "Eventos e consultas",
+        content: `# Eventos e consultas
+
+Um evento de metrica representa algo que aconteceu no processo.
+
+\`\`\`json
+{
+  "name": "routing_slip.step.completed",
+  "kind": "count",
+  "value": 1,
+  "unit": "event",
+  "workflow": "pedido-fulfillment",
+  "step": "graphql_enrich",
+  "status": "success",
+  "source": "routing-slip-app",
+  "tags": {
+    "message_id": "MSG-001",
+    "correlation_id": "corr-abc",
+    "handler": "graphql_enrich",
+    "duration_ms": "37"
+  },
+  "timestamp": "2026-05-23T12:00:00Z"
+}
+\`\`\`
+
+Eventos recomendados para routing slip:
+
+- \`routing_slip.workflow.started\`;
+- \`routing_slip.workflow.completed\`;
+- \`routing_slip.workflow.failed\`;
+- \`routing_slip.step.started\`;
+- \`routing_slip.step.completed\`;
+- \`routing_slip.step.failed\`;
+- \`routing_slip.step.skipped\`;
+- \`routing_slip.payload.enriched\`;
+- \`routing_slip.decision.evaluated\`.
+
+Consultas expostas pelo service:
+
+| Endpoint | Uso |
+|---|---|
+| \`POST /v1/metrics\` | Ingestao de eventos. |
+| \`GET /v1/metrics/events\` | Lista eventos crus filtrados. |
+| \`GET /v1/metrics\` | Retorna agregacoes/sumarios. |
+| \`GET /v1/metrics/series\` | Retorna serie temporal por bucket. |
+| \`GET /v1/metrics/dimensions\` | Lista dimensoes/tags disponiveis. |
+| \`GET /v1/dashboards\` | Lista dashboards. |
+| \`POST /v1/dashboards\` | Salva dashboard. |
+| \`DELETE /v1/dashboards/{id}\` | Remove dashboard. |`
+      },
+      {
+        id: "integracao-metricas-dashboard",
+        title: "Dashboards e beneficios",
+        content: `# Dashboards e beneficios
+
+O dashboard permite acompanhar processos em tempo real sem abrir logs da aplicacao.
+
+Indicadores uteis para routing slip:
+
+| Indicador | O que mostra |
+|---|---|
+| Processamentos iniciados | Volume de entradas no periodo. |
+| Processamentos concluidos | Quantidade finalizada com sucesso. |
+| Falhas por etapa | Onde o processo mais quebra. |
+| Tempo medio por step | Gargalos do workflow. |
+| Integracoes externas | Volume de enriquecimentos e chamadas. |
+| Timeline por correlation_id | Jornada detalhada de uma mensagem. |
+
+Exemplo de consulta de widget:
+
+\`\`\`text
+sum:routing_slip.step.completed{source:routing-slip-app}.as_count()
+\`\`\`
+
+Com agrupamento:
+
+\`\`\`text
+sum:routing_slip.step.failed{workflow:pedido-fulfillment} by {step}.as_count()
+\`\`\`
+
+Beneficios:
+
+- observabilidade granular por workflow, step e correlation id;
+- transparencia para entender entrada, regra, saida e falha;
+- reprocessamento mais seguro, porque o cursor e o historico ficam evidentes;
+- menor impacto no fluxo principal quando eventos sao enviados via agent;
+- dashboards parametrizaveis por JSON;
+- retencao controlada por TTL quando usando DynamoDB.`
       }
     ]
   },
@@ -720,7 +1088,31 @@ Atalhos disponiveis:
 - Cmd+Enter ou Ctrl+Enter: executa a simulacao.
 - Cmd+S ou Ctrl+S: salva o arquivo aberto no workspace.
 
-Os logs da execucao aparecem por fase. Clicar em um log foca a etapa correspondente no YAML.`
+Os logs da execucao aparecem por fase. Clicar em um log foca a etapa correspondente no YAML.
+
+Depois de uma execucao, o botao **Reprocessar** fica disponivel. Ele usa o snapshot da execucao anterior para retomar do cursor salvo, preservando as etapas ja processadas e executando somente o trecho restante.`
+      },
+      {
+        id: "studio-resumo-execucao",
+        title: "Resumo da execucao",
+        content: `# Resumo da execucao
+
+Ao final de cada simulacao, o Studio adiciona um resumo no fim da timeline.
+
+O resumo mostra:
+
+| Indicador | Descricao |
+|---|---|
+| Steps executados | Quantidade de etapas processadas. |
+| Steps preservados | Etapas ja processadas antes do reprocessamento. |
+| Steps pulados/parados | Etapas que encerraram ou desviaram o fluxo. |
+| Erros | Falhas registradas durante a simulacao. |
+| Tempo medio por step | Media de duracao das etapas executadas. |
+| Integracoes API/servico | Total de chamadas ou simulacoes de integracao. |
+| Tempo total | Duracao completa da simulacao. |
+| Dif. tempo anterior | Diferenca entre o tempo do processamento atual e o anterior, quando for reprocessamento. |
+
+As integracoes sao contabilizadas para handlers como \`graphql_enrich\`, \`rest_call\` e \`notify\`. Quando as integracoes reais estao desativadas, o resumo ainda registra as chamadas simuladas para deixar claro o desenho operacional do workflow.`
       },
       {
         id: "studio-documentacao",

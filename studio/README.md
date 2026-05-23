@@ -31,9 +31,12 @@ Tambem funciona com qualquer servidor estatico apontando para esta pasta.
 - Numeros de linha sincronizados com o scroll do editor.
 - Comentario/descomentario de bloco com `Cmd+/` ou `Ctrl+/`.
 - Execucao do workflow pelo editor com `Cmd+Enter` ou `Ctrl+Enter`.
+- Reprocessamento a partir do snapshot da execucao anterior.
 - Clique em logs de etapa para focar o trecho equivalente no YAML.
 - Logs agrupados por fase/step para facilitar a leitura da execucao.
+- Resumo final da execucao com total de steps, erros, integracoes, tempo total e diferenca para o processamento anterior.
 - Aba de documentacao navegavel, com conteudo mantido em `studio/docs`.
+- Documentacao dos projetos integrados `go-graphql-connector` e `custom-business-metrics`.
 - Composicao de scripts com `workflow_ref` para simular subfluxos em arquivos separados.
 - Exportacao de workflow composto em um unico YAML resolvendo todos os `workflow_ref`.
 - Estado salvo no IndexedDB local, com fallback para localStorage.
@@ -63,6 +66,26 @@ exibido na area principal onde normalmente aparecem os logs da execucao.
 Sempre que `DOCUMENTATION.md` for atualizado por causa de uma funcionalidade,
 atualize tambem `studio/docs/documentation.js` para manter a experiencia do
 Studio alinhada com a documentacao principal.
+
+## Organizacao dos assets
+
+Os scripts e estilos sao separados por contexto para evitar um arquivo unico
+dificil de manter.
+
+Scripts ficam em `studio/scripts` e seguem o padrao:
+
+```text
+routing-slip.studio.{contexto}.js
+```
+
+Estilos ficam em `studio/styles` e seguem o mesmo padrao:
+
+```text
+routing-slip.studio.{contexto}.css
+```
+
+Ao adicionar uma nova area da tela, crie um arquivo com o contexto correspondente
+e registre a ordem de carregamento em `index.html`.
 
 ## Observacoes
 

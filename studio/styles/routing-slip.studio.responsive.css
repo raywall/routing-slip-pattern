@@ -1,0 +1,10 @@
+@media (max-width: 1180px) {
+  body {
+    min-width: 0;
+  }
+
+  .sidebar {
+    width: 44vw;
+    min-width: 360px;
+  }
+}
