@@ -17,12 +17,35 @@
         <span id="lint-badge" class="badge badge-warn">Lint</span>
       </header>
 
-      <section id="config-panel" class="fold-panel">
-        <button class="fold-head" type="button" data-toggle-panel="config-panel">
-          <span>Configuracao</span>
-          <span class="fold-icon">▾</span>
-        </button>
-        <div class="fold-body control-panel">
+      <section id="side-tabs" class="side-tabs">
+        <div class="tab-list" role="tablist" aria-label="Paineis do studio">
+          <button class="tab-button active" type="button" data-tab="workspace">Workspace</button>
+          <button class="tab-button" type="button" data-tab="config">Configuracao</button>
+          <button class="tab-button" type="button" data-tab="payload">Payload de Entrada</button>
+          <button class="tab-button" type="button" data-tab="docs">Documentacao</button>
+          <button id="collapse-tabs" class="tab-close" type="button" title="Minimizar painel" aria-label="Minimizar painel"><i data-lucide="minus"></i></button>
+        </div>
+
+        <div id="workspace-panel" class="tab-panel workspace-panel active" data-panel="workspace">
+          <div class="workspace-toolbar">
+            <div>
+              <span class="workspace-label">Workspace</span>
+              <strong id="workspace-name">Nenhum diretorio</strong>
+            </div>
+            <div class="workspace-actions" aria-label="Acoes do workspace">
+              <button id="open-workspace" class="icon-button" type="button" title="Abrir workspace" aria-label="Abrir workspace"><i data-lucide="folder-open"></i></button>
+              <button id="new-service" class="icon-button" type="button" title="Novo microservico" aria-label="Novo microservico" disabled><i data-lucide="folder-plus"></i></button>
+              <button id="new-workflow" class="icon-button" type="button" title="Novo workflow" aria-label="Novo workflow" disabled><i data-lucide="file-plus"></i></button>
+              <button id="save-workflow-file" class="icon-button" type="button" title="Salvar workflow" aria-label="Salvar workflow" disabled><i data-lucide="save"></i></button>
+              <button id="export-workflow-file" class="icon-button" type="button" title="Exportar workflow composto" aria-label="Exportar workflow composto" disabled><i data-lucide="download"></i></button>
+              <button id="refresh-workspace" class="icon-button" type="button" title="Atualizar workspace" aria-label="Atualizar workspace" disabled><i data-lucide="refresh-cw"></i></button>
+            </div>
+          </div>
+          <div id="workspace-tree" class="workspace-tree" aria-label="Workflows do workspace"></div>
+          <div id="workspace-current" class="workspace-current"></div>
+        </div>
+
+        <div id="config-panel" class="tab-panel control-panel" data-panel="config">
           <label>
             Exemplo
             <select id="example-select">
@@ -52,17 +75,16 @@
             <button id="send-rest" type="button">Enviar REST</button>
           </div>
         </div>
-      </section>
 
-      <section id="payload-panel" class="fold-panel fold-panel--compact">
-        <button class="fold-head" type="button" data-toggle-panel="payload-panel">
-          <span>Payload de entrada</span>
-          <span class="fold-icon">▾</span>
-        </button>
-        <div class="fold-body payload-panel">
+        <div id="payload-panel" class="tab-panel payload-panel" data-panel="payload">
           <textarea id="payload-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
         </div>
+
+        <div id="docs-panel" class="tab-panel docs-panel" data-panel="docs">
+          <div id="docs-tree" class="docs-tree" aria-label="Documentacao do routing slip"></div>
+        </div>
       </section>
+      <div id="tabs-resizer" class="tabs-resizer" role="separator" aria-label="Redimensionar painel lateral" aria-orientation="horizontal"></div>
 
       <section class="editor-panel">
         <div class="panel-title">
@@ -71,7 +93,10 @@
         </div>
         <div class="editor-frame">
           <pre id="editor-lines" class="editor-lines" aria-hidden="true">1</pre>
-          <textarea id="workflow-editor" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+          <div class="editor-stack">
+            <pre id="workflow-highlight" class="workflow-highlight" aria-hidden="true"></pre>
+            <textarea id="workflow-editor" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+          </div>
         </div>
         <div id="lint-result" class="lint-result">Aguardando validacao.</div>
         <footer class="editor-actions">
@@ -79,7 +104,7 @@
           <button id="format-yaml" type="button">Organizar</button>
           <button id="lint-now" type="button">Validar</button>
           <button id="clear-logs" type="button">Limpar logs</button>
-          <button id="run-test" class="primary" type="button">Executar teste</button>
+          <button id="run-test" class="primary" type="button">Executar</button>
         </footer>
       </section>
     </aside>
@@ -88,7 +113,7 @@
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Execucao</p>
+          <p id="workspace-mode-label" class="eyebrow">Execucao</p>
           <h2 id="workflow-title">Workflow</h2>
         </div>
         <span id="run-summary">Nenhuma execucao</span>
@@ -96,14 +121,19 @@
 
       <section class="execution-panel">
         <div class="panel-title">
-          <h2>Logs da execucao</h2>
-          <span>Timeline</span>
+          <h2 id="result-panel-title">Logs da execucao</h2>
+          <span id="result-panel-meta">Timeline</span>
         </div>
         <div id="timeline" class="timeline"></div>
       </section>
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="./docs/documentation.js"></script>
+    <script src="./docs/viewer.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

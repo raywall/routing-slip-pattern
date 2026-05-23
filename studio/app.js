@@ -3,6 +3,7 @@ const handlers = new Set([
   "condition",
   "assert",
   "compute",
+  "cel",
   "enrich",
   "transform",
   "notify",
@@ -10,12 +11,15 @@ const handlers = new Set([
   "graphql_enrich",
   "jump_if",
   "rest_call",
+  "workflow_ref",
 ]);
 
 const STUDIO_DB = {
   name: "routing-slip-studio",
   store: "state",
   key: "current",
+  workspaceHandleKey: "workspace-handle",
+  currentFileKey: "workspace-current-file",
 };
 
 const examples = {
@@ -172,6 +176,7 @@ steps:
 
 const els = {
   workflow: document.querySelector("#workflow-editor"),
+  highlight: document.querySelector("#workflow-highlight"),
   lineNumbers: document.querySelector("#editor-lines"),
   payload: document.querySelector("#payload-editor"),
   lint: document.querySelector("#lint-result"),
@@ -187,6 +192,18 @@ const els = {
   integrations: document.querySelector("#execute-integrations"),
   sidebar: document.querySelector("#sidebar"),
   resizer: document.querySelector("#sidebar-resizer"),
+  sideTabs: document.querySelector("#side-tabs"),
+  tabsResizer: document.querySelector("#tabs-resizer"),
+  workspaceName: document.querySelector("#workspace-name"),
+  workspaceTree: document.querySelector("#workspace-tree"),
+  workspaceCurrent: document.querySelector("#workspace-current"),
+  openWorkspace: document.querySelector("#open-workspace"),
+  newService: document.querySelector("#new-service"),
+  newWorkflow: document.querySelector("#new-workflow"),
+  saveWorkflowFile: document.querySelector("#save-workflow-file"),
+  exportWorkflowFile: document.querySelector("#export-workflow-file"),
+  refreshWorkspace: document.querySelector("#refresh-workspace"),
+  collapseTabs: document.querySelector("#collapse-tabs"),
 };
 
 let lastWorkflow = null;
@@ -196,16 +213,32 @@ let activeLogEntry = null;
 let activeStepGroup = null;
 let stepGroups = new Map();
 let saveTimer = null;
+let workspaceState = {
+  rootHandle: null,
+  name: "",
+  services: [],
+};
+let currentWorkspaceFile = {
+  handle: null,
+  serviceName: "",
+  fileName: "",
+};
+let workflowDirty = false;
+let activeRuntimeWorkflow = null;
 
 async function boot() {
   const restored = await restoreStudioState();
   if (!restored) loadExample("payment", { persist: false });
+  renderIcons();
   bindEvents();
+  initDocumentation();
+  await restoreWorkspace();
   lintWorkflow();
 }
 
 function bindEvents() {
   els.workflow.addEventListener("input", () => {
+    markWorkflowDirty();
     lintWorkflow();
     scheduleStudioSave();
   });
@@ -225,26 +258,81 @@ function bindEvents() {
   document.querySelector("#format-yaml").addEventListener("click", formatWorkflow);
   document.querySelector("#toggle-comment").addEventListener("click", () => toggleYamlComment());
   document.querySelector("#send-rest").addEventListener("click", sendToRestEndpoint);
-  document.querySelectorAll("[data-toggle-panel]").forEach((button) => {
-    button.addEventListener("click", () => togglePanel(button.dataset.togglePanel));
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => activateTab(button.dataset.tab));
+  });
+  els.collapseTabs.addEventListener("click", toggleTabsCollapsed);
+  els.openWorkspace.addEventListener("click", openWorkspace);
+  els.newService.addEventListener("click", createService);
+  els.newWorkflow.addEventListener("click", createWorkflowInActiveService);
+  els.saveWorkflowFile.addEventListener("click", saveCurrentWorkflowFile);
+  els.exportWorkflowFile.addEventListener("click", exportComposedWorkflow);
+  els.refreshWorkspace.addEventListener("click", refreshWorkspace);
+  document.addEventListener("click", dismissContextMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented) return;
+    if (isSaveShortcut(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      saveCurrentWorkflowFile();
+    }
   });
   bindSidebarResize();
 }
 
+function renderIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === "function") {
+    window.lucide.createIcons();
+  }
+}
+
+function initDocumentation() {
+  if (!window.RoutingSlipDocsViewer) return;
+  window.RoutingSlipDocsViewer.init({
+    treeSelector: "#docs-tree",
+    timelineSelector: "#timeline",
+    titleSelector: "#workflow-title",
+    summarySelector: "#run-summary",
+    eyebrowSelector: "#workspace-mode-label",
+    panelTitleSelector: "#result-panel-title",
+    panelMetaSelector: "#result-panel-meta",
+  });
+}
+
 function loadExample(key, options = {}) {
+  if (workflowDirty && !confirm("Descartar alteracoes nao salvas no workflow atual?")) return;
   const example = examples[key] || examples.payment;
   els.example.value = key;
   els.workflow.value = example.workflow;
   els.payload.value = JSON.stringify(example.payload, null, 2);
+  currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
+  workflowDirty = false;
+  renderWorkspace();
   clearLogs();
   lintWorkflow();
   if (options.persist !== false) scheduleStudioSave();
 }
 
 function handleEditorKeydown(event) {
+  if (isRunShortcut(event)) {
+    event.preventDefault();
+    runLocalSimulation();
+    return;
+  }
+  if (isSaveShortcut(event)) {
+    event.preventDefault();
+    event.stopPropagation();
+    saveCurrentWorkflowFile();
+    return;
+  }
   if ((event.metaKey || event.ctrlKey) && event.key === "/") {
     event.preventDefault();
     toggleYamlComment();
+    return;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    insertIndentedNewline(event.currentTarget);
     return;
   }
   if (event.key !== "Tab") return;
@@ -279,6 +367,38 @@ function handleEditorKeydown(event) {
     editor.selectionStart = editor.selectionEnd = start + indent.length;
   }
   lintWorkflow();
+  markWorkflowDirty();
+  scheduleStudioSave();
+}
+
+function insertIndentedNewline(editor) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const value = editor.value;
+  const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+  const line = value.slice(lineStart, start);
+  const indent = nextLineIndent(line);
+  editor.value = value.slice(0, start) + "\n" + indent + value.slice(end);
+  editor.selectionStart = editor.selectionEnd = start + 1 + indent.length;
+  lintWorkflow();
+  markWorkflowDirty();
+  scheduleStudioSave();
+}
+
+function nextLineIndent(line) {
+  const stepStart = line.match(/^(\s*-\s+)(id|name)\s*:/);
+  if (stepStart) return " ".repeat(stepStart[1].length);
+  return line.match(/^\s*/)[0];
+}
+
+function isRunShortcut(event) {
+  if (event.key !== "Enter") return false;
+  const isApple = /Mac|iPhone|iPad|iPod/.test(navigator.platform || "");
+  return isApple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+}
+
+function isSaveShortcut(event) {
+  return event.key.toLowerCase() === "s" && (event.ctrlKey || event.metaKey);
 }
 
 function toggleYamlComment() {
@@ -292,41 +412,76 @@ function toggleYamlComment() {
   const blockEnd = selectionEnd === -1 ? value.length : selectionEnd;
   const block = value.slice(lineStart, blockEnd);
   const lines = block.split("\n");
+  const firstEditable = lines.find((line) => line.trim() !== "");
+  const commentColumn = firstEditable ? firstEditable.match(/^\s*/)[0].length : 0;
   const editableLines = lines.filter((line) => line.trim() !== "");
-  const shouldUncomment = editableLines.length > 0 && editableLines.every((line) => /^(\s*)# ?/.test(line));
+  const shouldUncomment = editableLines.length > 0 && editableLines.every((line) => {
+    const prefix = line.slice(0, commentColumn);
+    const marker = line.slice(commentColumn);
+    return /^\s*$/.test(prefix) && /^# ?/.test(marker);
+  });
   const changed = lines.map((line) => {
     if (line.trim() === "") return line;
-    if (shouldUncomment) return line.replace(/^(\s*)# ?/, "$1");
-    const indent = line.match(/^\s*/)[0];
-    return `${indent}# ${line.slice(indent.length)}`;
+    if (shouldUncomment) {
+      return line.slice(0, commentColumn) + line.slice(commentColumn).replace(/^# ?/, "");
+    }
+    const padding = " ".repeat(Math.max(0, commentColumn - line.match(/^\s*/)[0].length));
+    return `${line.slice(0, commentColumn)}# ${padding}${line.slice(commentColumn)}`;
   }).join("\n");
 
   editor.value = value.slice(0, lineStart) + changed + value.slice(blockEnd);
   editor.selectionStart = lineStart;
   editor.selectionEnd = lineStart + changed.length;
   lintWorkflow();
+  markWorkflowDirty();
+  scheduleStudioSave();
 }
 
-function togglePanel(id) {
-  const panel = document.getElementById(id);
-  if (!panel) return;
-  panel.classList.toggle("collapsed");
-  localStorage.setItem(`routing-slip-studio:${id}:collapsed`, panel.classList.contains("collapsed") ? "1" : "0");
+function activateTab(tab) {
+  els.sideTabs.classList.remove("collapsed");
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tab);
+  });
+  document.querySelectorAll("[data-panel]").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.panel === tab);
+  });
+  localStorage.setItem("routing-slip-studio:active-tab", tab);
+  localStorage.setItem("routing-slip-studio:tabs-collapsed", "0");
+  updateTabsToggle();
+}
+
+function toggleTabsCollapsed() {
+  const collapsed = !els.sideTabs.classList.contains("collapsed");
+  els.sideTabs.classList.toggle("collapsed", collapsed);
+  localStorage.setItem("routing-slip-studio:tabs-collapsed", collapsed ? "1" : "0");
+  updateTabsToggle();
 }
 
 function restorePanelState() {
-  ["config-panel", "payload-panel"].forEach((id) => {
-    const panel = document.getElementById(id);
-    if (panel && localStorage.getItem(`routing-slip-studio:${id}:collapsed`) === "1") {
-      panel.classList.add("collapsed");
-    }
-  });
+  activateTab(localStorage.getItem("routing-slip-studio:active-tab") || "workspace");
+  const tabHeight = localStorage.getItem("routing-slip-studio:tabs-height");
+  if (tabHeight) els.sideTabs.style.height = `${tabHeight}px`;
+  if (localStorage.getItem("routing-slip-studio:tabs-collapsed") === "1") {
+    els.sideTabs.classList.add("collapsed");
+  }
+  updateTabsToggle();
   const width = localStorage.getItem("routing-slip-studio:sidebar-width");
   if (width) els.sidebar.style.width = `${width}px`;
 }
 
+function updateTabsToggle() {
+  const collapsed = els.sideTabs.classList.contains("collapsed");
+  const label = collapsed ? "Maximizar painel" : "Minimizar painel";
+  const icon = collapsed ? "square" : "minus";
+  els.collapseTabs.title = label;
+  els.collapseTabs.setAttribute("aria-label", label);
+  els.collapseTabs.innerHTML = `<i data-lucide="${icon}"></i>`;
+  renderIcons();
+}
+
 function bindSidebarResize() {
   restorePanelState();
+  bindTabsResize();
   let startX = 0;
   let startWidth = 0;
 
@@ -347,6 +502,35 @@ function bindSidebarResize() {
   function onMouseUp() {
     document.body.classList.remove("resizing");
     localStorage.setItem("routing-slip-studio:sidebar-width", String(Math.round(els.sidebar.getBoundingClientRect().width)));
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  }
+}
+
+function bindTabsResize() {
+  let startY = 0;
+  let startHeight = 0;
+
+  els.tabsResizer.addEventListener("mousedown", (event) => {
+    if (els.sideTabs.classList.contains("collapsed")) return;
+    startY = event.clientY;
+    startHeight = els.sideTabs.getBoundingClientRect().height;
+    document.body.classList.add("resizing-tabs");
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  function onMouseMove(event) {
+    const sidebarHeight = els.sidebar.getBoundingClientRect().height;
+    const min = 112;
+    const max = Math.max(180, sidebarHeight - 260);
+    const height = Math.min(max, Math.max(min, startHeight + event.clientY - startY));
+    els.sideTabs.style.height = `${height}px`;
+  }
+
+  function onMouseUp() {
+    document.body.classList.remove("resizing-tabs");
+    localStorage.setItem("routing-slip-studio:tabs-height", String(Math.round(els.sideTabs.getBoundingClientRect().height)));
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
   }
@@ -439,6 +623,661 @@ const StudioDB = {
   },
 };
 
+const WorkspaceFS = {
+  supported: typeof window.showDirectoryPicker === "function",
+
+  async ensurePermission(handle) {
+    if (!handle) return false;
+    const options = { mode: "readwrite" };
+    if (typeof handle.queryPermission === "function") {
+      const current = await handle.queryPermission(options);
+      if (current === "granted") return true;
+    }
+    if (typeof handle.requestPermission === "function") {
+      try {
+        return await handle.requestPermission(options) === "granted";
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  },
+
+  async buildTree(rootHandle) {
+    const expanded = new Set(loadExpandedServices());
+    const services = [];
+    for await (const [name, handle] of rootHandle.entries()) {
+      if (name.startsWith(".") || name === "node_modules") continue;
+      if (handle.kind !== "directory") continue;
+      const files = [];
+      for await (const [fileName, fileHandle] of handle.entries()) {
+        if (fileHandle.kind === "file" && /\.(ya?ml)$/i.test(fileName)) {
+          files.push({ name: fileName, handle: fileHandle });
+        }
+      }
+      files.sort((a, b) => a.name.localeCompare(b.name));
+      services.push({ name, handle, expanded: expanded.has(name), files });
+    }
+    services.sort((a, b) => a.name.localeCompare(b.name));
+    return services;
+  },
+
+  async readFile(fileHandle) {
+    const file = await fileHandle.getFile();
+    return file.text();
+  },
+
+  async writeFile(fileHandle, content) {
+    const writable = await fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+  },
+
+  async createFile(dirHandle, fileName, content) {
+    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+    await this.writeFile(fileHandle, content);
+    return fileHandle;
+  },
+};
+
+async function openWorkspace() {
+  if (!WorkspaceFS.supported) {
+    alert("Workspace local requer Chrome ou Edge com suporte a File System Access API.");
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    workspaceState.rootHandle = handle;
+    workspaceState.name = handle.name;
+    workspaceState.services = await WorkspaceFS.buildTree(handle);
+    await StudioDB.set(STUDIO_DB.workspaceHandleKey, handle);
+    renderWorkspace();
+  } catch (err) {
+    if (err.name !== "AbortError") alert(`Erro ao abrir workspace: ${err.message}`);
+  }
+}
+
+async function restoreWorkspace() {
+  if (!WorkspaceFS.supported) {
+    renderWorkspace();
+    return;
+  }
+  const handle = await StudioDB.get(STUDIO_DB.workspaceHandleKey);
+  if (!handle) {
+    renderWorkspace();
+    return;
+  }
+  const allowed = await WorkspaceFS.ensurePermission(handle);
+  if (!allowed) {
+    renderWorkspace();
+    return;
+  }
+  try {
+    workspaceState.rootHandle = handle;
+    workspaceState.name = handle.name;
+    workspaceState.services = await WorkspaceFS.buildTree(handle);
+    renderWorkspace();
+    const current = await StudioDB.get(STUDIO_DB.currentFileKey);
+    if (current?.serviceName && current?.fileName) {
+      await openWorkflowFile(current.serviceName, current.fileName, { skipDirtyCheck: true });
+    }
+  } catch (err) {
+    console.warn("Nao foi possivel restaurar workspace:", err);
+    renderWorkspace();
+  }
+}
+
+async function refreshWorkspace() {
+  if (!workspaceState.rootHandle) return;
+  saveExpandedServices();
+  workspaceState.services = await WorkspaceFS.buildTree(workspaceState.rootHandle);
+  if (currentWorkspaceFile.serviceName && currentWorkspaceFile.fileName) {
+    const service = findService(currentWorkspaceFile.serviceName);
+    const file = service?.files.find((item) => item.name === currentWorkspaceFile.fileName);
+    currentWorkspaceFile.handle = file?.handle || null;
+  }
+  renderWorkspace();
+}
+
+function renderWorkspace() {
+  els.workspaceName.textContent = workspaceState.name || "Nenhum diretorio";
+  const enabled = Boolean(workspaceState.rootHandle);
+  [els.newService, els.refreshWorkspace].forEach((button) => {
+    button.disabled = !enabled;
+  });
+  els.newWorkflow.disabled = !enabled || workspaceState.services.length === 0;
+  els.saveWorkflowFile.disabled = !currentWorkspaceFile.handle || !workflowDirty;
+  els.exportWorkflowFile.disabled = !currentWorkspaceFile.handle;
+
+  if (!enabled) {
+    els.workspaceTree.innerHTML = `
+      <div class="workspace-empty">
+        <div>Nenhum workspace aberto</div>
+        <button type="button" data-open-empty>Abrir pasta</button>
+      </div>`;
+    els.workspaceTree.querySelector("[data-open-empty]")?.addEventListener("click", openWorkspace);
+    els.workspaceCurrent.textContent = WorkspaceFS.supported
+      ? "Abra um diretorio para organizar microservicos e workflows YAML."
+      : "Seu navegador nao suporta workspace local.";
+    return;
+  }
+
+  if (!workspaceState.services.length) {
+    els.workspaceTree.innerHTML = `
+      <div class="workspace-empty">
+        <div>Workspace vazio</div>
+        <small>Crie um microservico para comecar.</small>
+      </div>`;
+  } else {
+    els.workspaceTree.innerHTML = workspaceState.services.map(renderServiceNode).join("");
+    bindWorkspaceTree();
+    renderIcons();
+  }
+
+  const path = currentWorkspaceFile.serviceName && currentWorkspaceFile.fileName
+    ? `${workspaceState.name}/${currentWorkspaceFile.serviceName}/${currentWorkspaceFile.fileName}${workflowDirty ? " *" : ""}`
+    : "Nenhum workflow aberto.";
+  els.workspaceCurrent.textContent = path;
+}
+
+function renderServiceNode(service) {
+  const active = currentWorkspaceFile.serviceName === service.name;
+  const files = service.expanded ? service.files.map((file) => renderWorkflowFile(service.name, file)).join("") : "";
+  return `
+    <div class="workspace-service ${active ? "active" : ""}">
+      <button class="workspace-service-head" type="button" data-service="${escapeHtml(service.name)}">
+        <span>${service.expanded ? "▾" : "▸"}</span>
+        <i class="workspace-icon" data-lucide="folder"></i>
+        <span class="workspace-name">${escapeHtml(service.name)}</span>
+        <span class="workspace-count">${service.files.length}</span>
+      </button>
+      <div>${files}</div>
+    </div>`;
+}
+
+function renderWorkflowFile(serviceName, file) {
+  const active = currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === file.name;
+  const label = file.name.replace(/\.(ya?ml)$/i, "");
+  return `
+    <button class="workspace-file ${active ? "active" : ""}" type="button" data-service="${escapeHtml(serviceName)}" data-file="${escapeHtml(file.name)}">
+      <i class="workspace-icon" data-lucide="file"></i>
+      <span class="workspace-file-name">${escapeHtml(label)}</span>
+      <span class="workspace-dirty">${active && workflowDirty ? "●" : ""}</span>
+    </button>`;
+}
+
+function bindWorkspaceTree() {
+  els.workspaceTree.querySelectorAll(".workspace-service-head").forEach((button) => {
+    button.addEventListener("click", () => toggleService(button.dataset.service));
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, [
+        { label: "Novo workflow", action: () => createWorkflow(button.dataset.service) },
+        { label: "Renomear microservico", action: () => renameService(button.dataset.service) },
+        { separator: true },
+        { label: "Excluir microservico", action: () => deleteService(button.dataset.service), danger: true },
+      ]);
+    });
+  });
+  els.workspaceTree.querySelectorAll(".workspace-file").forEach((button) => {
+    button.addEventListener("click", () => openWorkflowFile(button.dataset.service, button.dataset.file));
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, [
+        { label: "Abrir", action: () => openWorkflowFile(button.dataset.service, button.dataset.file) },
+        { label: "Salvar", action: () => saveCurrentWorkflowFile() },
+        { label: "Renomear workflow", action: () => renameWorkflow(button.dataset.service, button.dataset.file) },
+        { separator: true },
+        { label: "Excluir workflow", action: () => deleteWorkflow(button.dataset.service, button.dataset.file), danger: true },
+      ]);
+    });
+  });
+}
+
+function toggleService(serviceName) {
+  const service = findService(serviceName);
+  if (!service) return;
+  service.expanded = !service.expanded;
+  saveExpandedServices();
+  renderWorkspace();
+}
+
+async function openWorkflowFile(serviceName, fileName, options = {}) {
+  if (workflowDirty && !options.skipDirtyCheck) {
+    const save = confirm(`"${currentWorkspaceFile.fileName}" tem alteracoes nao salvas. Salvar antes de continuar?`);
+    if (save) await saveCurrentWorkflowFile();
+  }
+  const service = findService(serviceName);
+  const file = service?.files.find((item) => item.name === fileName);
+  if (!file) return;
+  try {
+    els.workflow.value = await WorkspaceFS.readFile(file.handle);
+    currentWorkspaceFile = { handle: file.handle, serviceName, fileName };
+    workflowDirty = false;
+    service.expanded = true;
+    await StudioDB.set(STUDIO_DB.currentFileKey, { serviceName, fileName });
+    renderWorkspace();
+    clearLogs();
+    lintWorkflow();
+    scheduleStudioSave();
+  } catch (err) {
+    alert(`Erro ao abrir workflow: ${err.message}`);
+  }
+}
+
+async function saveCurrentWorkflowFile() {
+  if (!currentWorkspaceFile.handle) {
+    alert("Abra ou crie um workflow no workspace antes de salvar.");
+    return;
+  }
+  try {
+    await WorkspaceFS.writeFile(currentWorkspaceFile.handle, els.workflow.value);
+    workflowDirty = false;
+    renderWorkspace();
+    scheduleStudioSave();
+  } catch (err) {
+    alert(`Erro ao salvar workflow: ${err.message}`);
+  }
+}
+
+async function exportComposedWorkflow() {
+  if (!currentWorkspaceFile.handle) {
+    alert("Abra um workflow no workspace antes de exportar.");
+    return;
+  }
+  const issues = lintWorkflow();
+  if (issues.some((item) => item.level === "error")) {
+    alert("Corrija os erros do workflow antes de exportar.");
+    return;
+  }
+  try {
+    const expanded = await expandWorkflowRefsForStudio(lastWorkflow);
+    const exportable = stripStudioRuntimeFields(expanded);
+    const yaml = window.jsyaml.dump(exportable, {
+      lineWidth: 140,
+      noRefs: true,
+      sortKeys: false,
+    });
+    const baseName = (currentWorkspaceFile.fileName || "workflow.yaml").replace(/\.(ya?ml)$/i, "");
+    downloadTextFile(`${baseName}-bundle.yaml`, yaml);
+  } catch (err) {
+    alert(`Erro ao exportar workflow composto: ${err.message}`);
+  }
+}
+
+function stripStudioRuntimeFields(workflow) {
+  const clean = structuredClone(workflow);
+  clean.steps = (clean.steps || []).map((step) => {
+    const next = { ...step };
+    delete next.__sourceWorkflow;
+    if (next.params && typeof next.params === "object") {
+      next.params = stripPrivateFields(next.params);
+    }
+    return next;
+  });
+  return clean;
+}
+
+function stripPrivateFields(value) {
+  if (Array.isArray(value)) return value.map(stripPrivateFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !key.startsWith("__"))
+      .map(([key, item]) => [key, stripPrivateFields(item)])
+  );
+}
+
+function downloadTextFile(fileName, content) {
+  const blob = new Blob([content], { type: "text/yaml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function createService() {
+  if (!workspaceState.rootHandle) return;
+  const raw = prompt("Nome do microservico:");
+  if (!raw?.trim()) return;
+  const name = normalizeName(raw);
+  if (findService(name)) {
+    alert(`O microservico "${name}" ja existe.`);
+    return;
+  }
+  try {
+    const handle = await workspaceState.rootHandle.getDirectoryHandle(name, { create: true });
+    workspaceState.services.push({ name, handle, expanded: true, files: [] });
+    workspaceState.services.sort((a, b) => a.name.localeCompare(b.name));
+    saveExpandedServices();
+    renderWorkspace();
+  } catch (err) {
+    alert(`Erro ao criar microservico: ${err.message}`);
+  }
+}
+
+async function createWorkflowInActiveService() {
+  const target = currentWorkspaceFile.serviceName || workspaceState.services[0]?.name;
+  if (!target) {
+    alert("Crie um microservico primeiro.");
+    return;
+  }
+  await createWorkflow(target);
+}
+
+async function createWorkflow(serviceName) {
+  const service = findService(serviceName);
+  if (!service) return;
+  const raw = prompt(`Nome do workflow em "${serviceName}":`);
+  if (!raw?.trim()) return;
+  const fileName = `${normalizeName(raw).replace(/\.(ya?ml)$/i, "")}.yaml`;
+  if (service.files.some((file) => file.name === fileName)) {
+    alert(`O workflow "${fileName}" ja existe.`);
+    return;
+  }
+  try {
+    const content = workflowTemplate(fileName);
+    const handle = await WorkspaceFS.createFile(service.handle, fileName, content);
+    service.files.push({ name: fileName, handle });
+    service.files.sort((a, b) => a.name.localeCompare(b.name));
+    service.expanded = true;
+    saveExpandedServices();
+    renderWorkspace();
+    await openWorkflowFile(serviceName, fileName, { skipDirtyCheck: true });
+  } catch (err) {
+    alert(`Erro ao criar workflow: ${err.message}`);
+  }
+}
+
+async function renameService(serviceName) {
+  const service = findService(serviceName);
+  if (!service) return;
+  const raw = prompt("Novo nome do microservico:", serviceName);
+  if (!raw?.trim()) return;
+  const newName = normalizeName(raw);
+  if (newName === serviceName) return;
+  if (findService(newName)) {
+    alert(`O microservico "${newName}" ja existe.`);
+    return;
+  }
+  if (!confirm(`Renomear "${serviceName}" para "${newName}"?`)) return;
+  try {
+    const newDir = await workspaceState.rootHandle.getDirectoryHandle(newName, { create: true });
+    for (const file of service.files) {
+      await WorkspaceFS.createFile(newDir, file.name, await WorkspaceFS.readFile(file.handle));
+    }
+    await workspaceState.rootHandle.removeEntry(serviceName, { recursive: true });
+    if (currentWorkspaceFile.serviceName === serviceName) {
+      currentWorkspaceFile.serviceName = newName;
+      await StudioDB.set(STUDIO_DB.currentFileKey, {
+        serviceName: newName,
+        fileName: currentWorkspaceFile.fileName,
+      });
+    }
+    await refreshWorkspace();
+  } catch (err) {
+    alert(`Erro ao renomear microservico: ${err.message}`);
+  }
+}
+
+async function renameWorkflow(serviceName, fileName) {
+  const service = findService(serviceName);
+  const file = service?.files.find((item) => item.name === fileName);
+  if (!service || !file) return;
+  const raw = prompt("Novo nome do workflow:", fileName);
+  if (!raw?.trim()) return;
+  const newName = `${normalizeName(raw).replace(/\.(ya?ml)$/i, "")}.yaml`;
+  if (newName === fileName) return;
+  if (service.files.some((item) => item.name === newName)) {
+    alert(`O workflow "${newName}" ja existe.`);
+    return;
+  }
+  try {
+    const content = currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName
+      ? els.workflow.value
+      : await WorkspaceFS.readFile(file.handle);
+    const newHandle = await WorkspaceFS.createFile(service.handle, newName, content);
+    await service.handle.removeEntry(fileName);
+    file.name = newName;
+    file.handle = newHandle;
+    if (currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName) {
+      currentWorkspaceFile = { handle: newHandle, serviceName, fileName: newName };
+      workflowDirty = false;
+      await StudioDB.set(STUDIO_DB.currentFileKey, { serviceName, fileName: newName });
+    }
+    service.files.sort((a, b) => a.name.localeCompare(b.name));
+    renderWorkspace();
+  } catch (err) {
+    alert(`Erro ao renomear workflow: ${err.message}`);
+  }
+}
+
+async function deleteService(serviceName) {
+  if (!workspaceState.rootHandle) return;
+  if (!confirm(`Excluir a pasta "${serviceName}" e todos os workflows dentro dela?`)) return;
+  try {
+    await workspaceState.rootHandle.removeEntry(serviceName, { recursive: true });
+    if (currentWorkspaceFile.serviceName === serviceName) {
+      currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
+      workflowDirty = false;
+      await StudioDB.set(STUDIO_DB.currentFileKey, null);
+    }
+    await refreshWorkspace();
+  } catch (err) {
+    alert(`Erro ao excluir microservico: ${err.message}`);
+  }
+}
+
+async function deleteWorkflow(serviceName, fileName) {
+  const service = findService(serviceName);
+  if (!service) return;
+  if (!confirm(`Excluir o workflow "${fileName}"?`)) return;
+  try {
+    await service.handle.removeEntry(fileName);
+    service.files = service.files.filter((file) => file.name !== fileName);
+    if (currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName) {
+      currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
+      workflowDirty = false;
+      await StudioDB.set(STUDIO_DB.currentFileKey, null);
+    }
+    renderWorkspace();
+  } catch (err) {
+    alert(`Erro ao excluir workflow: ${err.message}`);
+  }
+}
+
+function markWorkflowDirty() {
+  if (!currentWorkspaceFile.handle) return;
+  workflowDirty = true;
+  els.saveWorkflowFile.disabled = false;
+  renderWorkspace();
+}
+
+function findService(serviceName) {
+  return workspaceState.services.find((service) => service.name === serviceName);
+}
+
+function normalizeName(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\.(ya?ml)$/i, "")
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "workflow";
+}
+
+function workflowTemplate(fileName) {
+  const name = fileName.replace(/\.(ya?ml)$/i, "");
+  return `name: ${name}
+description: Workflow em construcao.
+error_policy: stop
+message_id_path: id
+correlation_id_path: correlation_id
+steps:
+  - name: validate
+    params:
+      required:
+        - id
+        - correlation_id
+
+  - name: audit
+    params:
+      event: ${name}.completed
+      fields:
+        - id
+        - correlation_id
+`;
+}
+
+function saveExpandedServices() {
+  const expanded = workspaceState.services.filter((service) => service.expanded).map((service) => service.name);
+  localStorage.setItem("routing-slip-studio:workspace-expanded", JSON.stringify(expanded));
+}
+
+function loadExpandedServices() {
+  try {
+    const expanded = JSON.parse(localStorage.getItem("routing-slip-studio:workspace-expanded") || "[]");
+    return Array.isArray(expanded) ? expanded : [];
+  } catch {
+    return [];
+  }
+}
+
+function showContextMenu(x, y, items) {
+  dismissContextMenu();
+  const menu = document.createElement("div");
+  menu.className = "context-menu";
+  items.forEach((item) => {
+    if (item.separator) {
+      menu.appendChild(Object.assign(document.createElement("div"), { className: "context-sep" }));
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = item.label;
+    if (item.danger) button.classList.add("danger");
+    button.addEventListener("click", () => {
+      dismissContextMenu();
+      item.action();
+    });
+    menu.appendChild(button);
+  });
+  document.body.appendChild(menu);
+  const rect = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`;
+}
+
+function dismissContextMenu() {
+  document.querySelector(".context-menu")?.remove();
+}
+
+async function expandWorkflowRefsForStudio(workflow, seen = new Set(), source = currentWorkspaceFile) {
+  if (!workflow || !Array.isArray(workflow.steps)) return workflow;
+  const expanded = { ...workflow, steps: [] };
+  for (const step of workflow.steps) {
+    if (step.enabled === false) continue;
+    if (step.name !== "workflow_ref") {
+      expanded.steps.push(step);
+      continue;
+    }
+    const ref = workflowRefFile(step);
+    const resolved = resolveWorkspaceWorkflow(ref, source);
+    const key = `${resolved.serviceName}/${resolved.fileName}`;
+    if (seen.has(key)) throw new Error(`workflow_ref ciclo detectado em ${key}`);
+    seen.add(key);
+    const text = await WorkspaceFS.readFile(resolved.handle);
+    const child = window.jsyaml.load(text);
+    if (!child || !Array.isArray(child.steps)) {
+      throw new Error(`workflow_ref ${key} nao possui steps validos.`);
+    }
+    const childSource = { handle: resolved.handle, serviceName: resolved.serviceName, fileName: resolved.fileName };
+    const childExpanded = await expandWorkflowRefsForStudio(child, seen, childSource);
+    const prefix = cleanWorkflowRefPrefix(step.params?.prefix || step.id || child.name || resolved.fileName);
+    const childIDs = new Set(childExpanded.steps.map((childStep) => childStep.id).filter(Boolean));
+    childExpanded.steps.forEach((childStep, index) => {
+      const cloned = structuredClone(childStep);
+      cloned.id = prefixedWorkflowStepID(prefix, cloned.id, cloned.name, index);
+      cloned.params = rewriteWorkflowRefTargetsForStudio(cloned.params || {}, prefix, childIDs);
+      cloned.__sourceWorkflow = key;
+      expanded.steps.push(cloned);
+    });
+    seen.delete(key);
+  }
+  return expanded;
+}
+
+function workflowRefFile(step) {
+  const params = step.params || {};
+  const ref = params.file || params.path || params.workflow;
+  if (!ref || typeof ref !== "string") throw new Error("workflow_ref precisa de params.file, params.path ou params.workflow.");
+  return ref.trim();
+}
+
+function resolveWorkspaceWorkflow(ref, source) {
+  if (!workspaceState.rootHandle) throw new Error("Abra um workspace para resolver workflow_ref.");
+  const parts = ref.replace(/^\/+/, "").split("/").filter(Boolean);
+  if (!parts.length) throw new Error("workflow_ref vazio.");
+  let serviceName = source?.serviceName || currentWorkspaceFile.serviceName;
+  let fileName = "";
+  if (ref.startsWith("/") || parts.length > 1) {
+    const rootRelative = ref.startsWith("/") || (parts[0] !== "." && parts[0] !== "..");
+    const stack = rootRelative ? [] : [serviceName];
+    parts.forEach((part) => {
+      if (part === ".") return;
+      if (part === "..") stack.pop();
+      else stack.push(part);
+    });
+    fileName = stack.pop();
+    serviceName = stack.pop();
+    if (stack.length) throw new Error(`workflow_ref ${ref} deve apontar para um arquivo YAML dentro de um microservico.`);
+  } else {
+    fileName = parts[0];
+  }
+  if (!/\.(ya?ml)$/i.test(fileName)) fileName = `${fileName}.yaml`;
+  const service = findService(serviceName);
+  const file = service?.files.find((item) => item.name === fileName);
+  if (!file) throw new Error(`workflow_ref nao encontrado: ${serviceName}/${fileName}`);
+  return { serviceName, fileName, handle: file.handle };
+}
+
+function cleanWorkflowRefPrefix(value) {
+  return String(value || "workflow")
+    .trim()
+    .toLowerCase()
+    .replace(/\.(ya?ml)$/i, "")
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "workflow";
+}
+
+function prefixedWorkflowStepID(prefix, id, name, index) {
+  const cleaned = cleanWorkflowRefPrefix(id || "");
+  if (cleaned) return `${prefix}.${cleaned}`;
+  return `${prefix}.${String(index + 1).padStart(3, "0")}.${cleanWorkflowRefPrefix(name || "step")}`;
+}
+
+function rewriteWorkflowRefTargetsForStudio(params, prefix, childIDs) {
+  if (!params || typeof params !== "object") return params;
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === "to" && typeof value === "string" && childIDs.has(value)) {
+      params[key] = `${prefix}.${value}`;
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => rewriteWorkflowRefTargetsForStudio(item, prefix, childIDs));
+      return;
+    }
+    if (value && typeof value === "object") {
+      rewriteWorkflowRefTargetsForStudio(value, prefix, childIDs);
+    }
+  });
+  return params;
+}
+
 function parseWorkflow() {
   if (!window.jsyaml) {
     throw new Error("js-yaml nao foi carregado. Verifique acesso ao CDN.");
@@ -518,6 +1357,18 @@ function validateStep(step, index, issues) {
     if (!stringValue(params.target)) issues.push(error(`${label} compute precisa de target.`));
     if (!params.value || typeof params.value !== "object") issues.push(error(`${label} compute precisa de value como objeto.`));
   }
+  if (step.name === "cel") {
+    if (!stringValue(params.expr) && !stringValue(params.expression)) {
+      issues.push(error(`${label} cel precisa de params.expr.`));
+    }
+    const onFalse = String(params.on_false || "").toLowerCase();
+    if (onFalse && !["error", "fail", "jump", "continue", "stop"].includes(onFalse)) {
+      issues.push(error(`${label} cel possui on_false invalido. Use error, jump, continue ou stop.`));
+    }
+    if ((onFalse === "jump" || (!onFalse && stringValue(params.to))) && !stringValue(params.to)) {
+      issues.push(error(`${label} cel precisa de to quando on_false for jump.`));
+    }
+  }
   if (step.name === "jump_if") {
     if (!stringValue(params.field)) issues.push(error(`${label} jump_if precisa de field.`));
     if (!stringValue(params.to)) issues.push(error(`${label} jump_if precisa de to com id ou name do step destino.`));
@@ -536,6 +1387,14 @@ function validateStep(step, index, issues) {
     if (!stringValue(params.base_url)) issues.push(error(`${label} rest_call precisa de base_url.`));
     if (!stringValue(params.endpoint)) issues.push(error(`${label} rest_call precisa de endpoint.`));
     if (!stringValue(params.target)) issues.push(warn(`${label} rest_call sem target usa http_response.`));
+  }
+  if (step.name === "workflow_ref") {
+    if (!stringValue(params.file) && !stringValue(params.path) && !stringValue(params.workflow)) {
+      issues.push(error(`${label} workflow_ref precisa de params.file, params.path ou params.workflow.`));
+    }
+    if (!currentWorkspaceFile.handle) {
+      issues.push(warn(`${label} workflow_ref e melhor testado com um arquivo aberto no workspace.`));
+    }
   }
 }
 
@@ -571,6 +1430,53 @@ function syncLineNumbers() {
     els.lineNumbers.textContent = Array.from({ length: count }, (_, index) => index + 1).join("\n");
   }
   els.lineNumbers.scrollTop = els.workflow.scrollTop;
+  renderWorkflowHighlight();
+}
+
+function renderWorkflowHighlight() {
+  if (!els.highlight) return;
+  els.highlight.scrollTop = els.workflow.scrollTop;
+  els.highlight.scrollLeft = els.workflow.scrollLeft;
+  els.highlight.innerHTML = highlightWorkflowYaml(els.workflow.value);
+}
+
+function highlightWorkflowYaml(value) {
+  let inHeader = true;
+  let inSteps = false;
+  let stepIndex = -1;
+  let currentStepHighlighted = false;
+  return String(value || "").split("\n").map((line) => {
+    const lineClasses = ["yaml-line"];
+    const isComment = /^\s*#/.test(line);
+    const isBlank = line.trim() === "";
+
+    if (inSteps && !isComment && !isBlank) {
+      const stepStart = line.match(/^(\s*-\s*)(id|name)(\s*:\s*)/);
+      if (stepStart) {
+        stepIndex += 1;
+        currentStepHighlighted = stepIndex % 2 === 0;
+      }
+      if (currentStepHighlighted) lineClasses.push("yaml-step-band");
+    }
+
+    if (isComment) return `<span class="${lineClasses.join(" ")}"><span class="yaml-comment">${escapeHtml(line)}</span></span>`;
+    if (/^\s*steps\s*:/.test(line)) {
+      inHeader = false;
+      inSteps = true;
+      return `<span class="${lineClasses.join(" ")}"><span class="yaml-step-divider">${escapeHtml(line)}</span></span>`;
+    }
+    if (inHeader) {
+      const match = line.match(/^(\s*)([A-Za-z0-9_.-]+)(\s*:\s*)(.*)$/);
+      if (match) {
+        return `<span class="${lineClasses.join(" ")}">${escapeHtml(match[1])}<span class="yaml-header-key">${escapeHtml(match[2])}</span>${escapeHtml(match[3])}<span class="yaml-text">${escapeHtml(match[4])}</span></span>`;
+      }
+    }
+    const stepMatch = line.match(/^(\s*-\s*)(id|name)(\s*:\s*)(.*)$/);
+    if (stepMatch) {
+      return `<span class="${lineClasses.join(" ")}">${escapeHtml(stepMatch[1])}<span class="yaml-step-key">${escapeHtml(stepMatch[2])}</span>${escapeHtml(stepMatch[3])}<span class="yaml-text">${escapeHtml(stepMatch[4])}</span></span>`;
+    }
+    return `<span class="${lineClasses.join(" ")}"><span class="yaml-text">${escapeHtml(line)}</span></span>`;
+  }).join("");
 }
 
 function validatePayload() {
@@ -598,7 +1504,14 @@ async function runLocalSimulation() {
     return;
   }
 
-  const workflow = lastWorkflow;
+  let workflow;
+  try {
+    workflow = await expandWorkflowRefsForStudio(lastWorkflow);
+  } catch (err) {
+    addLog("error", "Falha ao compor workflows", err.message);
+    return;
+  }
+  activeRuntimeWorkflow = workflow;
   const state = {
     payload: structuredClone(payload),
     history: [],
@@ -651,6 +1564,7 @@ async function runLocalSimulation() {
   const status = state.errors.length ? "com falha" : state.stopped ? "interrompido" : "concluido";
   els.summary.textContent = `${workflow.name || "Workflow"} ${status}: ${state.history.length} etapa(s), ${state.errors.length} erro(s)`;
   addLog(state.errors.length ? "error" : "ok", `Workflow ${status}`, "Payload final da simulacao.", snapshot(state));
+  activeRuntimeWorkflow = null;
 }
 
 async function executeStep(step, state) {
@@ -664,6 +1578,8 @@ async function executeStep(step, state) {
       return runAssert(params, state);
     case "compute":
       return runCompute(params, state);
+    case "cel":
+      return runCEL(params, state);
     case "enrich":
       return runEnrich(params, state);
     case "transform":
@@ -727,6 +1643,38 @@ function runCompute(params, state) {
   return true;
 }
 
+function runCEL(params, state) {
+  const expression = params.expr || params.expression;
+  if (!expression) throw new Error("cel: expr is required");
+  const matched = evaluateCELExpression(expression, state.payload);
+  const target = params.target || "cel_passed";
+  setPath(state.payload, target, matched);
+  state.payload.cel_passed = matched;
+  addLog(matched ? "ok" : "warn", "CEL avaliado", expression, { matched, target });
+  if (matched) return true;
+
+  const onFalse = String(params.on_false || (params.to ? "jump" : "error")).toLowerCase();
+  if (onFalse === "jump") {
+    if (!params.to) throw new Error("cel: to is required when on_false is jump");
+    const index = findWorkflowStepIndex(params.to);
+    if (index < 0) throw new Error(`cel: target step "${params.to}" not found`);
+    if (index <= state.cursor) throw new Error(`cel: target step "${params.to}" must be after current step`);
+    state.payload.jumped_to = params.to;
+    state.payload.jumped_to_cursor = index;
+    state.__jumpToIndex = index;
+    return true;
+  }
+  if (onFalse === "continue") return true;
+  if (onFalse === "stop") {
+    state.payload.cel_stopped = true;
+    return false;
+  }
+  if (onFalse === "error" || onFalse === "fail") {
+    throw new Error(params.message || `cel: expression evaluated to false: ${expression}`);
+  }
+  throw new Error(`cel: unsupported on_false value "${onFalse}"`);
+}
+
 function runJumpIf(params, state) {
   const matched = evaluateConditionConfig(params, state);
   state.payload.jump_if_matched = matched;
@@ -738,6 +1686,28 @@ function runJumpIf(params, state) {
   state.payload.jumped_to_cursor = index;
   state.__jumpToIndex = index;
   return true;
+}
+
+function evaluateCELExpression(expression, payload) {
+  const translated = String(expression)
+    .replace(/\bhas\s*\(([^)]+)\)/g, (_, path) => `celHas(payload, ${JSON.stringify(path.trim())})`)
+    .replace(/\bsize\s*\(/g, "celSize(");
+  try {
+    return Boolean(Function("payload", "celSize", "celHas", `with (payload) { return (${translated}); }`)(payload, celSize, celHas));
+  } catch (err) {
+    throw new Error(`cel: nao foi possivel avaliar a expressao no simulador local: ${err.message}`);
+  }
+}
+
+function celSize(value) {
+  if (Array.isArray(value) || typeof value === "string") return value.length;
+  if (value && typeof value === "object") return Object.keys(value).length;
+  return 0;
+}
+
+function celHas(payload, path) {
+  const normalized = String(path || "").replace(/^payload\./, "");
+  return getPath(payload, normalized) !== undefined;
 }
 
 function runEnrich(params, state) {
@@ -896,14 +1866,20 @@ function formatWorkflow() {
   try {
     const workflow = parseWorkflow();
     els.workflow.value = window.jsyaml.dump(workflow, { lineWidth: 140, noRefs: true });
+    markWorkflowDirty();
     lintWorkflow();
+    scheduleStudioSave();
   } catch (err) {
     addLog("error", "Nao foi possivel organizar YAML", err.message);
   }
 }
 
 function clearLogs() {
+  els.timeline.classList.remove("timeline--docs");
   els.timeline.innerHTML = "";
+  document.querySelector("#workspace-mode-label").textContent = "Execucao";
+  document.querySelector("#result-panel-title").textContent = "Logs da execucao";
+  document.querySelector("#result-panel-meta").textContent = "Timeline";
   els.summary.textContent = "Nenhuma execucao";
   activeLogEntry = null;
   activeStepGroup = null;
@@ -1053,9 +2029,10 @@ function getEditorLineHeight() {
 }
 
 function snapshot(state) {
+  const workflow = activeRuntimeWorkflow || lastWorkflow;
   return {
     cursor: state.cursor,
-    remaining_steps: Math.max(0, (lastWorkflow?.steps?.length || 0) - state.cursor - 1),
+    remaining_steps: Math.max(0, (workflow?.steps?.length || 0) - state.cursor - 1),
     payload: state.payload,
     history: state.history,
     errors: state.errors,
@@ -1072,7 +2049,7 @@ function getPath(obj, path) {
 }
 
 function findWorkflowStepIndex(ref) {
-  const steps = lastWorkflow?.steps || [];
+  const steps = (activeRuntimeWorkflow || lastWorkflow)?.steps || [];
   let index = steps.findIndex((step) => step.id === ref);
   if (index >= 0) return index;
   return steps.findIndex((step) => step.name === ref);

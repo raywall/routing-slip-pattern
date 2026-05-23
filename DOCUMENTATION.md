@@ -6,7 +6,7 @@ Este projeto demonstra o uso do padrão **Routing Slip** para processamento de w
 
 O motor principal continua simples: uma mensagem carrega um payload, metadados e uma lista ordenada de etapas. Cada etapa é resolvida em tempo de execução por um handler registrado. A evolução proposta adiciona dois pilares:
 
-- **Integração externa para enriquecimento de payload** usando o projeto `go-graphql-connector` como camada unificada de acesso a APIs, bancos, caches e serviços externos.
+- **Integração externa para enriquecimento de payload** usando o projeto `go-graphql-connector` como camada unificada de acesso a APIs, bases de dados, caches e serviços externos.
 - **Observabilidade granular de negócio** usando a ideia do projeto `custom-business-metrics` para publicar eventos e métricas por workflow, etapa, decisão, erro e payload enriquecido.
 
 Com isso, o routing slip deixa de ser apenas uma sequência de handlers e passa a funcionar como um **orquestrador modular e observável**, capaz de enriquecer dados, tomar decisões, registrar evidências e expor o andamento do processamento em tempo real.
@@ -79,10 +79,10 @@ Fornece o núcleo de orquestração:
 
 - `Message`: unidade de trabalho com payload mutável, headers, routing slip, histórico e erros.
 - `StepDef`: definição de etapa com nome e parâmetros.
-- `Handler`: contrato para qualquer etapa de processamento.
+- `Handler`: interface para qualquer etapa de processamento.
 - `Router`: executor do workflow, registry de handlers, middlewares e política de erro.
 - `SlipBuilder`: API fluente para montar rotas em código.
-- `StateStore`: contrato para persistir snapshots e permitir retomada.
+- `StateStore`: interface para persistir snapshots e permitir retomada.
 - `MessageSnapshot`: estado serializável da mensagem, incluindo cursor.
 - `config`: carregamento de workflows via JSON.
 
@@ -277,7 +277,7 @@ Para etapas com efeitos colaterais, a recomendação é combinar retomada com id
 
 A evolução proposta adiciona um handler conceitual chamado `graphql_enrich`.
 
-Esse handler não deve conhecer diretamente REST, DynamoDB, Redis, S3 ou RDS. Ele conhece apenas o contrato GraphQL e deixa o `go-graphql-connector` resolver as integrações externas por configuração.
+Esse handler não deve conhecer diretamente REST, DynamoDB, Redis, S3 ou RDS. Ele conhece apenas a API GraphQL e deixa o `go-graphql-connector` resolver as integrações externas por configuração.
 
 Exemplo de etapa:
 
@@ -287,11 +287,11 @@ Exemplo de etapa:
   "enabled": true,
   "params": {
     "endpoint": "http://localhost:8080/graphql",
-    "query": "query ($customerID: String!) { customer(id: $customerID) { id riskSegment status creditLimit } }",
+    "query": "query ($buyerID: String!) { buyer(id: $buyerID) { id status loyaltyTier preferredRegion } }",
     "variables": {
-      "customerID": "{customer_id}"
+      "buyerID": "{buyer_id}"
     },
-    "target": "customer_profile",
+    "target": "buyer_profile",
     "timeout_ms": 800,
     "required": true
   }
@@ -302,14 +302,14 @@ Resultado esperado no payload:
 
 ```json
 {
-  "customer_id": "CUST-42",
+  "buyer_id": "BUYER-42",
   "product_id": "SKU-9000",
   "quantity": 3,
-  "customer_profile": {
-    "id": "CUST-42",
-    "riskSegment": "LOW",
+  "buyer_profile": {
+    "id": "BUYER-42",
     "status": "ACTIVE",
-    "creditLimit": 2500
+    "loyaltyTier": "GOLD",
+    "preferredRegion": "SP"
   }
 }
 ```
@@ -324,16 +324,18 @@ Benefícios:
 
 ### 3. Handlers de Controle e Decisão
 
-Além dos handlers básicos (`validate`, `condition`, `enrich`, `transform`, `notify`, `audit`, `graphql_enrich` e `rest_call`), o projeto suporta handlers para validação assertiva, cálculo e roteamento condicional.
+Além dos handlers básicos (`validate`, `condition`, `enrich`, `transform`, `notify`, `audit`, `graphql_enrich` e `rest_call`), o projeto suporta handlers para validação assertiva, cálculo, expressões CEL e roteamento condicional.
+
+> **CEL expressions:** o runtime possui um handler `cel` baseado em `cel-go`. Ele permite escrever regras expressivas e decidir se uma falha deve travar o processamento, continuar de forma controlada, parar sem erro ou saltar para uma etapa posterior.
 
 #### Paths com arrays
 
 Os paths do payload aceitam dot notation com índices numéricos para acessar arrays:
 
 ```yaml
-api_unificada.custodias.0.operacaoId
-api_unificada.custodias.0.convenio.codigoConvenio
-api_unificada.custodias.0.parcelas.0.numeroParcela
+catalogo.produtos.0.sku
+catalogo.produtos.0.disponibilidade.status
+catalogo.produtos.0.preco.valor
 ```
 
 Isso permite usar dados retornados por GraphQL em validações e cálculos posteriores.
@@ -349,9 +351,9 @@ Validação simples:
 ```yaml
 - name: assert
   params:
-    field: api_unificada.custodias.0.situacaoOperacao
-    equals: ATIVA
-    message: Operacao precisa estar ativa.
+    field: catalogo.produtos.0.disponibilidade.status
+    equals: DISPONIVEL
+    message: Produto precisa estar disponivel.
 ```
 
 Validação com todas as condições obrigatórias:
@@ -360,11 +362,11 @@ Validação com todas as condições obrigatórias:
 - name: assert
   params:
     all:
-      - field: api_unificada.custodias.0.convenio.codigoConvenio
-        equals: "133341"
-      - field: api_unificada.custodias.0.situacaoOperacao
-        equals: ATIVA
-    message: Operacao fora dos criterios de convenio ou status.
+      - field: catalogo.produtos.0.categoria
+        equals: ELETRONICOS
+      - field: catalogo.produtos.0.disponibilidade.status
+        equals: DISPONIVEL
+    message: Produto fora dos criterios de categoria ou disponibilidade.
 ```
 
 Validação com qualquer condição aceita:
@@ -373,11 +375,11 @@ Validação com qualquer condição aceita:
 - name: assert
   params:
     any:
-      - field: api_unificada.custodias.0.siglaCustodia
-        equals: SF
-      - field: api_unificada.custodias.0.siglaCustodia
-        equals: F5
-    message: Custodia precisa ser SF ou F5.
+      - field: catalogo.produtos.0.canal_entrega
+        equals: TRANSPORTADORA
+      - field: catalogo.produtos.0.canal_entrega
+        equals: RETIRADA_LOJA
+    message: Produto precisa ter um canal de entrega aceito.
 ```
 
 Validação de coleção:
@@ -385,12 +387,66 @@ Validação de coleção:
 ```yaml
 - name: assert
   params:
-    field: api_unificada.custodias
+    field: catalogo.produtos
     min_items: 1
-    message: Nenhuma custodia retornada para a operacao.
+    message: Nenhum produto retornado para o pedido.
 ```
 
 Operadores suportados pelo `assert` são os mesmos usados pelo `compute` e `jump_if`: `equals`, `not_equals`, `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `min_items`, `max_items` e `exists`.
+
+#### Handler `validate`
+
+O `validate` deve ser usado no começo do workflow ou antes de integrações com efeitos externos. Ele garante que campos obrigatórios existem e não estão vazios.
+
+```yaml
+- name: validate
+  params:
+    required:
+      - pedido_id
+      - correlation_id
+      - itens.0.sku
+      - entrega.endereco.cep
+    stop_on_failure: true
+```
+
+Quando `stop_on_failure` é `false`, o handler registra `validation_error`, mas permite que o fluxo continue:
+
+```yaml
+- name: validate
+  params:
+    required:
+      - metadados.origem
+    stop_on_failure: false
+```
+
+Campos gerados:
+
+| Campo | Quando aparece |
+|---|---|
+| `validation_passed` | Quando todos os campos obrigatórios existem. |
+| `validation_error` | Quando algum campo obrigatório está ausente. |
+
+#### Handler `condition`
+
+O `condition` é um gate funcional. Ele interrompe o workflow sem tratar como erro técnico quando uma regra simples não é atendida.
+
+```yaml
+- name: condition
+  params:
+    field: evento
+    equals: PEDIDO_APROVADO
+```
+
+Também é possível parar quando um valor específico aparece:
+
+```yaml
+- name: condition
+  params:
+    field: pedido.status
+    not_equals: CANCELADO
+```
+
+Use `condition` para decisões esperadas do negócio, como evento fora de escopo, status que não deve prosseguir ou payload que deve ser represado para outro fluxo.
 
 #### Handler `compute`
 
@@ -413,9 +469,9 @@ Variações suportadas:
 # Copiar o valor de um campo
 - name: compute
   params:
-    target: operacao_id
+    target: sku
     value:
-      field: api_unificada.custodias.0.operacaoId
+      field: catalogo.produtos.0.sku
 ```
 
 ```yaml
@@ -424,35 +480,35 @@ Variações suportadas:
   params:
     target: origem
     value:
-      literal: DESCONTO_EM_FOLHA
+      literal: CHECKOUT_ONLINE
 ```
 
 ```yaml
 # Verificar existência
 - name: compute
   params:
-    target: possui_custodia
+    target: possui_produto
     value:
-      exists: api_unificada.custodias.0
+      exists: catalogo.produtos.0
 ```
 
 ```yaml
 # Contar itens de uma coleção
 - name: compute
   params:
-    target: quantidade_custodias
+    target: quantidade_produtos
     value:
-      count: api_unificada.custodias
+      count: catalogo.produtos
 ```
 
 ```yaml
 # Comparações numéricas
 - name: compute
   params:
-    target: contrato_legado
+    target: produto_promocional
     value:
-      field: api_unificada.custodias.0.operacaoId
-      less_than_or_equal: 1900000000
+      field: catalogo.produtos.0.preco.valor
+      less_than_or_equal: 100
 ```
 
 Operadores de comparação suportados:
@@ -476,9 +532,9 @@ Exemplo de validação de quantidade:
 ```yaml
 - name: compute
   params:
-    target: possui_custodias
+    target: possui_produtos
     value:
-      field: api_unificada.custodias
+      field: catalogo.produtos
       min_items: 1
 ```
 
@@ -491,7 +547,7 @@ Formato geral:
 ```yaml
 - name: jump_if
   params:
-    field: contrato_legado
+    field: produto_promocional
     equals: true
     to: finalizar
 ```
@@ -509,78 +565,416 @@ Exemplo com `id`:
 ```yaml
 - name: compute
   params:
-    target: contrato_legado
+    target: produto_promocional
     value:
-      field: api_unificada.custodias.0.operacaoId
-      less_than_or_equal: 1900000000
+      field: catalogo.produtos.0.preco.valor
+      less_than_or_equal: 100
 
 - name: jump_if
   params:
-    field: contrato_legado
+    field: produto_promocional
     equals: true
     to: finalizar
 
 - name: enrich
   params:
     data:
-      cod_motivos_texto: "processamento padrão"
+      classificacao_pedido: "processamento padrao"
 
 - id: finalizar
   name: audit
   params:
-    event: iniciador_baixa_desconto_realizado.completed
+    event: pedido.promocional.completed
     fields:
       - correlation_id
-      - data.codigo_identificador_evento
-      - contrato_legado
+      - pedido_id
+      - produto_promocional
 ```
 
-#### Exemplo: contrato legado
+#### Handler `cel`
+
+O `cel` avalia uma expressão CEL e espera um resultado booleano. Ele é indicado quando a regra precisa combinar múltiplos campos, funções como `size()` ou condições mais expressivas do que os operadores declarativos.
+
+O runtime disponibiliza:
+
+- `payload`: mapa completo do payload;
+- `headers`: headers da mensagem;
+- variáveis de primeiro nível do payload que tenham nomes válidos em CEL, como `pedido`, `itens`, `catalogo` e `entrega`.
+
+Validação obrigatória que falha o workflow quando a expressão é falsa:
+
+```yaml
+- name: cel
+  params:
+    expr: "pedido.status == 'APROVADO' && size(itens) > 0"
+    message: Pedido precisa estar aprovado e possuir itens.
+    on_false: error
+```
+
+`on_false: error` é o comportamento padrão quando `to` não é informado. A falha respeita a `error_policy` do workflow e preserva o cursor para reprocessamento.
+
+Validação que salta para outra etapa quando a expressão é falsa:
+
+```yaml
+- id: avaliar_pedido
+  name: cel
+  params:
+    expr: "pedido.total > 0 && entrega.endereco.cep != ''"
+    on_false: jump
+    to: revisar_pedido
+    target: pedido_pronto_para_entrega
+
+- name: enrich
+  params:
+    data:
+      rota: EXPEDICAO
+
+- id: revisar_pedido
+  name: audit
+  params:
+    event: pedido.revisao_necessaria
+    fields:
+      - correlation_id
+      - pedido.id
+      - pedido_pronto_para_entrega
+```
+
+Variações de `on_false`:
+
+| Valor | Comportamento |
+|---|---|
+| `error` | Falha a etapa e registra erro. É o padrão. |
+| `fail` | Alias de `error`. |
+| `jump` | Continua a execução a partir do step informado em `to`. |
+| `continue` | Grava o resultado booleano e segue para a próxima etapa. |
+| `stop` | Interrompe o workflow sem tratar como erro técnico. |
+
+Campos gravados:
+
+| Campo | Descrição |
+|---|---|
+| `cel_passed` | Resultado booleano da última expressão CEL. |
+| `<target>` | Quando `target` é informado, recebe o mesmo resultado booleano. |
+| `cel_stopped` | Gravado como `true` quando `on_false: stop` interrompe o fluxo. |
+| `jumped_to` / `jumped_to_cursor` | Gravados quando `on_false: jump` altera o cursor. |
+
+Exemplos úteis:
+
+```yaml
+# Verificar coleção retornada por integração
+- name: cel
+  params:
+    expr: "size(catalogo.produtos) > 0"
+    message: Nenhum produto encontrado no catálogo.
+```
+
+```yaml
+# Usar payload explicitamente
+- name: cel
+  params:
+    expr: "payload.evento == 'PEDIDO_APROVADO' && payload.pedido.total >= 50"
+```
+
+```yaml
+# Continuar, mas registrar a decisão para etapas posteriores
+- name: cel
+  params:
+    expr: "entrega.tipo == 'EXPRESSA' && pedido.total >= 100"
+    target: elegivel_entrega_expressa
+    on_false: continue
+```
+
+No Studio, a simulação local cobre o subconjunto mais comum de CEL, como comparações, operadores booleanos, acesso por ponto, `size()` e `has()`. O runtime Go é a fonte de verdade para validação final das expressões.
+
+#### Exemplo: produto promocional
 
 Depois de enriquecer o payload via GraphQL:
 
 ```yaml
 - name: graphql_enrich
   params:
-    query: "query (...) { dataSources(...) { custodias { operacaoId situacaoOperacao convenio { codigoConvenio } } } }"
+    query: "query (...) { dataSources(...) { catalogo { produtos { sku categoria disponibilidade { status } preco { valor } } } } }"
     variables:
-      codigoCliente: "{data.codigo_identificacao_pessoa}"
-      identificadorOperacaoCredito: "{data.codigo_identificacao_operacao_credito}"
-      dataPosicaoCalculo: "2025-05-13"
-    target: api_unificada
-    result_path: dataSources
+      pedidoID: "{pedido_id}"
+      sku: "{itens.0.sku}"
+    target: catalogo
+    result_path: dataSources.catalogo
     required: true
 ```
 
-É possível validar convenio/status e calcular contrato legado:
+É possível validar categoria/disponibilidade e calcular se o item se enquadra em uma rota promocional:
 
 ```yaml
 - name: assert
   params:
     all:
-      - field: api_unificada.custodias.0.convenio.codigoConvenio
-        equals: "133341"
-      - field: api_unificada.custodias.0.situacaoOperacao
-        equals: ATIVA
-    message: Operacao fora dos criterios de convenio ou status.
+      - field: catalogo.produtos.0.categoria
+        equals: ELETRONICOS
+      - field: catalogo.produtos.0.disponibilidade.status
+        equals: DISPONIVEL
+    message: Produto fora dos criterios de categoria ou disponibilidade.
 
 - name: compute
   params:
-    target: contrato_legado
+    target: produto_promocional
     value:
-      field: api_unificada.custodias.0.operacaoId
-      less_than_or_equal: 1900000000
+      field: catalogo.produtos.0.preco.valor
+      less_than_or_equal: 100
 
 - name: jump_if
   params:
-    field: contrato_legado
+    field: produto_promocional
     equals: true
     to: finalizar
 ```
 
-Se `contrato_legado` for `true`, o workflow salta para o step `id: finalizar`. Caso contrário, segue normalmente para as próximas etapas.
+Se `produto_promocional` for `true`, o workflow salta para o step `id: finalizar`. Caso contrário, segue normalmente para as próximas etapas.
 
-### 4. Métricas Granulares do Routing Slip
+#### Handler `enrich`
+
+O `enrich` adiciona dados ao payload sem chamar serviços externos.
+
+```yaml
+- name: enrich
+  params:
+    data:
+      origem: CHECKOUT_ONLINE
+      prioridade: NORMAL
+```
+
+Com `prefix`, os campos injetados recebem um prefixo:
+
+```yaml
+- name: enrich
+  params:
+    prefix: meta_
+    data:
+      origem: CHECKOUT_ONLINE
+```
+
+#### Handler `transform`
+
+O `transform` normaliza campos de texto.
+
+```yaml
+- name: transform
+  params:
+    field: comprador.email
+    operation: lowercase
+    target: comprador_email_normalizado
+```
+
+Operações suportadas:
+
+| Transformação | Resultado |
+|---|---|
+| `uppercase` | Converte para maiúsculas. |
+| `lowercase` | Converte para minúsculas. |
+| `trim` | Remove espaços no início/fim. |
+| `prefix:<valor>` | Adiciona prefixo. |
+| `suffix:<valor>` | Adiciona sufixo. |
+
+#### Handler `graphql_enrich`
+
+O `graphql_enrich` consulta um endpoint GraphQL, normalmente o `go-graphql-connector`, e grava o resultado no payload.
+
+```yaml
+- name: graphql_enrich
+  params:
+    endpoint: "${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}"
+    query: "query ($pedidoID: String!) { dataSources(pedidoID: $pedidoID) { order { pedido_id status } } }"
+    variables:
+      pedidoID: "{pedido_id}"
+    target: pedido
+    result_path: dataSources.order
+    timeout_ms: 3000
+    required: true
+```
+
+Quando `required: false`, falhas de endpoint ou respostas incompletas marcam `<target>_partial: true` e permitem continuar.
+
+#### Handler `rest_call`
+
+O `rest_call` chama uma API REST e grava a resposta no payload.
+
+```yaml
+- name: rest_call
+  params:
+    base_url: "https://mock.raysouz.studio"
+    method: POST
+    endpoint: /entregas
+    target: entrega
+    headers:
+      x-correlation-id: "{correlation_id}"
+    body:
+      pedido_id: "{pedido_id}"
+      itens: "{itens}"
+    result_path: data
+    timeout_ms: 3000
+    required: true
+```
+
+#### Handler `audit`
+
+O `audit` registra evidências funcionais em log estruturado.
+
+```yaml
+- name: audit
+  params:
+    event: pedido.processado
+    fields:
+      - pedido_id
+      - correlation_id
+      - entrega.status
+```
+
+#### Handler `notify`
+
+O `notify` simula uma notificação. Em produção, o handler pode receber uma função real de envio no registro do runtime.
+
+```yaml
+- name: notify
+  params:
+    channel: webhook
+    recipient: "https://example.local/hook"
+    template: "Pedido {pedido_id} processado com status {entrega.status}"
+```
+
+#### Validações declarativas e CEL
+
+A abordagem declarativa continua recomendada quando a regra é simples e precisa ser altamente explicável por campo e operador:
+
+```yaml
+- name: assert
+  params:
+    all:
+      - field: pedido.status
+        equals: APROVADO
+      - field: itens
+        min_items: 1
+```
+
+Esse formato oferece vantagens importantes:
+
+- lint simples no Studio;
+- mensagens de erro explicáveis;
+- operadores fáceis de documentar;
+- menor risco de executar expressões dinâmicas;
+- melhor rastreabilidade por campo e operador.
+
+Use CEL quando a regra fica mais clara como expressão:
+
+```yaml
+- name: cel
+  params:
+    expr: "pedido.status == 'APROVADO' && size(itens) > 0"
+    on_false: error
+    message: Pedido precisa estar aprovado e possuir itens.
+```
+
+Na prática, `assert`, `compute`, `condition`, `jump_if` e `cel` convivem. A escolha deve priorizar clareza, rastreabilidade e facilidade de manutenção.
+
+### 4. Composição de Workflows
+
+Fluxos extensos podem ser divididos em múltiplos arquivos YAML e compostos com `workflow_ref`. Isso permite organizar scripts por domínio ou microserviço sem transformar um único arquivo em um workflow difícil de analisar.
+
+Durante o carregamento do workflow, o `workflow_ref` é expandido: as etapas do arquivo referenciado entram no ponto onde a referência foi declarada. Para o motor de execução, o resultado é um único routing slip contínuo, com cursor, histórico, métricas e reprocessamento em nível granular.
+
+Exemplo de estrutura no workspace:
+
+```text
+workflows/
+├── pedidos/
+│   └── pagamento-aprovado.yaml
+├── fiscal/
+│   └── emitir-nota.yaml
+├── expedicao/
+│   └── preparar-entrega.yaml
+└── notificacoes/
+    └── avisar-comprador.yaml
+```
+
+Exemplo no workflow principal:
+
+```yaml
+name: pagamento-aprovado
+error_policy: stop
+message_id_path: pedido_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: validar_evento
+    name: validate
+    params:
+      required:
+        - pedido_id
+        - correlation_id
+
+  - id: emitir_nota
+    name: workflow_ref
+    params:
+      file: ../fiscal/emitir-nota.yaml
+
+  - id: preparar_entrega
+    name: workflow_ref
+    params:
+      file: ../expedicao/preparar-entrega.yaml
+
+  - id: avisar_comprador
+    name: workflow_ref
+    params:
+      file: ../notificacoes/avisar-comprador.yaml
+```
+
+Exemplo do arquivo referenciado:
+
+```yaml
+name: emitir-nota
+steps:
+  - id: montar_payload
+    name: enrich
+    params:
+      data:
+        etapa_fiscal: INICIADA
+
+  - id: emitir
+    name: rest_call
+    params:
+      base_url: "https://mock.raysouz.studio"
+      method: POST
+      endpoint: /fiscal/notas
+      target: nota_fiscal
+
+  - id: finalizar
+    name: audit
+    params:
+      event: fiscal.nota_emitida
+      fields:
+        - pedido_id
+        - nota_fiscal.status
+```
+
+Regras de composição:
+
+- `params.file`, `params.path` ou `params.workflow` aponta para o YAML referenciado.
+- Caminhos relativos são resolvidos a partir do arquivo que contém o `workflow_ref`.
+- Use `../outro-contexto/arquivo.yaml` para referenciar workflows de outro diretório irmão.
+- O `id` do step `workflow_ref` vira prefixo dos steps expandidos, por exemplo `emitir_nota.montar_payload`.
+- Se `params.prefix` for informado, ele substitui o prefixo automático.
+- Saltos `jump_if` internos que apontam para IDs do workflow referenciado são reescritos com o prefixo.
+- Referências cíclicas são bloqueadas durante o carregamento.
+
+Benefícios:
+
+- reduz o tamanho de cada script;
+- permite reaproveitar subfluxos em diferentes workflows;
+- preserva execução contínua e observabilidade granular;
+- mantém reprocessamento por cursor mesmo com scripts fisicamente separados;
+- favorece organização por contexto, domínio ou microserviço.
+
+No Studio, a ação **Exportar workflow composto** gera um YAML único com todos os `workflow_ref` resolvidos. Esse arquivo exportado pode ser usado quando você quiser executar, versionar ou compartilhar a versão consolidada do fluxo sem depender da árvore de arquivos do workspace.
+
+### 5. Métricas Granulares do Routing Slip
 
 A evolução proposta adiciona um middleware conceitual chamado `MetricsMiddleware`.
 
@@ -618,7 +1012,7 @@ Exemplo de evento:
     "handler": "graphql_enrich",
     "error_policy": "stop",
     "duration_ms": "37",
-    "target": "customer_profile"
+    "target": "buyer_profile"
   },
   "timestamp": "2026-05-13T12:00:00Z"
 }
@@ -642,7 +1036,7 @@ O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais pr
 2. usa `payload.pedido_id` para consultar o pedido via GraphQL Connector;
 3. aciona uma integração que representa a Lambda de emissão de nota fiscal;
 4. confirma a nota fiscal emitida antes de acionar a expedição;
-5. baixa o estoque dos itens vendidos;
+5. atualiza o estoque dos itens vendidos;
 6. registra auditoria e métricas por etapa para acompanhamento no dashboard.
 
 ```mermaid
@@ -655,7 +1049,7 @@ flowchart LR
     E --> F{Nota emitida?}
     F -- Nao --> Y[Parar para reprocessamento]
     F -- Sim --> G[Acionar expedicao]
-    G --> H[Baixar estoque]
+    G --> H[Atualizar estoque]
     H --> I[Auditar e publicar metricas]
 ```
 
@@ -673,7 +1067,7 @@ Payload de entrada:
 }
 ```
 
-Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor persistivel, pode ser observada individualmente e pode ser retomada do ponto de falha sem repetir chamadas anteriores que ja produziram efeito, como emissão fiscal ou baixa de estoque.
+Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor persistivel, pode ser observada individualmente e pode ser retomada do ponto de falha sem repetir chamadas anteriores que ja produziram efeito, como emissão fiscal ou atualização de estoque.
 
 ## Modelo de Workflow Proposto
 
@@ -694,7 +1088,7 @@ Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor pers
       "name": "validate",
       "enabled": true,
       "params": {
-        "required": ["customer_id", "product_id", "quantity"],
+        "required": ["buyer_id", "product_id", "quantity"],
         "stop_on_failure": true
       }
     },
@@ -703,11 +1097,11 @@ Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor pers
       "enabled": true,
       "params": {
         "endpoint": "http://localhost:8080/graphql",
-        "query": "query ($customerID: String!) { customer(id: $customerID) { id status riskSegment } }",
+        "query": "query ($buyerID: String!) { buyer(id: $buyerID) { id status loyaltyTier preferredRegion } }",
         "variables": {
-          "customerID": "{customer_id}"
+          "buyerID": "{buyer_id}"
         },
-        "target": "customer_profile",
+        "target": "buyer_profile",
         "timeout_ms": 800,
         "required": true
       }
@@ -716,7 +1110,7 @@ Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor pers
       "name": "condition",
       "enabled": true,
       "params": {
-        "field": "customer_profile.status",
+        "field": "buyer_profile.status",
         "equals": "ACTIVE"
       }
     },
@@ -724,9 +1118,9 @@ Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor pers
       "name": "transform",
       "enabled": true,
       "params": {
-        "field": "customer_id",
+        "field": "buyer_id",
         "operation": "uppercase",
-        "target": "customer_id"
+        "target": "buyer_id"
       }
     },
     {
@@ -734,7 +1128,7 @@ Esse exemplo demonstra a proposta central do projeto: cada etapa tem cursor pers
       "enabled": true,
       "params": {
         "event": "workflow.processed",
-        "fields": ["customer_id", "product_id", "customer_profile"]
+        "fields": ["buyer_id", "product_id", "buyer_profile"]
       }
     }
   ]
@@ -866,7 +1260,7 @@ Esse modelo favorece:
 - retenção automática;
 - dashboards com janelas recentes.
 
-## Contratos Recomendados
+## Interfaces Recomendadas
 
 ### Handler
 
@@ -947,14 +1341,32 @@ type ExternalDataClient interface {
 
 ## Benefícios
 
-- **Modularidade:** handlers pequenos, focados e intercambiáveis.
-- **Reutilização:** o mesmo motor atende workflows de pedidos, pagamentos, logística, crédito, cadastro ou conciliação.
-- **Observabilidade:** cada etapa gera eventos consultáveis em tempo real.
-- **Segurança:** integrações e credenciais ficam isoladas no conector.
-- **Resiliência:** políticas de erro, timeouts e fallbacks controlam falhas.
-- **Escalabilidade:** métricas e workflows podem crescer independentemente.
-- **Transparência:** histórico e métricas explicam como cada payload foi processado.
-- **Baixo acoplamento:** APIs externas são consumidas via GraphQL configurável, não diretamente pelos handlers de domínio.
+| Benefício | Impacto prático |
+|---|---|
+| **Velocidade** | Workflows são declarados em YAML e podem evoluir sem recompilar o motor. |
+| **Facilidade** | Handlers pequenos reduzem a carga cognitiva durante construção e revisão. |
+| **Rastreabilidade** | Cursor, histórico, erros e auditoria mostram exatamente onde cada mensagem passou. |
+| **Observabilidade** | Métricas por workflow, etapa, status e correlação alimentam dashboards em tempo real. |
+| **Explicabilidade** | O YAML mostra de forma legível quais regras foram aplicadas e por quê. |
+| **Transparência** | Logs por fase revelam entrada, regra, saída, duração e falhas. |
+| **Reprocessamento granular** | Uma execução pode continuar do ponto de falha sem repetir etapas concluídas. |
+| **Modularidade** | `workflow_ref` divide fluxos extensos em scripts menores e reutilizáveis. |
+| **Reutilização** | O mesmo motor atende workflows de pedidos, pagamentos, logística, cadastro, atendimento, inventário ou publicação de conteúdo. |
+| **Segurança** | Integrações e credenciais ficam isoladas no conector e podem usar políticas próprias. |
+| **Resiliência** | Políticas de erro, timeouts, fallbacks e idempotência controlam falhas. |
+| **Escalabilidade** | Métricas, integrações e workflows podem crescer independentemente. |
+| **Baixo acoplamento** | APIs externas são consumidas via GraphQL configurável, não diretamente pelos handlers de domínio. |
+
+```mermaid
+flowchart LR
+    A[Ideia do processo] --> B[Workflow YAML]
+    B --> C[Lint e simulacao no Studio]
+    C --> D[Execucao observavel]
+    D --> E[Metricas em tempo real]
+    D --> F[Reprocessamento granular]
+    B --> G[Subfluxos com workflow_ref]
+    G --> C
+```
 
 ## Exemplo Aplicado: Pedido de E-commerce
 
@@ -972,7 +1384,7 @@ Payload inicial:
 Fluxo:
 
 1. `validate` garante campos obrigatórios.
-2. `graphql_enrich` busca perfil do cliente, limite, região e flags de risco.
+2. `graphql_enrich` busca perfil do comprador, região, preferências e disponibilidade de catálogo.
 3. `condition` interrompe se o cliente não está ativo.
 4. `transform` normaliza identificadores.
 5. `notify` avisa canais operacionais.

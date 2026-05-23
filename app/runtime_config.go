@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -100,6 +101,20 @@ func loadAppConfig(path string) (*AppConfig, error) {
 }
 
 func loadWorkflowConfig(path string) (*WorkflowConfig, error) {
+	return loadWorkflowConfigWithStack(path, map[string]bool{})
+}
+
+func loadWorkflowConfigWithStack(path string, stack map[string]bool) (*WorkflowConfig, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve workflow %q: %w", path, err)
+	}
+	if stack[absPath] {
+		return nil, fmt.Errorf("workflow reference cycle detected at %q", path)
+	}
+	stack[absPath] = true
+	defer delete(stack, absPath)
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read workflow %q: %w", path, err)
@@ -114,7 +129,166 @@ func loadWorkflowConfig(path string) (*WorkflowConfig, error) {
 	if err := validateWorkflowConfig(&workflow); err != nil {
 		return nil, err
 	}
+	if err := expandWorkflowReferences(&workflow, absPath, stack); err != nil {
+		return nil, err
+	}
 	return &workflow, nil
+}
+
+func expandWorkflowReferences(workflow *WorkflowConfig, sourcePath string, stack map[string]bool) error {
+	expanded := make([]StepConfig, 0, len(workflow.Steps))
+	for _, step := range workflow.Steps {
+		if step.Enabled != nil && !*step.Enabled {
+			expanded = append(expanded, step)
+			continue
+		}
+		if step.Name != "workflow_ref" {
+			expanded = append(expanded, step)
+			continue
+		}
+		refPath, err := workflowRefPath(step)
+		if err != nil {
+			return err
+		}
+		if !filepath.IsAbs(refPath) {
+			refPath = filepath.Join(filepath.Dir(sourcePath), refPath)
+		}
+		child, err := loadWorkflowConfigWithStack(refPath, stack)
+		if err != nil {
+			return fmt.Errorf("workflow_ref %q: %w", refPath, err)
+		}
+		prefix := workflowRefPrefix(step, child, refPath)
+		childIDs := map[string]bool{}
+		for _, childStep := range child.Steps {
+			if strings.TrimSpace(childStep.ID) != "" {
+				childIDs[childStep.ID] = true
+			}
+		}
+		for index, childStep := range child.Steps {
+			childStep.ID = prefixedStepID(prefix, childStep.ID, childStep.Name, index)
+			childStep.Params = rewriteWorkflowRefTargets(copyParams(childStep.Params), prefix, childIDs)
+			expanded = append(expanded, childStep)
+		}
+	}
+	workflow.Steps = expanded
+	return nil
+}
+
+func workflowRefPath(step StepConfig) (string, error) {
+	if step.Params == nil {
+		return "", fmt.Errorf("workflow_ref %q requires params.file, params.path or params.workflow", step.ID)
+	}
+	for _, key := range []string{"file", "path", "workflow"} {
+		if value, ok := step.Params[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value), nil
+		}
+	}
+	return "", fmt.Errorf("workflow_ref %q requires params.file, params.path or params.workflow", step.ID)
+}
+
+func workflowRefPrefix(step StepConfig, child *WorkflowConfig, refPath string) string {
+	for _, value := range []string{
+		stringParam(step.Params, "prefix"),
+		step.ID,
+		child.Name,
+		strings.TrimSuffix(filepath.Base(refPath), filepath.Ext(refPath)),
+	} {
+		if cleaned := cleanStepID(value); cleaned != "" {
+			return cleaned
+		}
+	}
+	return "workflow"
+}
+
+func prefixedStepID(prefix, id, name string, index int) string {
+	if cleaned := cleanStepID(id); cleaned != "" {
+		return prefix + "." + cleaned
+	}
+	if cleaned := cleanStepID(name); cleaned != "" {
+		return fmt.Sprintf("%s.%03d.%s", prefix, index+1, cleaned)
+	}
+	return fmt.Sprintf("%s.%03d", prefix, index+1)
+}
+
+func rewriteWorkflowRefTargets(params map[string]any, prefix string, childIDs map[string]bool) map[string]any {
+	if params == nil {
+		return nil
+	}
+	for key, value := range params {
+		if key == "to" {
+			if target, ok := value.(string); ok && childIDs[target] {
+				params[key] = prefix + "." + target
+			}
+			continue
+		}
+		switch typed := value.(type) {
+		case map[string]any:
+			params[key] = rewriteWorkflowRefTargets(typed, prefix, childIDs)
+		case []any:
+			for index, item := range typed {
+				if nested, ok := item.(map[string]any); ok {
+					typed[index] = rewriteWorkflowRefTargets(nested, prefix, childIDs)
+				}
+			}
+			params[key] = typed
+		}
+	}
+	return params
+}
+
+func copyParams(params map[string]any) map[string]any {
+	if params == nil {
+		return nil
+	}
+	copied := make(map[string]any, len(params))
+	for key, value := range params {
+		copied[key] = copyAny(value)
+	}
+	return copied
+}
+
+func copyAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return copyParams(typed)
+	case []any:
+		copied := make([]any, len(typed))
+		for index, item := range typed {
+			copied[index] = copyAny(item)
+		}
+		return copied
+	default:
+		return value
+	}
+}
+
+func stringParam(params map[string]any, key string) string {
+	if params == nil {
+		return ""
+	}
+	value, _ := params[key].(string)
+	return value
+}
+
+func cleanStepID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var out strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(value) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '.' {
+			out.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			out.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(out.String(), "-.")
 }
 
 func expandEnvDefaults(input string) string {
