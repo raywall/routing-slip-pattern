@@ -21,6 +21,7 @@ type WorkflowConfig struct {
 
 // StepConfig maps to a single StepDef in the routing slip.
 type StepConfig struct {
+	ID      string         `json:"id"`
 	Name    string         `json:"name"`
 	Enabled bool           `json:"enabled"` // false → step is skipped at load time
 	Params  map[string]any `json:"params"`
@@ -34,6 +35,7 @@ func (wc *WorkflowConfig) ToSlip() []slip.StepDef {
 			continue
 		}
 		steps = append(steps, slip.StepDef{
+			ID:     s.ID,
 			Name:   s.Name,
 			Params: s.Params,
 		})

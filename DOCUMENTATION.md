@@ -322,7 +322,265 @@ Benefícios:
 - permite trocar fontes externas sem alterar o workflow;
 - permite enriquecer payloads de qualquer domínio.
 
-### 3. Métricas Granulares do Routing Slip
+### 3. Handlers de Controle e Decisão
+
+Além dos handlers básicos (`validate`, `condition`, `enrich`, `transform`, `notify`, `audit`, `graphql_enrich` e `rest_call`), o projeto suporta handlers para validação assertiva, cálculo e roteamento condicional.
+
+#### Paths com arrays
+
+Os paths do payload aceitam dot notation com índices numéricos para acessar arrays:
+
+```yaml
+api_unificada.custodias.0.operacaoId
+api_unificada.custodias.0.convenio.codigoConvenio
+api_unificada.custodias.0.parcelas.0.numeroParcela
+```
+
+Isso permite usar dados retornados por GraphQL em validações e cálculos posteriores.
+
+#### Handler `assert`
+
+O `assert` valida uma ou mais condições e falha o workflow quando os critérios não são atendidos. Diferente do `condition`, que para o fluxo de forma graciosa quando a condição não bate, o `assert` registra erro e respeita a `error_policy` do workflow.
+
+Use `assert` quando uma regra é obrigatória para o processo continuar.
+
+Validação simples:
+
+```yaml
+- name: assert
+  params:
+    field: api_unificada.custodias.0.situacaoOperacao
+    equals: ATIVA
+    message: Operacao precisa estar ativa.
+```
+
+Validação com todas as condições obrigatórias:
+
+```yaml
+- name: assert
+  params:
+    all:
+      - field: api_unificada.custodias.0.convenio.codigoConvenio
+        equals: "133341"
+      - field: api_unificada.custodias.0.situacaoOperacao
+        equals: ATIVA
+    message: Operacao fora dos criterios de convenio ou status.
+```
+
+Validação com qualquer condição aceita:
+
+```yaml
+- name: assert
+  params:
+    any:
+      - field: api_unificada.custodias.0.siglaCustodia
+        equals: SF
+      - field: api_unificada.custodias.0.siglaCustodia
+        equals: F5
+    message: Custodia precisa ser SF ou F5.
+```
+
+Validação de coleção:
+
+```yaml
+- name: assert
+  params:
+    field: api_unificada.custodias
+    min_items: 1
+    message: Nenhuma custodia retornada para a operacao.
+```
+
+Operadores suportados pelo `assert` são os mesmos usados pelo `compute` e `jump_if`: `equals`, `not_equals`, `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `min_items`, `max_items` e `exists`.
+
+#### Handler `compute`
+
+O `compute` calcula um valor e grava o resultado em `target`.
+
+Formato geral:
+
+```yaml
+- name: compute
+  params:
+    target: nome_do_campo
+    value:
+      field: caminho.no.payload
+      less_than_or_equal: 1900000000
+```
+
+Variações suportadas:
+
+```yaml
+# Copiar o valor de um campo
+- name: compute
+  params:
+    target: operacao_id
+    value:
+      field: api_unificada.custodias.0.operacaoId
+```
+
+```yaml
+# Valor literal
+- name: compute
+  params:
+    target: origem
+    value:
+      literal: DESCONTO_EM_FOLHA
+```
+
+```yaml
+# Verificar existência
+- name: compute
+  params:
+    target: possui_custodia
+    value:
+      exists: api_unificada.custodias.0
+```
+
+```yaml
+# Contar itens de uma coleção
+- name: compute
+  params:
+    target: quantidade_custodias
+    value:
+      count: api_unificada.custodias
+```
+
+```yaml
+# Comparações numéricas
+- name: compute
+  params:
+    target: contrato_legado
+    value:
+      field: api_unificada.custodias.0.operacaoId
+      less_than_or_equal: 1900000000
+```
+
+Operadores de comparação suportados:
+
+| Operador | Uso |
+|---|---|
+| `equals` | igualdade |
+| `not_equals` | diferença |
+| `less_than` | menor que |
+| `less_than_or_equal` | menor ou igual |
+| `greater_than` | maior que |
+| `greater_than_or_equal` | maior ou igual |
+| `min_items` | tamanho mínimo de lista/map/string |
+| `max_items` | tamanho máximo de lista/map/string |
+| `exists` | existência de path |
+| `count` | contagem de itens |
+| `literal` | valor fixo |
+
+Exemplo de validação de quantidade:
+
+```yaml
+- name: compute
+  params:
+    target: possui_custodias
+    value:
+      field: api_unificada.custodias
+      min_items: 1
+```
+
+#### Handler `jump_if`
+
+O `jump_if` altera o cursor do routing slip quando uma condição é satisfeita.
+
+Formato geral:
+
+```yaml
+- name: jump_if
+  params:
+    field: contrato_legado
+    equals: true
+    to: finalizar
+```
+
+O destino em `to` pode apontar para:
+
+- `id` de um step, recomendado;
+- `name` de um handler, aceito como fallback.
+
+Prefira sempre `id`, porque handlers podem se repetir no workflow.
+O salto deve apontar para uma etapa posterior à etapa atual, evitando loops acidentais no processamento.
+
+Exemplo com `id`:
+
+```yaml
+- name: compute
+  params:
+    target: contrato_legado
+    value:
+      field: api_unificada.custodias.0.operacaoId
+      less_than_or_equal: 1900000000
+
+- name: jump_if
+  params:
+    field: contrato_legado
+    equals: true
+    to: finalizar
+
+- name: enrich
+  params:
+    data:
+      cod_motivos_texto: "processamento padrão"
+
+- id: finalizar
+  name: audit
+  params:
+    event: iniciador_baixa_desconto_realizado.completed
+    fields:
+      - correlation_id
+      - data.codigo_identificador_evento
+      - contrato_legado
+```
+
+#### Exemplo: contrato legado
+
+Depois de enriquecer o payload via GraphQL:
+
+```yaml
+- name: graphql_enrich
+  params:
+    query: "query (...) { dataSources(...) { custodias { operacaoId situacaoOperacao convenio { codigoConvenio } } } }"
+    variables:
+      codigoCliente: "{data.codigo_identificacao_pessoa}"
+      identificadorOperacaoCredito: "{data.codigo_identificacao_operacao_credito}"
+      dataPosicaoCalculo: "2025-05-13"
+    target: api_unificada
+    result_path: dataSources
+    required: true
+```
+
+É possível validar convenio/status e calcular contrato legado:
+
+```yaml
+- name: assert
+  params:
+    all:
+      - field: api_unificada.custodias.0.convenio.codigoConvenio
+        equals: "133341"
+      - field: api_unificada.custodias.0.situacaoOperacao
+        equals: ATIVA
+    message: Operacao fora dos criterios de convenio ou status.
+
+- name: compute
+  params:
+    target: contrato_legado
+    value:
+      field: api_unificada.custodias.0.operacaoId
+      less_than_or_equal: 1900000000
+
+- name: jump_if
+  params:
+    field: contrato_legado
+    equals: true
+    to: finalizar
+```
+
+Se `contrato_legado` for `true`, o workflow salta para o step `id: finalizar`. Caso contrário, segue normalmente para as próximas etapas.
+
+### 4. Métricas Granulares do Routing Slip
 
 A evolução proposta adiciona um middleware conceitual chamado `MetricsMiddleware`.
 

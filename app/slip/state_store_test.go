@@ -62,6 +62,43 @@ func TestRouterResumesFromFailedStep(t *testing.T) {
 	}
 }
 
+func TestRouterAppliesCursorController(t *testing.T) {
+	router := NewRouter(WithMiddleware(RecoveryMiddleware()))
+	router.MustRegister(testJumpHandler{})
+	router.MustRegister(testSetHandler{name: "skip_me", key: "skipped", value: true})
+	router.MustRegister(testSetHandler{name: "finish", key: "finished", value: true})
+
+	msg := NewMessage("MSG-JUMP", map[string]any{})
+	msg.AttachSlip([]StepDef{
+		{Name: "jump", Params: map[string]any{"to": "finish-step"}},
+		{Name: "skip_me"},
+		{ID: "finish-step", Name: "finish"},
+	})
+
+	if err := router.Process(context.Background(), msg); err != nil {
+		t.Fatalf("process: %v", err)
+	}
+	if value, _ := msg.Get("skipped"); value == true {
+		t.Fatal("expected skipped step not to run")
+	}
+	if value, _ := msg.Get("finished"); value != true {
+		t.Fatal("expected finish step to run")
+	}
+}
+
+type testJumpHandler struct{}
+
+func (testJumpHandler) Name() string { return "jump" }
+
+func (testJumpHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
+	return true, nil
+}
+
+func (testJumpHandler) NextCursor(msg *Message, step StepDef, currentIndex int) (int, bool, error) {
+	index, ok := msg.FindStepIndex(step.Params["to"].(string))
+	return index, ok, nil
+}
+
 type testSetHandler struct {
 	name  string
 	key   string

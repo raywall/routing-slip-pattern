@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -109,12 +110,20 @@ func (m *Message) GetPath(path string) (any, bool) {
 	parts := strings.Split(path, ".")
 	var current any = m.Payload
 	for _, part := range parts {
-		values, ok := current.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		current, ok = values[part]
-		if !ok {
+		switch values := current.(type) {
+		case map[string]any:
+			var ok bool
+			current, ok = values[part]
+			if !ok {
+				return nil, false
+			}
+		case []any:
+			index, err := strconv.Atoi(part)
+			if err != nil || index < 0 || index >= len(values) {
+				return nil, false
+			}
+			current = values[index]
+		default:
 			return nil, false
 		}
 	}
@@ -170,8 +179,15 @@ func (m *Message) Cursor() int {
 
 // StepDef describes a single step in the routing slip.
 type StepDef struct {
+	ID     string         // optional stable identifier used by jump/branch handlers
 	Name   string         // human-readable step name
 	Params map[string]any // arbitrary parameters passed to the handler
+}
+
+// CursorController is optionally implemented by handlers that need to redirect
+// the next step after Handle completes successfully.
+type CursorController interface {
+	NextCursor(msg *Message, step StepDef, currentIndex int) (int, bool, error)
 }
 
 // HistoryEntry is an audit record for a completed step.
@@ -349,19 +365,21 @@ type Middleware func(next Handler) Handler
 
 // Router executes a Message through its attached routing slip.
 type Router struct {
-	handlers    map[string]Handler
-	errorPolicy ErrorPolicy
-	logger      *slog.Logger
-	middleware  []Middleware
-	stateStore  StateStore
+	handlers          map[string]Handler
+	cursorControllers map[string]CursorController
+	errorPolicy       ErrorPolicy
+	logger            *slog.Logger
+	middleware        []Middleware
+	stateStore        StateStore
 }
 
 // NewRouter creates a Router with the given options.
 func NewRouter(opts ...RouterOption) *Router {
 	r := &Router{
-		handlers:    make(map[string]Handler),
-		errorPolicy: StopOnError,
-		logger:      slog.Default(),
+		handlers:          make(map[string]Handler),
+		cursorControllers: make(map[string]CursorController),
+		errorPolicy:       StopOnError,
+		logger:            slog.Default(),
 	}
 	for _, o := range opts {
 		o(r)
@@ -375,6 +393,9 @@ func (r *Router) Register(h Handler) {
 	name := h.Name()
 	if _, exists := r.handlers[name]; exists {
 		panic(fmt.Sprintf("routing-slip: handler %q already registered", name))
+	}
+	if cursorHandler, ok := h.(CursorController); ok {
+		r.cursorControllers[name] = cursorHandler
 	}
 	r.handlers[name] = r.applyMiddleware(h)
 }
@@ -462,6 +483,21 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		}
 
 		msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration})
+		if cursorHandler, ok := r.cursorControllers[step.Name]; ok {
+			nextCursor, changed, err := cursorHandler.NextCursor(msg, step, stepIndex)
+			if err != nil {
+				stepErr := StepError{Step: step.Name, Err: err, Timestamp: time.Now()}
+				msg.AddError(stepErr)
+				if r.errorPolicy == StopOnError {
+					msg.setCursor(stepIndex)
+					_ = r.saveState(context.Background(), msg)
+					return fmt.Errorf("step %q: %w", step.Name, err)
+				}
+			}
+			if changed {
+				msg.setCursor(nextCursor)
+			}
+		}
 		if err := r.saveState(ctx, msg); err != nil {
 			return err
 		}
@@ -478,6 +514,27 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		slog.Bool("has_errors", msg.HasErrors()),
 	)
 	return nil
+}
+
+// FindStepIndex returns the index of a step by id first and by handler name as
+// fallback. IDs are recommended because handler names can repeat.
+func (m *Message) FindStepIndex(ref string) (int, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if strings.TrimSpace(ref) == "" {
+		return 0, false
+	}
+	for index, step := range m.slip {
+		if step.ID == ref {
+			return index, true
+		}
+	}
+	for index, step := range m.slip {
+		if step.Name == ref {
+			return index, true
+		}
+	}
+	return 0, false
 }
 
 func (r *Router) saveState(ctx context.Context, msg *Message) error {

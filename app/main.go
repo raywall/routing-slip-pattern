@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -37,8 +38,11 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 
 	r.MustRegister(handlers.ValidationHandler{})
 	r.MustRegister(handlers.EnrichmentHandler{})
+	r.MustRegister(handlers.AssertHandler{})
+	r.MustRegister(handlers.ComputeHandler{})
 	r.MustRegister(handlers.TransformHandler{})
 	r.MustRegister(handlers.ConditionGate{})
+	r.MustRegister(handlers.JumpIfHandler{})
 	r.MustRegister(&handlers.NotificationHandler{}) // pointer because Send field may be set
 	r.MustRegister(handlers.AuditHandler{})
 	r.MustRegister(handlers.GraphQLEnrichmentHandler{DefaultEndpoint: env("GRAPHQL_ENDPOINT", "http://localhost:8090/graphql")})
@@ -596,9 +600,36 @@ func printResult(msg *slip.Message) {
 // ---------------------------------------------------------------------------
 
 func main() {
+	configPath := flag.String("config", "", "path to config.yaml")
+	workflowPath := flag.String("workflow", "", "path to workflow yaml")
+	flag.Parse()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
+
+	if strings.TrimSpace(*configPath) != "" {
+		if strings.TrimSpace(*workflowPath) == "" {
+			logger.Error("workflow config is required when --config is used", slog.String("flag", "--workflow"))
+			os.Exit(1)
+		}
+		cfg, err := loadAppConfig(*configPath)
+		if err != nil {
+			logger.Error("failed to load config", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		workflow, err := loadWorkflowConfig(*workflowPath)
+		if err != nil {
+			logger.Error("failed to load workflow", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		if err := runConfiguredApp(context.Background(), cfg, workflow, logger); err != nil {
+			logger.Error("configured workflow stopped", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		return
+	}
+
 	runWorkflowScenarios(logger)
 	fmt.Println("\n✅ Scenario suite complete.")
 }

@@ -1,0 +1,36 @@
+service:
+  name: routing-slip-pattern
+  run_id: local-config
+
+trigger:
+  type: "${TRIGGER_TYPE:-rest}"
+  rest:
+    addr: "${REST_ADDR:-:8088}"
+    path: "${REST_PATH:-/process}"
+  kafka:
+    brokers:
+      - "${KAFKA_BROKERS:-localhost:9092}"
+    topic: "${KAFKA_TOPIC:-payment-events}"
+    group_id: "${KAFKA_GROUP_ID:-routing-slip-pattern}"
+    min_bytes: 1
+    max_bytes: 10485760
+  sqs:
+    endpoint: "${SQS_ENDPOINT:-http://localhost:4566}"
+    region: "${AWS_REGION:-us-east-1}"
+    queue_url: "${SQS_QUEUE_URL:-http://localhost:4566/000000000000/payment-events}"
+    wait_time_seconds: 10
+    max_messages: 1
+    visibility_timeout: 30
+
+metrics:
+  endpoint: "${METRICS_ENDPOINT:-http://localhost:8080/v1/metrics}"
+  segment: local-demo
+  source: routing-slip-app
+  tags:
+    environment: local
+    example: payment-fulfillment
+
+integrations:
+  graphql_endpoint: "${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}"
+  external_api_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+  external_api_serial: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"

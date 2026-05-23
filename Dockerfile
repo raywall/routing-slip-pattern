@@ -16,5 +16,5 @@ ENV APP_CMD=${APP_CMD}
 ENV GOCACHE=/workspace/.gocache
 
 WORKDIR /workspace/app
-EXPOSE 8090 8091
+EXPOSE 8088 8090 8091
 CMD ["sh", "-c", "go run ${APP_CMD}"]

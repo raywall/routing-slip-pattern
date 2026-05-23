@@ -1,0 +1,89 @@
+name: payment-event-fulfillment
+description: Evento de pagamento aprovado consulta pedido, emite nota fiscal, aciona expedicao e baixa estoque.
+error_policy: stop
+message_id_path: payload.pagamento_id
+correlation_id_path: correlation_id
+steps:
+  - name: validate
+    params:
+      required:
+        - evento
+        - payload.pagamento_id
+        - payload.pedido_id
+        - payload.valor_pago
+
+  - name: condition
+    params:
+      field: evento
+      equals: PAGAMENTO_APROVADO
+
+  - name: graphql_enrich
+    params:
+      query: "query ($pedidoID: String!) { dataSources(pedidoID: $pedidoID) { order { pedido_id cliente_id status valor_total endereco_entrega itens { produto_id quantidade } } } }"
+      variables:
+        pedidoID: "{payload.pedido_id}"
+      target: pedido
+      result_path: dataSources.order
+      timeout_ms: 1500
+      required: true
+
+  - name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      method: POST
+      endpoint: /lambda/notas-fiscais
+      target: nota_fiscal
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        pedido_id: "{pedido.pedido_id}"
+        cliente_id: "{pedido.cliente_id}"
+        valor_total: "{pedido.valor_total}"
+        itens: "{pedido.itens}"
+        pagamento_id: "{payload.pagamento_id}"
+      required: true
+
+  - name: condition
+    params:
+      field: nota_fiscal.status
+      equals: EMITIDA
+
+  - name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      method: POST
+      endpoint: /api/expedicao
+      target: expedicao
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        pedido_id: "{pedido.pedido_id}"
+        cliente_id: "{pedido.cliente_id}"
+        endereco_entrega: "{pedido.endereco_entrega}"
+        itens: "{pedido.itens}"
+        nota_fiscal_id: "{nota_fiscal.nota_fiscal_id}"
+      required: true
+
+  - name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      method: PUT
+      endpoint: /api/estoque/baixar
+      target: estoque_baixa
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        pedido_id: "{pedido.pedido_id}"
+        itens: "{pedido.itens}"
+      required: true
+
+  - name: audit
+    params:
+      event: payment.fulfillment.completed
+      fields:
+        - evento
+        - payload.pedido_id
+        - pedido.status
+        - nota_fiscal.status
+        - expedicao.codigo_rastreio
+        - estoque_baixa.status
