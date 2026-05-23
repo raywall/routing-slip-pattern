@@ -809,7 +809,8 @@ async function runGraphQLEnrich(params, state) {
     throw new Error(`graphql_enrich: ${JSON.stringify(result.errors)}`);
   }
   const target = params.target || "external_data";
-  const selected = params.result_path ? getPath(result.data || {}, params.result_path) : result.data;
+  const resultRoot = result && typeof result === "object" && "data" in result ? result.data : result;
+  const selected = params.result_path ? getPath(resultRoot || {}, params.result_path) : resultRoot;
   if (selected === undefined && params.required !== false) throw new Error(`graphql_enrich: result_path ${params.result_path} not found`);
   state.payload[target] = selected;
   state.payload[`${target}_enriched_at`] = new Date().toISOString();
