@@ -719,8 +719,8 @@ Campos gerados:
     items: [
       {
         id: "integracao-graphql-visao",
-        title: "go-graphql-connector",
-        content: `# go-graphql-connector
+        title: "GraphQL Connector",
+        content: `# GraphQL Connector
 
 O \`go-graphql-connector\` e a camada de integracao usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou servicos externos.
 
@@ -903,8 +903,8 @@ Observacao: a configuracao cria o gerenciador de token. Se uma API REST precisar
       },
       {
         id: "integracao-metricas-visao",
-        title: "custom-business-metrics",
-        content: `# custom-business-metrics
+        title: "Custom Business Metrics",
+        content: `# Custom Business Metrics
 
 O \`custom-business-metrics\` e a camada usada para observar o processamento em tempo real com metricas de negocio, eventos de etapa e dashboards configuraveis.
 

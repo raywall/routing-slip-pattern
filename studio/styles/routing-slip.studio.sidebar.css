@@ -64,6 +64,11 @@ body.resizing .sidebar-resizer {
   line-height: 1;
 }
 
+.mobile-docs-toggle,
+.mobile-docs-backdrop {
+  display: none;
+}
+
 .sidebar-head h1,
 .topbar h2 {
   margin: 1px 0 0;

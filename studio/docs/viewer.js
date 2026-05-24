@@ -19,6 +19,10 @@
 
     if (docs[0]) state.openSections.add(docs[0].title);
     renderTree(tree, docs, { timeline, title, summary, eyebrow, panelTitle, panelMeta });
+    if (isDocsOnlyViewport()) {
+      renderFirstDoc(docs, { tree, timeline, title, summary, eyebrow, panelTitle, panelMeta });
+    }
+    bindDocsOnlyViewport(docs, { tree, timeline, title, summary, eyebrow, panelTitle, panelMeta });
   }
 
   function renderTree(tree, docs, targets) {
@@ -57,6 +61,7 @@
         state.activeItem = item.id;
         renderTree(tree, docs, targets);
         renderDoc(item, targets);
+        closeMobileDocs();
       });
     });
   }
@@ -69,6 +74,26 @@
     return null;
   }
 
+  function renderFirstDoc(docs, targets) {
+    const item = docs.flatMap((section) => section.items || [])[0];
+    if (!item) return;
+    state.activeItem = item.id;
+    renderTree(targets.tree, docs, targets);
+    renderDoc(item, targets);
+  }
+
+  function isDocsOnlyViewport() {
+    return window.matchMedia?.("(max-width: 760px)")?.matches;
+  }
+
+  function bindDocsOnlyViewport(docs, targets) {
+    const query = window.matchMedia?.("(max-width: 760px)");
+    if (!query?.addEventListener) return;
+    query.addEventListener("change", (event) => {
+      if (event.matches && !state.activeItem) renderFirstDoc(docs, targets);
+    });
+  }
+
   function renderDoc(item, targets) {
     targets.timeline.classList.add("timeline--docs");
     targets.timeline.innerHTML = `<article class="doc-view">${markdownToHtml(item.content)}</article>`;
@@ -79,6 +104,10 @@
     if (targets.panelTitle) targets.panelTitle.textContent = "Documentacao";
     if (targets.panelMeta) targets.panelMeta.textContent = "Markdown";
     targets.timeline.scrollTop = 0;
+  }
+
+  function closeMobileDocs() {
+    if (isDocsOnlyViewport()) document.body.classList.remove("mobile-docs-open");
   }
 
   function markdownToHtml(markdown) {

@@ -56,6 +56,8 @@ const els = {
   collapseTabs: document.querySelector("#collapse-tabs"),
   reprocess: document.querySelector("#reprocess-test"),
   themeToggle: document.querySelector("#theme-toggle"),
+  mobileDocsToggle: document.querySelector("#mobile-docs-toggle"),
+  mobileDocsBackdrop: document.querySelector("#mobile-docs-backdrop"),
 };
 
 let lastWorkflow = null;
@@ -115,6 +117,8 @@ function bindEvents() {
   document.querySelector("#run-test").addEventListener("click", () => runLocalSimulation());
   els.reprocess.addEventListener("click", () => runLocalSimulation({ reprocess: true }));
   els.themeToggle.addEventListener("click", toggleTheme);
+  els.mobileDocsToggle.addEventListener("click", toggleMobileDocs);
+  els.mobileDocsBackdrop.addEventListener("click", closeMobileDocs);
   document.querySelector("#clear-logs").addEventListener("click", clearLogs);
   document.querySelector("#format-yaml").addEventListener("click", formatWorkflow);
   document.querySelector("#toggle-comment").addEventListener("click", () => toggleYamlComment());
@@ -168,6 +172,14 @@ function applyTheme(theme) {
   els.themeToggle.title = label;
   els.themeToggle.setAttribute("aria-label", label);
   els.themeToggle.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
+}
+
+function toggleMobileDocs() {
+  document.body.classList.toggle("mobile-docs-open");
+}
+
+function closeMobileDocs() {
+  document.body.classList.remove("mobile-docs-open");
 }
 
 function initDocumentation() {
