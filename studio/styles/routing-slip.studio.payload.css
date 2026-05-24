@@ -9,7 +9,7 @@
 .payload-panel {
   border: 0;
   border-radius: 0;
-  background: #111827;
+  background: var(--code-bg);
   box-shadow: none;
 }
 
@@ -24,7 +24,7 @@
   min-height: 0;
   border: 0;
   border-radius: 0;
-  background: #111827;
-  color: #e5e7eb;
+  background: var(--code-bg);
+  color: var(--code-text);
   resize: none;
 }

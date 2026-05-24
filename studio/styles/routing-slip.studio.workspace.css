@@ -1,5 +1,5 @@
 .workspace-panel {
-  background: #fbfdff;
+  background: var(--surface-3);
 }
 
 .workspace-toolbar {
@@ -59,7 +59,7 @@
 }
 
 .icon-button:disabled {
-  color: #94a3b8;
+  color: var(--muted);
   cursor: not-allowed;
   opacity: .65;
 }
@@ -92,8 +92,8 @@
 }
 
 .workspace-service.active {
-  border-color: #99f6e4;
-  background: #f0fdfa;
+  border-color: var(--accent);
+  background: var(--log-hover);
 }
 
 .workspace-service-head,
@@ -130,11 +130,11 @@
 
 .workspace-service-head:hover,
 .workspace-file:hover {
-  background: #eef2f7;
+  background: var(--surface-2);
 }
 
 .workspace-file.active {
-  background: #ccfbf1;
+  background: var(--selection-bg);
   color: var(--accent-2);
   font-weight: 800;
 }

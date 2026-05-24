@@ -1,5 +1,5 @@
 .docs-panel {
-  background: #fbfdff;
+  background: var(--surface-3);
 }
 
 .docs-tree {
@@ -18,8 +18,8 @@
 }
 
 .docs-section.open {
-  border-color: #dbe3ee;
-  background: #fff;
+  border-color: var(--border);
+  background: var(--surface);
 }
 
 .docs-section-head,
@@ -50,11 +50,11 @@
 
 .docs-section-head:hover,
 .docs-item:hover {
-  background: #eef2f7;
+  background: var(--surface-2);
 }
 
 .docs-item.active {
-  background: #ccfbf1;
+  background: var(--selection-bg);
   color: var(--accent-2);
   font-weight: 800;
 }
@@ -67,7 +67,7 @@
 
 .timeline--docs {
   padding: 0;
-  background: #fff;
+  background: var(--surface);
 }
 
 .doc-view {
@@ -95,7 +95,7 @@
 .doc-view p {
   max-width: 74ch;
   margin: 0 0 12px;
-  color: #334155;
+  color: var(--text);
   line-height: 1.62;
 }
 
@@ -104,7 +104,7 @@
   max-width: 78ch;
   margin: 0 0 14px 20px;
   padding: 0;
-  color: #334155;
+  color: var(--text);
   line-height: 1.62;
 }
 
@@ -117,8 +117,8 @@
   margin: 12px 0 16px;
   padding: 10px 14px;
   border-left: 3px solid var(--accent);
-  background: #f0fdfa;
-  color: #334155;
+  background: var(--log-hover);
+  color: var(--text);
 }
 
 .doc-view table {
@@ -138,7 +138,7 @@
 }
 
 .doc-view th {
-  background: #eef2f7;
+  background: var(--surface-2);
   font-weight: 850;
 }
 
@@ -149,8 +149,8 @@
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--code-bg);
+  color: var(--code-text);
   line-height: 1.55;
 }
 
@@ -161,8 +161,8 @@
 .doc-view :not(pre) > code {
   padding: 2px 5px;
   border-radius: 5px;
-  background: #eef2f7;
-  color: #0f172a;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .doc-view .mermaid {
@@ -171,5 +171,5 @@
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfdff;
+  background: var(--surface-3);
 }

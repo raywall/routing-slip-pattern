@@ -55,6 +55,7 @@ const els = {
   refreshWorkspace: document.querySelector("#refresh-workspace"),
   collapseTabs: document.querySelector("#collapse-tabs"),
   reprocess: document.querySelector("#reprocess-test"),
+  themeToggle: document.querySelector("#theme-toggle"),
 };
 
 let lastWorkflow = null;
@@ -81,6 +82,7 @@ let lastExecutionSnapshot = null;
 async function boot() {
   const restored = await restoreStudioState();
   if (!restored) loadExample("payment", { persist: false });
+  initTheme();
   renderIcons();
   bindEvents();
   initDocumentation();
@@ -112,6 +114,7 @@ function bindEvents() {
   document.querySelector("#lint-now").addEventListener("click", lintWorkflow);
   document.querySelector("#run-test").addEventListener("click", () => runLocalSimulation());
   els.reprocess.addEventListener("click", () => runLocalSimulation({ reprocess: true }));
+  els.themeToggle.addEventListener("click", toggleTheme);
   document.querySelector("#clear-logs").addEventListener("click", clearLogs);
   document.querySelector("#format-yaml").addEventListener("click", formatWorkflow);
   document.querySelector("#toggle-comment").addEventListener("click", () => toggleYamlComment());
@@ -142,6 +145,29 @@ function renderIcons() {
   if (window.lucide && typeof window.lucide.createIcons === "function") {
     window.lucide.createIcons();
   }
+}
+
+function initTheme() {
+  const stored = localStorage.getItem("routing-slip-studio:theme");
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  applyTheme(stored || (prefersDark ? "dark" : "light"));
+}
+
+function toggleTheme() {
+  const current = document.body.dataset.theme === "dark" ? "dark" : "light";
+  applyTheme(current === "dark" ? "light" : "dark");
+}
+
+function applyTheme(theme) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  document.body.dataset.theme = normalized;
+  localStorage.setItem("routing-slip-studio:theme", normalized);
+  if (!els.themeToggle) return;
+  const icon = normalized === "dark" ? "fa-sun" : "fa-moon";
+  const label = normalized === "dark" ? "Alternar para tema claro" : "Alternar para tema escuro";
+  els.themeToggle.title = label;
+  els.themeToggle.setAttribute("aria-label", label);
+  els.themeToggle.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
 }
 
 function initDocumentation() {

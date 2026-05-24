@@ -31,9 +31,9 @@
       <section id="side-tabs" class="side-tabs">
         <div class="tab-list" role="tablist" aria-label="Paineis do studio">
           <button class="tab-button active" type="button" data-tab="workspace">Workspace</button>
-          <button class="tab-button" type="button" data-tab="config">Configuracao</button>
           <button class="tab-button" type="button" data-tab="payload">Payload de Entrada</button>
-          <button class="tab-button" type="button" data-tab="docs">Documentacao</button>
+          <button class="tab-button tab-icon" type="button" data-tab="config" title="Configuracao" aria-label="Configuracao"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+          <button class="tab-button tab-icon" type="button" data-tab="docs" title="Documentacao" aria-label="Documentacao"><i class="fa-solid fa-info" aria-hidden="true"></i></button>
           <button id="collapse-tabs" class="tab-close" type="button" title="Minimizar painel" aria-label="Minimizar painel"><i data-lucide="minus"></i></button>
         </div>
 
@@ -54,6 +54,10 @@
           </div>
           <div id="workspace-tree" class="workspace-tree" aria-label="Workflows do workspace"></div>
           <div id="workspace-current" class="workspace-current"></div>
+        </div>
+
+        <div id="payload-panel" class="tab-panel payload-panel" data-panel="payload">
+          <textarea id="payload-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
         </div>
 
         <div id="config-panel" class="tab-panel control-panel" data-panel="config">
@@ -85,10 +89,6 @@
             <button id="load-example" type="button">Carregar</button>
             <button id="send-rest" type="button">Enviar REST</button>
           </div>
-        </div>
-
-        <div id="payload-panel" class="tab-panel payload-panel" data-panel="payload">
-          <textarea id="payload-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
         </div>
 
         <div id="docs-panel" class="tab-panel docs-panel" data-panel="docs">
@@ -128,7 +128,12 @@
           <p id="workspace-mode-label" class="eyebrow">Execucao</p>
           <h2 id="workflow-title">Workflow</h2>
         </div>
-        <span id="run-summary">Nenhuma execucao</span>
+        <div class="topbar-actions">
+          <span id="run-summary">Nenhuma execucao</span>
+          <button id="theme-toggle" class="theme-toggle" type="button" title="Alternar tema escuro" aria-label="Alternar tema escuro">
+            <i class="fa-solid fa-moon" aria-hidden="true"></i>
+          </button>
+        </div>
       </header>
 
       <section class="execution-panel">

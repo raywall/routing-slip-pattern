@@ -11,21 +11,21 @@
   flex: 1;
   overflow: auto;
   padding: 14px;
-  background: #f8fafc;
+  background: var(--surface-3);
 }
 
 .phase-group {
   margin: 0 0 12px;
-  border: 1px solid #dbe3ee;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, .04);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .phase-group--active {
-  border-color: #99f6e4;
-  box-shadow: 0 0 0 2px #ccfbf1, 0 8px 20px rgba(15, 118, 110, .08);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent), var(--shadow);
 }
 
 .phase-head {
@@ -37,15 +37,15 @@
   align-items: center;
   gap: 10px;
   border: 0;
-  border-bottom: 1px solid #e5eaf2;
+  border-bottom: 1px solid var(--border);
   border-radius: 0;
-  background: #f1f5f9;
+  background: var(--surface-2);
   padding: 8px 12px;
   text-align: left;
 }
 
 .phase-head:hover {
-  background: #e8f7f4;
+  background: var(--log-hover);
 }
 
 .phase-index {
@@ -78,11 +78,11 @@
 
 .execution-summary {
   margin: 16px 0 2px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, .07);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .execution-summary-head {
@@ -92,8 +92,8 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 14px;
-  border-bottom: 1px solid #e5eaf2;
-  background: #eef2f7;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .execution-summary-eyebrow {
@@ -126,7 +126,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
   gap: 1px;
-  background: #e5eaf2;
+  background: var(--border);
 }
 
 .summary-metric {
@@ -135,7 +135,7 @@
   align-content: center;
   gap: 4px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .summary-metric span {
@@ -163,7 +163,7 @@
   grid-template-columns: 82px 82px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 11px;
 }
@@ -187,7 +187,7 @@
   grid-template-columns: 112px 1fr;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .log-entry--step {
@@ -195,14 +195,14 @@
 }
 
 .log-entry--step:hover {
-  background: #eefdf9;
+  background: var(--log-hover);
 }
 
 .log-entry--active {
   margin: 0 -8px;
   padding: 10px 8px;
   border-radius: 6px;
-  background: #ccfbf1;
+  background: var(--selection-bg);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
@@ -232,22 +232,22 @@
 }
 
 .level-ok {
-  background: #dcfce7;
+  background: var(--success-bg);
   color: var(--ok);
 }
 
 .level-info {
-  background: #dbeafe;
+  background: var(--info-bg);
   color: var(--info);
 }
 
 .level-warn {
-  background: #fef3c7;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
 .level-error {
-  background: #fee2e2;
+  background: var(--error-bg);
   color: var(--error);
 }
 
@@ -269,10 +269,10 @@
   margin: 8px 0 0;
   max-height: 240px;
   overflow: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #0f172a;
-  color: #dbeafe;
+  background: var(--code-bg);
+  color: var(--code-text);
   padding: 10px;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;

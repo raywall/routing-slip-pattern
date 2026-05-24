@@ -97,9 +97,9 @@
 }
 
 #workflow-editor::selection {
-  background: #ccfbf1;
-  color: #0f172a;
-  -webkit-text-fill-color: #0f172a;
+  background: var(--selection-bg);
+  color: var(--selection-text);
+  -webkit-text-fill-color: var(--selection-text);
 }
 
 .yaml-header-key {
@@ -118,16 +118,16 @@
 }
 
 .yaml-step-band {
-  background: #edf3f1;
+  background: var(--step-band);
 }
 
 .yaml-step-divider {
-  color: #b91c1c;
+  color: var(--error);
   font-weight: 850;
 }
 
 .yaml-comment {
-  color: #9ca3af;
+  color: var(--muted);
 }
 
 .yaml-step-key {
