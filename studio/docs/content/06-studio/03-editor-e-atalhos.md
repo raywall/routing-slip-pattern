@@ -1,5 +1,7 @@
 # Editor e atalhos
 
+![Workspace](/docs/images/studio-editor.jpg)
+
 Atalhos disponiveis:
 
 - Tab: indenta o trecho selecionado.

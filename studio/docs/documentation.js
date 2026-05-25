@@ -158,24 +158,34 @@ window.RoutingSlipDocs = [
     "title": "Studio",
     "items": [
       {
+        "id": "studio-visao-geral",
+        "title": "Visãp geral",
+        "file": "content/06-studio/01-visao-geral.md"
+      },
+      {
         "id": "studio-workspace",
         "title": "Workspace",
-        "file": "content/06-studio/01-workspace.md"
+        "file": "content/06-studio/02-workspace.md"
       },
       {
         "id": "studio-editor",
         "title": "Editor e atalhos",
-        "file": "content/06-studio/02-editor-e-atalhos.md"
+        "file": "content/06-studio/03-editor-e-atalhos.md"
+      },
+      {
+        "id": "studio-payload",
+        "title": "Payload de entrada",
+        "file": "content/06-studio/04-payload.md"
       },
       {
         "id": "studio-resumo-execucao",
         "title": "Resumo da execucao",
-        "file": "content/06-studio/03-resumo-da-execucao.md"
+        "file": "content/06-studio/05-resumo-da-execucao.md"
       },
       {
         "id": "studio-documentacao",
-        "title": "Documentacao no Studio",
-        "file": "content/06-studio/04-documentacao-no-studio.md"
+        "title": "Configuração e documentação",
+        "file": "content/06-studio/06-config-e-documentacao.md"
       }
     ]
   }

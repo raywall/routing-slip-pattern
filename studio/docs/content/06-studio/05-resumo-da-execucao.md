@@ -4,6 +4,8 @@ Ao final de cada simulacao, o Studio adiciona um resumo no fim da timeline.
 
 O resumo mostra:
 
+![Workspace](/docs/images/studio-result.jpg)
+
 | Indicador | Descricao |
 |---|---|
 | Steps executados | Quantidade de etapas processadas. |
@@ -14,5 +16,7 @@ O resumo mostra:
 | Integracoes API/servico | Total de chamadas ou simulacoes de integracao. |
 | Tempo total | Duracao completa da simulacao. |
 | Dif. tempo anterior | Diferenca entre o tempo do processamento atual e o anterior, quando for reprocessamento. |
+
+![Workspace](/docs/images/studio-metrics.jpg)
 
 As integracoes sao contabilizadas para handlers como `graphql_enrich`, `rest_call` e `notify`. Quando as integracoes reais estao desativadas, o resumo ainda registra as chamadas simuladas para deixar claro o desenho operacional do workflow.

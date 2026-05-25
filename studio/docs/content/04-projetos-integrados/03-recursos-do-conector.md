@@ -43,21 +43,57 @@ para:
 
 ## Token STS
 
-A configuracao de autorizacao ainda existe no conector:
+O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando habilitado, o runtime:
+
+1. chama o endpoint definido em `token_authorization_url`;
+2. envia `grant_type=client_credentials`, `client_id` e `client_secret`;
+3. aplica headers customizados do `tokenService.headers`;
+4. guarda o `access_token` retornado;
+5. injeta `Authorization: Bearer <token>` nos connectors REST.
 
 ```json
 {
   "authorization": {
     "require_token_sts": true,
     "tokenService": {
-      "token_authorization_url": "env:STS_TOKEN_URL",
-      "Credentials": {
-        "client_id": "env:STS_CLIENT_ID",
-        "client_secret": "secrets:/graphql/dev/credentials:json"
+      "token_authorization_url": "${STS_TOKEN_URL}",
+      "headers": {
+        "x-serial-number": "${STS_SERIAL_NUMBER}"
+      },
+      "credentials": {
+        "client_id": "${STS_CLIENT_ID}",
+        "client_secret": "${STS_CLIENT_SECRET}"
       }
     }
   }
 }
 ```
 
-Observacao: a configuracao cria o gerenciador de token. Se uma API REST precisar receber `Authorization: Bearer <token>`, confirme no runtime se o adapter esta injetando o token automaticamente ou se sera necessario plugar esse token nos headers do connector.
+### Opcoes
+
+| Campo | Descricao |
+|---|---|
+| `require_token_sts` | Liga/desliga autenticacao centralizada. |
+| `token_authorization_url` | URL do emissor de token. |
+| `headers` | Headers enviados somente para a chamada de token. |
+| `credentials.client_id` | Identificador da aplicacao cliente. |
+| `credentials.client_secret` | Segredo da aplicacao cliente. |
+
+### Quando usar
+
+Use token STS quando varias APIs integradas exigem o mesmo `Bearer token`. O workflow continua chamando apenas GraphQL, enquanto o conector gerencia autenticacao e renovacao.
+
+```mermaid
+flowchart LR
+    Workflow[Workflow] --> GraphQL[GraphQL Connector]
+    GraphQL --> Token[Token Service]
+    Token --> GraphQL
+    GraphQL -->|Authorization Bearer| API1[API de catalogo]
+    GraphQL -->|Authorization Bearer| API2[API de entrega]
+```
+
+### Cuidados
+
+- Se um connector REST ja possuir `Authorization` em `adapterConfig.headers`, o token automatico nao sobrescreve esse valor.
+- Mantenha `client_secret` em Secrets Manager, SSM seguro ou variavel de ambiente protegida.
+- Configure `timeoutMs` e `retries` por fonte para evitar que uma API lenta degrade todo o workflow.
