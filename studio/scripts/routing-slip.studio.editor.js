@@ -22,17 +22,24 @@ function handleEditorKeydown(event) {
   }
   if (event.key !== "Tab") return;
   event.preventDefault();
-  const editor = event.currentTarget;
+  insertTabIndent(event.currentTarget, { outdent: event.shiftKey });
+  lintWorkflow();
+  markWorkflowDirty();
+  scheduleStudioSave();
+}
+
+function insertTabIndent(editor, options = {}) {
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
   const value = editor.value;
   const indent = "  ";
+  const outdent = Boolean(options.outdent);
 
   if (start !== end && value.slice(start, end).includes("\n")) {
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
     const selected = value.slice(lineStart, end);
     const replacement = selected.split("\n").map((line) => {
-      if (!event.shiftKey) return indent + line;
+      if (!outdent) return indent + line;
       if (line.startsWith(indent)) return line.slice(indent.length);
       if (line.startsWith(" ")) return line.slice(1);
       return line;
@@ -40,7 +47,7 @@ function handleEditorKeydown(event) {
     editor.value = value.slice(0, lineStart) + replacement + value.slice(end);
     editor.selectionStart = lineStart;
     editor.selectionEnd = lineStart + replacement.length;
-  } else if (event.shiftKey) {
+  } else if (outdent) {
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
     const beforeCursor = value.slice(lineStart, start);
     if (beforeCursor.endsWith(indent)) {
@@ -51,9 +58,6 @@ function handleEditorKeydown(event) {
     editor.value = value.slice(0, start) + indent + value.slice(end);
     editor.selectionStart = editor.selectionEnd = start + indent.length;
   }
-  lintWorkflow();
-  markWorkflowDirty();
-  scheduleStudioSave();
 }
 
 function insertIndentedNewline(editor) {

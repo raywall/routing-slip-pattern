@@ -173,3 +173,29 @@
   border-radius: 8px;
   background: var(--surface-3);
 }
+
+body[data-theme="dark"] .doc-view .mermaid svg {
+  color: var(--text);
+}
+
+body[data-theme="dark"] .doc-view .mermaid text,
+body[data-theme="dark"] .doc-view .mermaid .label,
+body[data-theme="dark"] .doc-view .mermaid .nodeLabel,
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel,
+body[data-theme="dark"] .doc-view .mermaid .cluster-label {
+  color: #f8fafc !important;
+  fill: #f8fafc !important;
+}
+
+body[data-theme="dark"] .doc-view .mermaid .node rect,
+body[data-theme="dark"] .doc-view .mermaid .node polygon,
+body[data-theme="dark"] .doc-view .mermaid .node circle,
+body[data-theme="dark"] .doc-view .mermaid .node ellipse {
+  fill: #1f2937 !important;
+  stroke: #2dd4bf !important;
+}
+
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel,
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel p {
+  background-color: #111827 !important;
+}

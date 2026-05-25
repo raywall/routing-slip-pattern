@@ -6,3 +6,12 @@ function validatePayload() {
     return false;
   }
 }
+
+function handlePayloadKeydown(event) {
+  if (event.key !== "Tab") return;
+  event.preventDefault();
+  insertTabIndent(event.currentTarget, { outdent: event.shiftKey });
+  invalidateExecutionSnapshot();
+  validatePayload();
+  scheduleStudioSave();
+}

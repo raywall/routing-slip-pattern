@@ -106,6 +106,7 @@ function bindEvents() {
     validatePayload();
     scheduleStudioSave();
   });
+  els.payload.addEventListener("keydown", handlePayloadKeydown);
   [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.externalApiUrl, els.integrations].forEach((input) => {
     input.addEventListener("change", () => {
       invalidateExecutionSnapshot();
@@ -172,6 +173,7 @@ function applyTheme(theme) {
   els.themeToggle.title = label;
   els.themeToggle.setAttribute("aria-label", label);
   els.themeToggle.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
+  window.dispatchEvent(new CustomEvent("routing-slip-theme-change", { detail: { theme: normalized } }));
 }
 
 function toggleMobileDocs() {
