@@ -1,5 +1,3 @@
-# Estrutura basica
-
 Um workflow YAML possui metadados e uma lista de steps.
 
 ```yaml

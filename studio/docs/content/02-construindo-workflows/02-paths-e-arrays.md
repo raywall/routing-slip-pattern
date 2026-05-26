@@ -1,5 +1,3 @@
-# Paths e arrays
-
 Handlers usam dot notation para acessar campos do payload.
 
 ```yaml

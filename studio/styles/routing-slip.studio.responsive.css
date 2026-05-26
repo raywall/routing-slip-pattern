@@ -210,6 +210,19 @@
     font-size: 14px;
   }
 
+  .doc-view img,
+  .doc-view img[src$="#right-table"],
+  .doc-view img[src$="#right"],
+  .doc-view img[src$="#left"] {
+    float: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    margin: 14px 0 18px;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .22);
+  }
+
   .doc-view table {
     display: block;
     max-width: 100%;

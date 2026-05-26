@@ -1,5 +1,3 @@
-# Composicao de scripts
-
 Use `workflow_ref` para dividir fluxos extensos em arquivos menores sem perder a execucao continua.
 
 > Pense em cada arquivo como uma parte coesa do processo. Na execucao, o motor enxerga tudo como um unico routing slip.

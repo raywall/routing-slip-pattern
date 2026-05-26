@@ -1,8 +1,4 @@
-# Editor e atalhos
-
----
-
-![Workspace](docs/images/studio-editor.jpg#right)
+![Editor de script e atalhos](docs/images/studio-editor.jpg#right)
 
 Atalhos disponiveis:
 

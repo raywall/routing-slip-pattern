@@ -110,6 +110,7 @@
 
 .doc-view li + li {
   margin-top: 3px;
+  margin-left: 18px;
 }
 
 .doc-view blockquote {
@@ -123,7 +124,7 @@
 
 .doc-view table {
   width: 100%;
-  max-width: 480px;
+  max-width: 85%;
   margin: 12px 0 18px;
   border-collapse: collapse;
   position: relative;
@@ -174,24 +175,40 @@
 }
 
 .doc-view img[src$="#right-table"] {
-  max-width: 50ch;
-  margin: 55px 57px 18px 20px;
+  width: min(40%, 46ch);
+  max-width: 46ch;
+  margin: 55px 0 18px 24px;
   box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.3);
   float: right;
 }
 
 .doc-view img[src$="#right"] {
-  max-width: 50ch;
-  margin: 0px 0 18px 20px;
+  width: min(36%, 42ch);
+  max-width: 42ch;
+  margin: 0 0 18px 24px;
   box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.3);
   float: right;
 }
 
 .doc-view img[src$="#left"] {
-  max-width: 50ch;
-  margin: 0px 20px 18px;
+  width: min(36%, 42ch);
+  max-width: 42ch;
+  margin: 0 24px 18px 0;
   box-shadow: -5px 5px 0px 0px rgba(0,0,0,0.3);
   float: left;
+}
+
+@media (max-width: 1320px) {
+  .doc-view img[src$="#right-table"],
+  .doc-view img[src$="#right"],
+  .doc-view img[src$="#left"] {
+    float: none;
+    display: block;
+    width: min(100%, 720px);
+    max-width: 100%;
+    height: auto;
+    margin: 18px 0 22px;
+  }
 }
 
 .doc-view :not(pre) > code {

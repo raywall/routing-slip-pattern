@@ -1,5 +1,3 @@
-# Configurar GraphQL Connector
-
 O conector usa tres configuracoes principais:
 
 | Arquivo | Finalidade |

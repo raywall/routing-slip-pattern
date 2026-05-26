@@ -1,5 +1,3 @@
-# CEL expressions
-
 O handler `cel` avalia uma expressao CEL e espera resultado booleano. Ele pode falhar o workflow, continuar, parar sem erro ou saltar para outra etapa quando a expressao for falsa.
 
 O runtime disponibiliza:

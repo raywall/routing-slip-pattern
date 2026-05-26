@@ -1,5 +1,3 @@
-# Enrich e transform
-
 Use `enrich` para adicionar dados ao payload.
 
 ```yaml

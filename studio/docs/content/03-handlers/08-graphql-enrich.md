@@ -1,5 +1,3 @@
-# GraphQL enrich
-
 Use `graphql_enrich` para buscar dados no go-graphql-connector.
 
 ## Sintaxe

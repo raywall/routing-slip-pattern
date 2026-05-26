@@ -1,7 +1,3 @@
-# Workspace
-
----
-
 ![Workspace](docs/images/studio-workspace.jpg#right)
 
 A aba Workspace organiza scripts por contexto.

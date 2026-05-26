@@ -1,5 +1,3 @@
-# Compute
-
 Use `compute` para calcular e gravar um valor no payload.
 
 ```yaml

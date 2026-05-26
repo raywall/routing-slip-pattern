@@ -1,5 +1,3 @@
-# Condition
-
 Use `condition` para interromper o fluxo de forma graciosa, sem tratar como erro tecnico.
 
 ```yaml

@@ -1,5 +1,3 @@
-# Recursos do conector
-
 O `go-graphql-connector` permite compor uma fachada de dados sem espalhar logica de integracao dentro do workflow.
 
 ## Transformacao de resposta

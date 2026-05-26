@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  const STORAGE_KEYS = {
+    activeItem: "routing-slip-studio:docs-active-item",
+    openSections: "routing-slip-studio:docs-open-sections",
+  };
+
   const state = {
     openSections: new Set(),
     activeItem: null,
@@ -21,9 +26,12 @@
 
     state.docs = docs;
     state.targets = { tree, timeline, title, summary, eyebrow, panelTitle, panelMeta };
-    if (docs[0]) state.openSections.add(docs[0].title);
+    restoreDocsState(docs);
     renderTree(tree, docs, state.targets);
-    if (isDocsOnlyViewport()) {
+    const activeItem = findDocItem(docs, state.activeItem);
+    if (activeItem) {
+      renderDoc(activeItem, state.targets);
+    } else if (isDocsOnlyViewport()) {
       renderFirstDoc(docs, state.targets);
     }
     bindDocsOnlyViewport(docs, state.targets);
@@ -58,6 +66,7 @@
         if (!section) return;
         if (state.openSections.has(section.title)) state.openSections.delete(section.title);
         else state.openSections.add(section.title);
+        persistOpenSections();
         renderTree(tree, docs, targets);
       });
     });
@@ -67,6 +76,7 @@
         const item = findDocItem(docs, button.dataset.docId);
         if (!item) return;
         state.activeItem = item.id;
+        persistActiveItem();
         renderTree(tree, docs, targets);
         await renderDoc(item, targets);
         closeMobileDocs();
@@ -86,6 +96,7 @@
     const item = docs.flatMap((section) => section.items || [])[0];
     if (!item) return;
     state.activeItem = item.id;
+    persistActiveItem();
     renderTree(targets.tree, docs, targets);
     await renderDoc(item, targets);
   }
@@ -100,6 +111,38 @@
     query.addEventListener("change", (event) => {
       if (event.matches && !state.activeItem) renderFirstDoc(docs, targets);
     });
+  }
+
+  function restoreDocsState(docs) {
+    const storedSections = parseStoredSections();
+    state.openSections = storedSections.size > 0 ? storedSections : new Set();
+
+    const storedItem = localStorage.getItem(STORAGE_KEYS.activeItem);
+    const activeItem = findDocItem(docs, storedItem);
+    state.activeItem = activeItem ? activeItem.id : null;
+
+    if (activeItem) {
+      const section = docs.find((entry) => (entry.items || []).some((item) => item.id === activeItem.id));
+      if (section) state.openSections.add(section.title);
+    }
+    if (state.openSections.size === 0 && docs[0]) state.openSections.add(docs[0].title);
+  }
+
+  function parseStoredSections() {
+    try {
+      const sections = JSON.parse(localStorage.getItem(STORAGE_KEYS.openSections) || "[]");
+      return new Set(Array.isArray(sections) ? sections : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function persistActiveItem() {
+    if (state.activeItem) localStorage.setItem(STORAGE_KEYS.activeItem, state.activeItem);
+  }
+
+  function persistOpenSections() {
+    localStorage.setItem(STORAGE_KEYS.openSections, JSON.stringify([...state.openSections]));
   }
 
   async function renderDoc(item, targets) {

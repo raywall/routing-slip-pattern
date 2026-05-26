@@ -1,5 +1,3 @@
-# Filter array
-
 Use `filter_array` para remover itens de um array antes das proximas etapas.
 
 O handler pode sobrescrever o array original ou gravar a lista filtrada em outro campo.

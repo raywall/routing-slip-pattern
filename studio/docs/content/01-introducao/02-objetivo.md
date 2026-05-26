@@ -1,5 +1,3 @@
-# Objetivo
-
 A proposta do projeto e fornecer uma base resiliente, observavel e reutilizavel para workflows de qualquer dominio.
 
 Um workflow deve conseguir:

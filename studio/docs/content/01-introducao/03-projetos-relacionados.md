@@ -1,5 +1,3 @@
-# Projetos relacionados
-
 O routing-slip-pattern se integra a dois projetos complementares:
 
 - go-graphql-connector: camada GraphQL configuravel para integrar APIs, bases de dados, caches e outros servicos.

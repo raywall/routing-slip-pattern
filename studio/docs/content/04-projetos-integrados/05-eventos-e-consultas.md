@@ -1,5 +1,3 @@
-# Eventos e consultas
-
 Um evento de metrica representa algo que aconteceu no processo.
 
 ```json

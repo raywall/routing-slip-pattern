@@ -1,5 +1,3 @@
-# Visao geral dos handlers
-
 Handlers sao unidades pequenas e combinaveis. Cada handler recebe o payload atual, seus `params` e decide se altera o payload, interrompe o fluxo, registra informacoes ou chama uma integracao.
 
 | Handler | Papel |

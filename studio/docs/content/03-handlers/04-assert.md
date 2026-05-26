@@ -1,5 +1,3 @@
-# Assert
-
 Use `assert` quando a regra e **obrigatoria** e deve falhar o workflow se nao for atendida.
 
 ```yaml

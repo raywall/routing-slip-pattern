@@ -1,5 +1,3 @@
-# Audit e notify
-
 Use `audit` para registrar evidencia funcional.
 
 ```yaml

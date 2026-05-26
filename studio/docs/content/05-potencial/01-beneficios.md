@@ -1,5 +1,3 @@
-# Beneficios e potencial
-
 O routing-slip-pattern combina **velocidade de construcao**, **clareza operacional** e **capacidade de reprocessamento**.
 
 | Beneficio | Impacto |

@@ -1,5 +1,3 @@
-# Dashboards e beneficios
-
 O dashboard permite acompanhar processos em tempo real sem abrir logs da aplicacao.
 
 Indicadores uteis para routing slip:
