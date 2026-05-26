@@ -1,10 +1,12 @@
 # Resumo da execucao
 
+---
+
+![Workspace](docs/images/studio-result.jpg#right-table)
+
 Ao final de cada simulacao, o Studio adiciona um resumo no fim da timeline.
 
 O resumo mostra:
-
-![Workspace](/docs/images/studio-result.jpg)
 
 | Indicador | Descricao |
 |---|---|
@@ -17,6 +19,6 @@ O resumo mostra:
 | Tempo total | Duracao completa da simulacao. |
 | Dif. tempo anterior | Diferenca entre o tempo do processamento atual e o anterior, quando for reprocessamento. |
 
-![Workspace](/docs/images/studio-metrics.jpg)
+![Workspace](docs/images/studio-metrics.jpg#left)
 
 As integracoes sao contabilizadas para handlers como `graphql_enrich`, `rest_call` e `notify`. Quando as integracoes reais estao desativadas, o resumo ainda registra as chamadas simuladas para deixar claro o desenho operacional do workflow.

@@ -1,3 +1,5 @@
 # Visão geral
 
-![Workspace](/docs/images/studio-interface.jpg)
+---
+
+![Workspace](docs/images/studio-interface.jpg)
