@@ -35,6 +35,7 @@ Quando `authorization.require_token_sts` e `true`, o `go-graphql-connector` emit
   "allow_partial": false,
   "authorization": {
     "require_token_sts": true,
+    "skip_tls_verify": false,
     "tokenService": {
       "token_authorization_url": "${STS_TOKEN_URL}",
       "headers": {
@@ -54,6 +55,7 @@ Campos suportados em `authorization`:
 | Campo | Obrigatorio | Descricao |
 |---|---:|---|
 | `require_token_sts` | Sim | Ativa ou desativa emissao de token. |
+| `skip_tls_verify` | Nao | Quando `true`, desativa a validacao TLS apenas na chamada ao servico de token. Padrao: `false`. |
 | `tokenService.token_authorization_url` | Sim | Endpoint OAuth/STS usado para emitir o token. Aceita `local`, `env`, `ssm`, `secret`, `s3`, `dynamodb` ou `${VAR}` inline. |
 | `tokenService.headers` | Nao | Headers enviados para o emissor do token, como `x-serial-number`. Os nomes sao preservados. |
 | `tokenService.credentials.client_id` | Sim | Client id, podendo vir inline, env, SSM ou Secrets Manager. |
@@ -69,6 +71,8 @@ export STS_CLIENT_SECRET="550e8400-e29b-41d4-a716-446655440000"
 ```
 
 > O token e cacheado ate perto da expiracao. Uma nova chamada so e feita quando nao ha token ou quando ele esta proximo de expirar.
+
+Use `skip_tls_verify: true` somente em ambientes privados onde o emissor do token usa certificado interno ou autoassinado e a cadeia de CA ainda nao esta disponivel na imagem/container. Em ambientes produtivos, prefira instalar a CA interna no container e manter a validacao TLS ativa.
 
 Exemplo de connector REST:
 

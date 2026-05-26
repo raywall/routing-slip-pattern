@@ -53,6 +53,7 @@ O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando h
 {
   "authorization": {
     "require_token_sts": true,
+    "skip_tls_verify": false,
     "tokenService": {
       "token_authorization_url": "${STS_TOKEN_URL}",
       "headers": {
@@ -72,6 +73,7 @@ O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando h
 | Campo | Descricao |
 |---|---|
 | `require_token_sts` | Liga/desliga autenticacao centralizada. |
+| `skip_tls_verify` | Desativa validacao TLS do emissor de token quando `true`. Use apenas em ambientes privados controlados. |
 | `token_authorization_url` | URL do emissor de token. |
 | `headers` | Headers enviados somente para a chamada de token. |
 | `credentials.client_id` | Identificador da aplicacao cliente. |
@@ -94,4 +96,5 @@ flowchart LR
 
 - Se um connector REST ja possuir `Authorization` em `adapterConfig.headers`, o token automatico nao sobrescreve esse valor.
 - Mantenha `client_secret` em Secrets Manager, SSM seguro ou variavel de ambiente protegida.
+- Prefira instalar a CA interna na imagem do container. Use `skip_tls_verify` como excecao temporaria ou para laboratorios controlados.
 - Configure `timeoutMs` e `retries` por fonte para evitar que uma API lenta degrade todo o workflow.
