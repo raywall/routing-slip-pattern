@@ -174,7 +174,10 @@
   }
 
   function resolveDocUrl(file) {
-    return new URL(file, new URL("docs/", window.location.href)).href;
+    const url = new URL(file, new URL("docs/", window.location.href));
+    const version = window.RoutingSlipStudioAssetVersion || document.querySelector('meta[name="routing-slip-studio-version"]')?.content || Date.now();
+    url.searchParams.set("v", version);
+    return url.href;
   }
 
   function closeMobileDocs() {

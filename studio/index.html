@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Routing Slip Studio: editor, lint e simulador de workflows YAML." />
+    <meta name="routing-slip-studio-version" content="2026-05-26-docs-1" />
     <title>Routing Slip Studio</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
     <link rel="icon" href="./favicon.png" type="image/x-icon" />
@@ -153,8 +154,11 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-    <script src="./docs/documentation.js"></script>
-    <script src="./docs/viewer.js"></script>
+    <script>
+      window.RoutingSlipStudioAssetVersion = String(Date.now());
+      document.write(`<script src="./docs/documentation.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
+      document.write(`<script src="./docs/viewer.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
+    </script>
     <script src="./scripts/routing-slip.studio.examples.js"></script>
     <script src="./scripts/routing-slip.studio.core.js"></script>
     <script src="./scripts/routing-slip.studio.configuration.js"></script>

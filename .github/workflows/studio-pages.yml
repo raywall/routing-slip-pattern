@@ -47,9 +47,30 @@ jobs:
           test -f studio/index.html
           test -f studio/scripts/routing-slip.studio.bootstrap.js
           test -f studio/styles/routing-slip.studio.base.css
+          test -d studio/docs/content
           for file in studio/scripts/*.js studio/docs/*.js; do
             node --check "$file"
           done
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const path = require('path');
+          const source = fs.readFileSync('studio/docs/documentation.js', 'utf8');
+          const sandbox = { window: {} };
+          vm.runInNewContext(source, sandbox);
+          let count = 0;
+          for (const section of sandbox.window.RoutingSlipDocs || []) {
+            for (const item of section.items || []) {
+              count++;
+              const file = path.join('studio/docs', item.file || '');
+              if (!item.file || !fs.existsSync(file)) {
+                throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
+              }
+            }
+          }
+          if (count === 0) throw new Error('Manifesto de documentacao sem itens');
+          console.log(`documentacao validada: ${count} itens`);
+          NODE
 
       - name: montar artefato
         shell: bash
@@ -57,6 +78,10 @@ jobs:
           rm -rf pages-dist
           mkdir -p pages-dist
           cp -R studio/. pages-dist/
+          test -f pages-dist/docs/content/06-studio/01-visao-geral.md
+          test -f pages-dist/docs/content/06-studio/04-payload.md
+          test -f pages-dist/docs/content/06-studio/05-resumo-da-execucao.md
+          test -f pages-dist/docs/content/06-studio/06-config-e-documentacao.md
           touch pages-dist/.nojekyll
 
       - name: enviar artefato do pages
