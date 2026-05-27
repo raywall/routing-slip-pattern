@@ -58,6 +58,12 @@ func (s *mcpServer) registerTools() {
 		{Name: "export_workflow", Description: "Une workflows referenciados em um unico arquivo YAML.", ReadOnly: true, Handler: s.exportWorkflow},
 		{Name: "get_execution", Description: "Recupera execucao por message_id, correlation_id ou trace_id.", ReadOnly: true, Handler: s.getExecution},
 		{Name: "list_state_snapshots", Description: "Lista snapshots persistidos por filtro simples.", ReadOnly: true, Handler: s.listStateSnapshots},
+		{Name: "plan_workflow", Description: "Gera rascunho de workflow a partir de descricao, evento e integracoes.", ReadOnly: true, Handler: s.planWorkflow},
+		{Name: "suggest_handlers", Description: "Sugere handlers adequados para capacidades desejadas.", ReadOnly: true, Handler: s.suggestHandlers},
+		{Name: "generate_test_payload", Description: "Gera payload de teste a partir do workflow ou descricao.", ReadOnly: true, Handler: s.generateTestPayload},
+		{Name: "generate_bruno_collection", Description: "Gera modelo textual de requisicoes Bruno para REST e MCP.", ReadOnly: true, Handler: s.generateBrunoCollection},
+		{Name: "assess_idempotency", Description: "Analisa riscos de idempotencia e side effects do workflow.", ReadOnly: true, Handler: s.assessIdempotency},
+		{Name: "suggest_metrics", Description: "Sugere metricas e pontos de auditoria para o workflow.", ReadOnly: true, Handler: s.suggestMetrics},
 		{Name: "dry_run_step", Description: "Reservado para executar um step isolado em modo controlado.", ReadOnly: false, Handler: s.writeToolDisabled},
 		{Name: "reprocess_execution", Description: "Reservado para reprocessar a partir do cursor salvo.", ReadOnly: false, Handler: s.writeToolDisabled},
 	} {

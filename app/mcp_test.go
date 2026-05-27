@@ -77,6 +77,31 @@ func TestMCPWriteToolRequiresMaintenanceMode(t *testing.T) {
 	}
 }
 
+func TestMCPPlanWorkflow(t *testing.T) {
+	server := testMCPServer()
+	result, err := server.callTool(context.Background(), []byte(`{
+		"name": "plan_workflow",
+		"arguments": {
+			"name": "Catalog Sync",
+			"description": "Recebe evento de catalogo, consulta API REST de produto e audita o resultado",
+			"required_fields": ["correlation_id", "product_id"],
+			"endpoints": [
+				{"name": "product-api", "method": "GET", "url": "https://api.example.test/products/{product_id}"}
+			]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("plan workflow: %v", err)
+	}
+	content := result["structuredContent"].(map[string]any)
+	if content["yaml"] == "" {
+		t.Fatal("expected yaml draft")
+	}
+	if content["requires_review"] != true {
+		t.Fatal("expected requires_review true")
+	}
+}
+
 func testMCPServer() *mcpServer {
 	cfg := &AppConfig{}
 	applyConfigDefaults(cfg)

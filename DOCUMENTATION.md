@@ -1487,6 +1487,50 @@ curl -s http://localhost:9091/mcp \
 
 Ferramentas que alteram estado ficam bloqueadas no modo `readonly`. Para ambientes protegidos, `mcp.auth.type: api_key` exige `Authorization: Bearer <token>` ou `X-API-Key`.
 
+### 10. Planner Assistido por MCP
+
+A Fase 6 adiciona tools de planejamento ao gateway MCP. Elas ajudam a construir workflows a partir de descrição, evento, endpoints e pistas de sistemas existentes. O planner não executa steps, não grava arquivos e sempre retorna `requires_review: true`.
+
+Tools do planner:
+
+| Tool | Uso |
+|---|---|
+| `plan_workflow` | Gera rascunho YAML, payload, requisições Bruno, métricas, auditoria e riscos. |
+| `suggest_handlers` | Sugere handlers a partir de capacidades descritas. |
+| `generate_test_payload` | Gera payload inicial com base no workflow. |
+| `generate_bruno_collection` | Gera modelo textual de requisições para REST e MCP. |
+| `assess_idempotency` | Analisa riscos de repetição de efeito externo. |
+| `suggest_metrics` | Sugere métricas e pontos de auditoria. |
+
+Exemplo:
+
+```bash
+curl -s http://localhost:9091/mcp \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 10,
+    "method": "tools/call",
+    "params": {
+      "name": "plan_workflow",
+      "arguments": {
+        "name": "Catalog Sync",
+        "description": "Recebe evento de catalogo, consulta API REST de produto e audita o resultado",
+        "required_fields": ["correlation_id", "product_id"],
+        "endpoints": [
+          {
+            "name": "product-api",
+            "method": "GET",
+            "url": "https://api.example.test/products/{product_id}"
+          }
+        ]
+      }
+    }
+  }'
+```
+
+O retorno inclui `yaml`, `test_payload`, `bruno_requests`, `idempotency`, `metrics`, `audit_points` e `decision_notes`. A proposta deve ser revisada antes de virar arquivo oficial de workflow.
+
 ## Exemplo Principal: Pagamento para Fulfillment
 
 O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais próximo de um processo real:
