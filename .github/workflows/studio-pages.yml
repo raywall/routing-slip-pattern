@@ -8,59 +8,34 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # Necessário para a action fazer o commit na branch gh-pages
+  contents: write
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20" # Ajuste se estiver usando outra versão
-          cache: "npm"
-          cache-dependency-path: "./studio/package-lock.json"
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: ./studio
-
       # ==========================================
       #   DEPLOYS DA BRANCH MAIN (PRODUÇÃO)
       # ==========================================
-      - name: Build Main
-        if: github.ref == 'refs/heads/main'
-        env:
-          BASE_URL: /routing-slip-pattern/
-        run: npm run build # Ou o comando que aciona seu script em studio/scripts
-        working-directory: ./studio
-
       - name: Deploy Main
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./studio/build # Ajuste se o Docusaurus/React cuspir a build em outra pasta
-          keep_files: true # CRUCIAL: Impede que apague a pasta /dev
+          publish_dir: ./studio  # Copia seus arquivos estáticos diretamente
+          keep_files: true       # Impede que apague a pasta /dev
 
       # ==========================================
       #   DEPLOYS DA BRANCH DEVELOP (HOMOLOGAÇÃO)
       # ==========================================
-      - name: Build Develop
-        if: github.ref == 'refs/heads/develop'
-        env:
-          BASE_URL: /routing-slip-pattern/dev/
-        run: npm run build # Ou o comando que aciona seu script em studio/scripts
-        working-directory: ./studio
-
       - name: Deploy Develop
         if: github.ref == 'refs/heads/develop'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./studio/build
-          destination_dir: dev # CRUCIAL: Joga a build para dentro da subpasta /dev na gh-pages
-          keep_files: true # CRUCIAL: Impede que apague a documentação raiz da main
+          publish_dir: ./studio  # Copia seus arquivos estáticos diretamente
+          destination_dir: dev   # Joga tudo para a subpasta /dev no Github Pages
+          keep_files: true       # Impede que apague os arquivos da raiz
