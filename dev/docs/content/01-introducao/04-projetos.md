@@ -57,3 +57,13 @@ sequenceDiagram
   Runtime->>Runtime: state store + cursor
 ```
 
+## Modos locais
+
+Na raiz do workspace existe um `Makefile` para operar os tres projetos juntos.
+
+| Modo | Comando | Uso recomendado |
+| --- | --- | --- |
+| Stack padrão | `make prepare` | Sobe containers separados e preserva melhor o desenho real de integração. |
+| Compacto | `make run-compact` | Sobe os tres projetos principais em um único container para testes rápidos. |
+
+O modo compacto expõe as mesmas portas principais: REST do workflow em `8088`, GraphQL em `8090`, métricas em `8080`, webview em `5173` e MCP em `9091`. Ele e pratico para demonstrar o ecossistema, mas nao substitui a stack padrão quando o objetivo e validar isolamento, DynamoDB, filas ou comportamento operacional mais proximo de produção.
