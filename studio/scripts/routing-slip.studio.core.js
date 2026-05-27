@@ -205,16 +205,19 @@ function initEnvSwitcher() {
   if (!meta) return;
 
   const currentEnv = meta.getAttribute('content');       // "production" | "development"
-  const basePath   = meta.getAttribute('data-base');     // "/routing-slip-pattern" | "/routing-slip-pattern/dev"
+  if (!["production", "development"].includes(currentEnv)) return;
+  if (document.querySelector("#studio-env-switcher")) return;
 
   const ENVS = {
-    production:  { label: '🟢 Produção',      path: '/routing-slip-pattern/' },
-    development: { label: '🔵 Desenvolvimento', path: '/routing-slip-pattern/dev/' },
+    production: { label: "Producao", path: "/routing-slip-pattern/" },
+    development: { label: "Desenvolvimento", path: "/routing-slip-pattern/dev/" },
   };
 
-  // cria o seletor
   const select = document.createElement('select');
   select.id = 'studio-env-switcher';
+  select.className = "env-switcher";
+  select.title = "Alternar ambiente da documentacao";
+  select.setAttribute("aria-label", "Alternar ambiente da documentacao");
 
   for (const [key, { label }] of Object.entries(ENVS)) {
     const opt = document.createElement('option');
@@ -228,7 +231,7 @@ function initEnvSwitcher() {
     window.location.href = ENVS[select.value].path;
   });
 
-  // injeta onde fizer sentido no seu layout
-  const toolbar = document.querySelector('#studio-toolbar') || document.body;
+  const toolbar = document.querySelector(".topbar-actions");
+  if (!toolbar) return;
   toolbar.prepend(select);
-};
+}

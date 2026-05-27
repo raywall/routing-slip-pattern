@@ -14,10 +14,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # necessário para o peaceiris escrever na gh-pages
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: studio-pages-${{ github.ref_name }}
+  group: studio-pages
   cancel-in-progress: false
 
 jobs:
@@ -70,32 +72,56 @@ jobs:
         run: |
           rm -rf pages-dist
           mkdir -p pages-dist
-          cp -R studio/. pages-dist/
-          touch pages-dist/.nojekyll
 
-          # injeta a variável de ambiente de versão no HTML
-          BRANCH="${{ github.ref_name }}"
-          if [ "$BRANCH" = "main" ]; then
-            BASE_PATH="/routing-slip-pattern"
-            ENV_NAME="production"
-          else
-            BASE_PATH="/routing-slip-pattern/dev"
-            ENV_NAME="development"
+          build_studio() {
+            local source_dir="$1"
+            local target_dir="$2"
+            local env_name="$3"
+            local base_path="$4"
+            local base_href="${base_path%/}/"
+
+            mkdir -p "$target_dir"
+            cp -R "$source_dir"/. "$target_dir"/
+            touch "$target_dir/.nojekyll"
+
+            sed -i "s|</title>|</title><base href=\"${base_href}\">|" "$target_dir/index.html"
+            sed -i "s|</head>|<meta name=\"studio-env\" content=\"${env_name}\" data-base=\"${base_path}\"></head>|" "$target_dir/index.html"
+            find "$target_dir" -name ".DS_Store" -delete
+          }
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            build_studio "studio" "pages-dist" "preview" "/routing-slip-pattern"
+            exit 0
           fi
 
-          BASE_HREF="${BASE_PATH%/}/"
+          rm -rf /tmp/routing-slip-pages-main /tmp/routing-slip-pages-develop
+          git fetch origin main:refs/remotes/origin/main develop:refs/remotes/origin/develop --depth=1
+          git worktree add /tmp/routing-slip-pages-main origin/main
+          git worktree add /tmp/routing-slip-pages-develop origin/develop
 
-          # injeta base path e meta tag legíveis pelo JS do studio
-          sed -i "s|</title>|</title><base href=\"${BASE_HREF}\">|" pages-dist/index.html
-          sed -i "s|</head>|<meta name=\"studio-env\" content=\"${ENV_NAME}\" data-base=\"${BASE_PATH}\"></head>|" pages-dist/index.html
-          find pages-dist -name ".DS_Store" -delete
+          build_studio "/tmp/routing-slip-pages-main/studio" "pages-dist" "production" "/routing-slip-pattern"
+          build_studio "/tmp/routing-slip-pages-develop/studio" "pages-dist/dev" "development" "/routing-slip-pattern/dev"
 
-      - name: publicar no github pages
+      - name: configurar github pages
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/configure-pages@v5
+
+      - name: enviar artefato do github pages
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./pages-dist
-          # main → raiz, develop → /dev
-          destination_dir: ${{ github.ref_name == 'main' && '.' || 'dev' }}
-          keep_files: true # ← chave: não apaga o outro diretório
+          path: ./pages-dist
+
+  deploy:
+    name: publicar studio
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: publicar no github pages
+        id: deployment
+        uses: actions/deploy-pages@v4

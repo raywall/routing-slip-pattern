@@ -50,6 +50,16 @@ body.resizing .sidebar-resizer {
   white-space: nowrap;
 }
 
+.env-switcher {
+  max-width: 170px;
+  min-height: 34px;
+  flex: 0 0 auto;
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
 .theme-toggle {
   width: 34px;
   height: 34px;
