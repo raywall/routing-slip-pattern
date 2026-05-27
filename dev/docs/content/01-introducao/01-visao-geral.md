@@ -1,8 +1,8 @@
-# Visao geral
+# Visão geral do projeto
 
-O `routing-slip-pattern` e um framework para construir workflows modulares, rastreaveis e reprocessaveis. Ele permite descrever o fluxo em YAML, executar cada etapa com handlers reutilizaveis, enriquecer o payload com dados externos, registrar metricas e retomar o processamento do ponto correto quando algo falha.
+O `routing-slip-pattern` e um framework para construir workflows modulares, rastreáveis e reprocessáveis. Ele permite descrever o fluxo em YAML, executar cada etapa com handlers reutilizáveis, enriquecer o payload com dados externos, registrar métricas e retomar o processamento do ponto correto quando algo falha.
 
-A proposta e simples: em vez de esconder o processo dentro de codigo imperativo, o workflow deixa o caminho visivel. Cada etapa tem nome, parametros, entrada, saida, status e historico.
+A proposta e simples: em vez de esconder o processo dentro de código imperativo, o workflow deixa o caminho visível. Cada etapa tem nome, parâmetros, entrada, saída, status e histórico.
 
 ```mermaid
 flowchart LR
@@ -10,27 +10,27 @@ flowchart LR
   B --> C[Handlers]
   C --> D[Payload atualizado]
   C --> E[State store]
-  C --> F[Metricas e traces]
+  C --> F[Métricas e traces]
   G[Studio] --> B
   H[MCP] --> B
 ```
 
-O framework foi desenhado para qualquer dominio: pedidos, catalogo, atendimento, logistica, onboarding, validacao documental, notificacoes, sincronizacao de dados ou qualquer processo em etapas.
+O framework foi desenhado para qualquer domínio: pedidos, catalogo, atendimento, logística, onboarding, validação documental, notificações, sincronização de dados ou qualquer processo em etapas.
 
-## O que voce encontra no ecossistema
+## O que voce encontra no ecossistema?
 
 - **Runtime** para executar workflows.
 - **Studio** para editar, validar, simular e entender scripts.
-- **GraphQL Connector** para enriquecer payloads com APIs e servicos externos.
-- **Custom Business Metrics** para visualizar execucoes, etapas e falhas.
+- **GraphQL Connector** para enriquecer payloads com APIs e serviços externos.
+- **Custom Business Metrics** para visualizar execuções, etapas e falhas.
 - **State store** para retomada robusta.
-- **MCP Gateway** para tools de validacao, explicacao, consulta de estado e planejamento assistido.
+- **MCP Gateway** para tools de validação, explicação, consulta de estado e planejamento assistido.
 
-## Primeiro contato recomendado
+## Recomendações
 
 1. Leia os conceitos fundamentais.
-2. Abra a estrutura basica de workflow.
+2. Abra a estrutura básica de workflow.
 3. Entenda paths e arrays.
 4. Explore os handlers.
 5. Use o Studio para editar e executar um exemplo.
-6. Ligue integracoes reais quando o fluxo local estiver claro.
+6. Ligue integrações reais quando o fluxo local estiver claro.

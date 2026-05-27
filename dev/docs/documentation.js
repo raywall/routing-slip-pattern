@@ -4,7 +4,7 @@ window.RoutingSlipDocs = [
     "items": [
       {
         "id": "intro-visao-geral",
-        "title": "Visão geral",
+        "title": "Visão Geral",
         "file": "content/01-introducao/01-visao-geral.md"
       },
       {
@@ -30,11 +30,11 @@ window.RoutingSlipDocs = [
     ]
   },
   {
-    "title": "Construindo Workflows",
+    "title": "Construindo workflows",
     "items": [
       {
         "id": "workflow-introducao",
-        "title": "Como o workflow funciona?",
+        "title": "Como funciona um workflow?",
         "file": "content/02-construindo-workflows/01-como-funciona.md"
       },
       {

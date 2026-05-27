@@ -1,33 +1,33 @@
 # Rastreabilidade e explicabilidade
 
-Rastreabilidade mostra onde uma execucao passou. Explicabilidade mostra por que ela tomou determinado caminho.
+Rastreabilidade mostra onde uma execução passou. Explicabilidade mostra por que ela tomou determinado caminho.
 
-O Routing Slip registra informacoes que ajudam os times a responder perguntas como:
+O Routing Slip registra informações que ajudam os times a responder perguntas como:
 
 - qual payload entrou?
 - qual etapa falhou?
 - qual regra parou o fluxo?
-- qual integracao demorou mais?
+- qual integração demorou mais?
 - qual etapa foi reprocessada?
-- o que ja tinha sido concluido?
+- o que ja tinha sido concluído?
 
 ## Identificadores importantes
 
 | Campo | Papel |
 | --- | --- |
-| `message_id` | Identifica a execucao e o snapshot. |
+| `message_id` | Identifica a execução e o snapshot. |
 | `correlation_id` | Agrupa eventos do mesmo processo de negocio. |
-| `trace_id` | Agrupa chamadas tecnicas ponta a ponta. |
+| `trace_id` | Agrupa chamadas técnicas ponta a ponta. |
 | `span_id` | Identifica uma etapa ou chamada dentro do trace. |
 | `cursor` | Indica a proxima etapa a executar. |
 
-## Historico por etapa
+## Histórico por etapa
 
 Cada etapa pode registrar:
 
 - nome do handler;
-- horario de inicio;
-- duracao;
+- horário de inicio;
+- duração;
 - status;
 - tentativa;
 - trace/span;
@@ -45,5 +45,5 @@ Cada etapa pode registrar:
 
 ## Explicabilidade no desenho
 
-Use `id` nos steps, `audit` em pontos importantes, `assert` para regras obrigatorias e `condition` para paradas funcionais esperadas. Assim, a execucao fica compreensivel tanto durante o teste quanto em producao.
+Use `id` nos steps, `audit` em pontos importantes, `assert` para regras obrigatórias e `condition` para paradas funcionais esperadas. Assim, a execução fica compreensível tanto durante o teste quanto em produção.
 

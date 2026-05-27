@@ -1,3 +1,5 @@
+# Compute
+
 Use `compute` para calcular e gravar um valor no payload.
 
 ```yaml
@@ -39,7 +41,7 @@ Contagem de itens:
       count: itens
 ```
 
-Existencia de path:
+Existência de path:
 
 ```yaml
 - name: compute

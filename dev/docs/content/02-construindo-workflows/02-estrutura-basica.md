@@ -1,4 +1,4 @@
-# Estrutura basica
+# Estrutura básica de um workflow
 
 Todo workflow possui metadados e uma lista de etapas. O exemplo abaixo valida um evento, adiciona metadados, chama uma API e registra auditoria.
 
@@ -45,16 +45,16 @@ steps:
         - order.status
 ```
 
-## Campos do cabecalho
+## Campos do cabeçalho
 
-| Campo | Obrigatorio | Descricao |
+| Campo | Obrigatório | Descrição |
 | --- | --- | --- |
-| `name` | Sim | Nome tecnico do workflow. |
+| `name` | Sim | Nome técnico do workflow. |
 | `description` | Nao | Explica a finalidade do fluxo. |
-| `version` | Nao | Versao funcional do workflow. |
+| `version` | Nao | Versão funcional do workflow. |
 | `error_policy` | Nao | `stop`, `continue` ou `skip`. |
-| `message_id_path` | Recomendado | Path usado para identificar a execucao e reprocessar. |
-| `correlation_id_path` | Recomendado | Path usado para correlacionar logs, metricas e traces. |
+| `message_id_path` | Recomendado | Path usado para identificar a execução e reprocessar. |
+| `correlation_id_path` | Recomendado | Path usado para correlacionar logs, métricas e traces. |
 | `steps` | Sim | Lista ordenada de etapas. |
 
 ## Estrutura de um step
@@ -69,5 +69,5 @@ steps:
       attempts: 3
 ```
 
-Use `id` sempre que a etapa puder ser alvo de salto, auditoria, explicacao ou idempotencia. O `name` e o handler executado. O `params` muda conforme o handler.
+Use `id` sempre que a etapa puder ser alvo de salto, auditoria, explicação ou idempotência. O `name` e o handler executado. O `params` muda conforme o handler.
 

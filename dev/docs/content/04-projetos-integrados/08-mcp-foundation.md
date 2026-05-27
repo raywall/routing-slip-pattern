@@ -1,6 +1,6 @@
 # MCP e planner assistido
 
-O MCP Gateway expoe capacidades internas do ecossistema como ferramentas consultaveis por Studio, agentes e automacoes de suporte. A ideia nao e substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.
+O MCP Gateway expõe capacidades internas do ecossistema como ferramentas consultáveis por Studio, agentes e automações de suporte. A ideia nao e substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.
 
 No `routing-slip-pattern`, o gateway MCP roda separado do endpoint REST do workflow:
 
@@ -9,7 +9,7 @@ No `routing-slip-pattern`, o gateway MCP roda separado do endpoint REST do workf
 | `GET /health` | Verifica se o gateway esta ativo. |
 | `POST /mcp` | Recebe chamadas JSON-RPC para listar e executar tools. |
 
-## Configuracao
+## Configuração
 
 ```yaml
 features:
@@ -24,26 +24,26 @@ mcp:
     env: ROUTING_SLIP_MCP_API_KEY
 ```
 
-Por padrao, o modo recomendado e `readonly`. Ferramentas que alteram estado ou reprocessam execucoes exigem modo `maintenance` e implementacao controlada.
+Por padrão, o modo recomendado e `readonly`. Ferramentas que alteram estado ou reprocessam execuções exigem modo `maintenance` e implementação controlada.
 
-## Tools disponiveis
+## Tools disponíveis
 
 | Tool | Modo | O que faz |
 | --- | --- | --- |
-| `list_handlers` | readonly | Lista handlers e parametros principais. |
+| `list_handlers` | readonly | Lista handlers e parâmetros principais. |
 | `validate_workflow` | readonly | Valida YAML, handlers conhecidos e saltos. |
-| `explain_workflow` | readonly | Resume etapas, decisoes, integracoes e pontos de controle. |
+| `explain_workflow` | readonly | Resume etapas, decisões, integrações e pontos de controle. |
 | `export_workflow` | readonly | Exporta o workflow expandido em YAML. |
 | `get_execution` | readonly | Recupera snapshot por `message_id`, `correlation_id` ou `trace_id`. |
 | `list_state_snapshots` | readonly | Lista snapshots por filtros simples. |
-| `plan_workflow` | readonly | Gera rascunho assistido a partir de descricao, evento e integracoes. |
+| `plan_workflow` | readonly | Gera rascunho assistido a partir de descrição, evento e integrações. |
 | `suggest_handlers` | readonly | Sugere handlers conforme capacidades desejadas. |
 | `generate_test_payload` | readonly | Gera payload de teste a partir do workflow. |
-| `generate_bruno_collection` | readonly | Gera modelo de requisicoes para testar REST e MCP. |
-| `assess_idempotency` | readonly | Aponta riscos de idempotencia e side effects. |
-| `suggest_metrics` | readonly | Sugere metricas e pontos de auditoria. |
-| `dry_run_step` | maintenance | Execucao controlada de etapa isolada, liberada apenas em modo de manutencao. |
-| `reprocess_execution` | maintenance | Reprocessamento assistido, liberado apenas em modo de manutencao. |
+| `generate_bruno_collection` | readonly | Gera modelo de requisições para testar REST e MCP. |
+| `assess_idempotency` | readonly | Aponta riscos de idempotência e side effects. |
+| `suggest_metrics` | readonly | Sugere métricas e pontos de auditoria. |
+| `dry_run_step` | maintenance | Execução controlada de etapa isolada, liberada apenas em modo de manutenção. |
+| `reprocess_execution` | maintenance | Reprocessamento assistido, liberado apenas em modo de manutenção. |
 
 ## Listando tools
 
@@ -71,7 +71,7 @@ curl -s http://localhost:9091/mcp \
   }'
 ```
 
-## Consultando uma execucao
+## Consultando uma execução
 
 ```bash
 curl -s http://localhost:9091/mcp \
@@ -91,24 +91,24 @@ curl -s http://localhost:9091/mcp \
 
 ## Segurança
 
-- O MCP fica desligado por padrao.
-- `readonly` e o modo padrao recomendado.
+- O MCP fica desligado por padrão.
+- `readonly` e o modo padrão recomendado.
 - `api_key` pode exigir `Authorization: Bearer <token>` ou `X-API-Key`.
 - Chamadas a partir do Studio usam CORS no endpoint MCP; em ambientes compartilhados, proteja o endpoint com chave ou proxy autenticado.
-- Segredos e headers sensiveis continuam sujeitos a politica de redaction do projeto.
-- Tools de escrita foram registradas como contrato, mas permanecem bloqueadas ate existir implementacao operacional segura.
+- Segredos e headers sensíveis continuam sujeitos a politica de redaction do projeto.
+- Tools de escrita foram registradas como contrato, mas permanecem bloqueadas ate existir implementação operacional segura.
 
 ## Uso no Studio
 
-A aba de configuracao do Studio possui campos para `MCP endpoint` e `MCP API key`. Com isso, o usuario pode chamar tools diretamente da interface:
+A aba de configuração do Studio possui campos para `MCP endpoint` e `MCP API key`. Com isso, o usuário pode chamar tools diretamente da interface:
 
-| Acao | Tool usada | Resultado |
+| Ação | Tool usada | Resultado |
 | --- | --- | --- |
 | Validar MCP | `validate_workflow` | Lista erros e avisos estruturais do YAML aberto. |
-| Explicar MCP | `explain_workflow` | Resume etapas, decisoes, integracoes e targets. |
-| Diagnosticar conectores | Leitura local do YAML | Mostra GraphQL, REST, notificacoes, retries e circuit breaker declarados. |
+| Explicar MCP | `explain_workflow` | Resume etapas, decisões, integrações e targets. |
+| Diagnosticar conectores | Leitura local do YAML | Mostra GraphQL, REST, notificações, retries e circuit breaker declarados. |
 
-Essa integracao ajuda a revisar workflows maiores sem alternar entre editor, terminal e arquivos de configuracao.
+Essa integração ajuda a revisar workflows maiores sem alternar entre editor, terminal e arquivos de configuração.
 
 ## Como isso ajuda
 
@@ -117,8 +117,8 @@ Com MCP, o Studio e agentes externos podem perguntar ao sistema:
 - quais handlers existem;
 - se um workflow esta estruturalmente valido;
 - onde um fluxo pode parar;
-- quais integracoes ele chama;
-- qual foi o estado salvo de uma execucao;
-- quais snapshots existem para um periodo, trace ou status.
+- quais integrações ele chama;
+- qual foi o estado salvo de uma execução;
+- quais snapshots existem para um período, trace ou status.
 
-Isso cria uma ponte entre engenharia, operacao e assistentes inteligentes sem acoplar o frontend diretamente ao runtime interno.
+Isso cria uma ponte entre engenharia, operação e assistentes inteligentes sem acoplar o frontend diretamente ao runtime interno.

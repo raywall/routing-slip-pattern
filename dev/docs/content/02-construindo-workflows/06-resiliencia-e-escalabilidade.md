@@ -1,6 +1,6 @@
-# Resiliencia e escalabilidade
+# Resiliência e escalabilidade
 
-Workflows reais dependem de rede, APIs, bancos, filas e servicos externos. Esses componentes podem falhar temporariamente. A resiliencia por etapa permite declarar como o runtime deve reagir sem duplicar logica em cada handler.
+Workflows reais dependem de rede, APIs, bancos, filas e serviços externos. Esses componentes podem falhar temporariamente. A resiliência por etapa permite declarar como o runtime deve reagir sem duplicar logica em cada handler.
 
 ## Retry com backoff
 
@@ -31,7 +31,7 @@ Workflows reais dependem de rede, APIs, bancos, filas e servicos externos. Esses
 | `backoff` | `fixed`, `exponential` ou `none`. |
 | `initial_interval_ms` | Intervalo inicial entre tentativas. |
 | `max_interval_ms` | Limite de espera. |
-| `jitter` | Varia o intervalo para evitar rajadas simultaneas. |
+| `jitter` | Varia o intervalo para evitar rajadas simultâneas. |
 
 ## Tratamento de falha
 
@@ -42,9 +42,9 @@ resilience:
     to: manual-review
 ```
 
-Acoes disponiveis:
+Acoes disponíveis:
 
-| Acao | Resultado |
+| Ação | Resultado |
 | --- | --- |
 | `stop` | Para o workflow e salva cursor da falha. |
 | `continue` | Registra falha e segue. |
@@ -53,7 +53,7 @@ Acoes disponiveis:
 
 ## Escalabilidade
 
-O runtime pode ser acionado por REST, Kafka ou SQS. Para escalar, rode multiplas instancias consumindo eventos. O state store e a idempotencia ajudam a reduzir risco operacional quando ha reprocessamentos, retries ou concorrencia.
+O runtime pode ser acionado por REST, Kafka ou SQS. Para escalar, rode múltiplas instancias consumindo eventos. O state store e a idempotência ajudam a reduzir risco operacional quando ha reprocessamentos, retries ou concorrência.
 
-Use filas ou topicos quando o volume for alto, quando houver picos ou quando o produtor nao deve esperar a conclusao do workflow.
+Use filas ou tópicos quando o volume for alto, quando houver picos ou quando o produtor nao deve esperar a conclusão do workflow.
 
