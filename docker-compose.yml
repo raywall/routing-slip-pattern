@@ -24,6 +24,9 @@ services:
       STATE_STORE_TYPE: dynamodb
       STATE_STORE_ENDPOINT: http://localstack:4566
       STATE_STORE_TABLE: routing-slip-state
+      ROUTING_SLIP_MCP_ENABLED: "true"
+      ROUTING_SLIP_MCP_BIND: "0.0.0.0:9091"
+      ROUTING_SLIP_MCP_MODE: readonly
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: local
       AWS_REGION: us-east-1
@@ -34,6 +37,7 @@ services:
         condition: service_completed_successfully
     ports:
       - "8088:8088"
+      - "9091:9091"
 
   kafka:
     image: apache/kafka:3.9.0

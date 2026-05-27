@@ -161,6 +161,11 @@ window.RoutingSlipDocs = [
         "id": "integracao-rastreabilidade",
         "title": "Rastreabilidade distribuida",
         "file": "content/04-projetos-integrados/07-rastreabilidade-distribuida.md"
+      },
+      {
+        "id": "integracao-mcp-foundation",
+        "title": "MCP Foundation",
+        "file": "content/04-projetos-integrados/08-mcp-foundation.md"
       }
     ]
   },

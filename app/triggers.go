@@ -79,6 +79,14 @@ func runConfiguredApp(ctx context.Context, cfg *AppConfig, workflow *WorkflowCon
 		slog.Int("steps", len(runtime.steps)),
 	)
 
+	if cfg.MCP.Enabled {
+		go func() {
+			if err := newMCPServer(cfg, workflow, runtime.store, logger).run(ctx); err != nil {
+				logger.Error("mcp gateway stopped", slog.String("error", err.Error()))
+			}
+		}()
+	}
+
 	switch cfg.Trigger.Type {
 	case "rest":
 		return runtime.runREST(ctx)

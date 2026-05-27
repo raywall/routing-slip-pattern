@@ -18,6 +18,7 @@ type AppConfig struct {
 	Features      FeatureFlagsConfig  `yaml:"features"`
 	Metrics       MetricsConfig       `yaml:"metrics"`
 	StateStore    StateStoreConfig    `yaml:"state_store"`
+	MCP           MCPConfig           `yaml:"mcp"`
 	Observability ObservabilityConfig `yaml:"observability"`
 	Security      SecurityConfig      `yaml:"security"`
 	Integrations  IntegrationsConfig  `yaml:"integrations"`
@@ -95,6 +96,18 @@ type StateStoreConfig struct {
 type StateIdempotencyConfig struct {
 	Enabled     bool   `yaml:"enabled"`
 	KeyTemplate string `yaml:"key_template"`
+}
+
+type MCPConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	Bind    string        `yaml:"bind"`
+	Mode    string        `yaml:"mode"`
+	Auth    MCPAuthConfig `yaml:"auth"`
+}
+
+type MCPAuthConfig struct {
+	Type string `yaml:"type"`
+	Env  string `yaml:"env"`
 }
 
 type FeatureFlagsConfig struct {
@@ -473,6 +486,23 @@ func applyConfigDefaults(cfg *AppConfig) {
 	if strings.TrimSpace(cfg.StateStore.Idempotency.KeyTemplate) == "" {
 		cfg.StateStore.Idempotency.KeyTemplate = "{workflow}:{message_id}:{step_index}:{step}"
 	}
+	if cfg.Features.MCPEnabled {
+		cfg.MCP.Enabled = true
+	}
+	cfg.MCP.Mode = strings.ToLower(strings.TrimSpace(cfg.MCP.Mode))
+	if cfg.MCP.Mode == "" {
+		cfg.MCP.Mode = "readonly"
+	}
+	if strings.TrimSpace(cfg.MCP.Bind) == "" {
+		cfg.MCP.Bind = "127.0.0.1:9091"
+	}
+	cfg.MCP.Auth.Type = strings.ToLower(strings.TrimSpace(cfg.MCP.Auth.Type))
+	if cfg.MCP.Auth.Type == "" {
+		cfg.MCP.Auth.Type = "none"
+	}
+	if strings.TrimSpace(cfg.MCP.Auth.Env) == "" {
+		cfg.MCP.Auth.Env = "ROUTING_SLIP_MCP_API_KEY"
+	}
 	if strings.TrimSpace(cfg.Observability.Tracing.Exporter) == "" {
 		cfg.Observability.Tracing.Exporter = "none"
 	}
@@ -522,6 +552,16 @@ func validateAppConfig(cfg *AppConfig) error {
 	case "memory", "file", "dynamodb":
 	default:
 		return fmt.Errorf("unsupported state_store.type %q: use memory, file or dynamodb", cfg.StateStore.Type)
+	}
+	switch cfg.MCP.Mode {
+	case "readonly", "maintenance":
+	default:
+		return fmt.Errorf("unsupported mcp.mode %q: use readonly or maintenance", cfg.MCP.Mode)
+	}
+	switch cfg.MCP.Auth.Type {
+	case "none", "api_key":
+	default:
+		return fmt.Errorf("unsupported mcp.auth.type %q: use none or api_key", cfg.MCP.Auth.Type)
 	}
 	return nil
 }

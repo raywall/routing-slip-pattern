@@ -39,6 +39,14 @@ state_store:
     enabled: ${STATE_STORE_IDEMPOTENCY_ENABLED:-true}
     key_template: "{workflow}:{message_id}:{step_index}:{step}"
 
+mcp:
+  enabled: ${ROUTING_SLIP_MCP_ENABLED:-false}
+  bind: "${ROUTING_SLIP_MCP_BIND:-127.0.0.1:9091}"
+  mode: "${ROUTING_SLIP_MCP_MODE:-readonly}"
+  auth:
+    type: "${ROUTING_SLIP_MCP_AUTH_TYPE:-none}"
+    env: "${ROUTING_SLIP_MCP_API_KEY_ENV:-ROUTING_SLIP_MCP_API_KEY}"
+
 metrics:
   endpoint: "${METRICS_ENDPOINT:-http://localhost:8080/v1/metrics}"
   segment: local-demo

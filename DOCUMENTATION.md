@@ -1443,6 +1443,50 @@ A idempotência por etapa usa a chave configurada em `key_template`. Se uma etap
 
 Falhas reais ao carregar o state store, como indisponibilidade do DynamoDB, interrompem o processamento em vez de iniciar uma execução nova. Apenas o erro classificado como `state not found` permite criar uma mensagem do zero.
 
+### 9. MCP Foundation
+
+A Fase 5 adiciona um gateway MCP ao `routing-slip-pattern` para expor capacidades internas como tools consumíveis por Studio, agentes e automações de suporte.
+
+Configuração:
+
+```yaml
+features:
+  mcp_enabled: true
+
+mcp:
+  enabled: true
+  bind: 127.0.0.1:9091
+  mode: readonly
+  auth:
+    type: api_key
+    env: ROUTING_SLIP_MCP_API_KEY
+```
+
+O endpoint principal é `POST /mcp`, usando JSON-RPC. O gateway também possui `GET /health`.
+
+Tools registradas:
+
+| Tool | Modo | Uso |
+|---|---|---|
+| `list_handlers` | readonly | Lista handlers e parâmetros principais. |
+| `validate_workflow` | readonly | Valida YAML, handlers conhecidos, saltos e estrutura. |
+| `explain_workflow` | readonly | Resume etapas, decisões, integrações e pontos de parada. |
+| `export_workflow` | readonly | Exporta o workflow expandido em YAML. |
+| `get_execution` | readonly | Recupera snapshot por `message_id`, `correlation_id` ou `trace_id`. |
+| `list_state_snapshots` | readonly | Lista snapshots persistidos por filtro. |
+| `dry_run_step` | maintenance | Reservado para execução controlada de etapa isolada. |
+| `reprocess_execution` | maintenance | Reservado para reprocessamento assistido. |
+
+Exemplo:
+
+```bash
+curl -s http://localhost:9091/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Ferramentas que alteram estado ficam bloqueadas no modo `readonly`. Para ambientes protegidos, `mcp.auth.type: api_key` exige `Authorization: Bearer <token>` ou `X-API-Key`.
+
 ## Exemplo Principal: Pagamento para Fulfillment
 
 O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais próximo de um processo real:

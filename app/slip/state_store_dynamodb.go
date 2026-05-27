@@ -107,3 +107,40 @@ func (s *DynamoDBStateStore) Load(ctx context.Context, messageID string) (Messag
 	}
 	return snapshot, nil
 }
+
+// List scans stored snapshots and applies the filter in memory. It is intended
+// for diagnostics and operational tooling, not hot-path processing.
+func (s *DynamoDBStateStore) List(ctx context.Context, filter SnapshotFilter) ([]MessageSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	limit := int32(filter.Limit)
+	if limit <= 0 {
+		limit = 50
+	}
+	output, err := s.client.Scan(ctx, &dynamodb.ScanInput{
+		TableName: aws.String(s.table),
+		Limit:     aws.Int32(limit * 2),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MessageSnapshot, 0, limit)
+	for _, item := range output.Items {
+		value, ok := item["snapshot"].(*types.AttributeValueMemberS)
+		if !ok || strings.TrimSpace(value.Value) == "" {
+			continue
+		}
+		var snapshot MessageSnapshot
+		if err := json.Unmarshal([]byte(value.Value), &snapshot); err != nil {
+			return nil, err
+		}
+		if snapshotMatches(snapshot, filter) {
+			out = append(out, snapshot)
+			if len(out) >= int(limit) {
+				break
+			}
+		}
+	}
+	return out, nil
+}

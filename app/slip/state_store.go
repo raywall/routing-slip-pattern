@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ErrStateNotFound indicates that no snapshot exists for a message.
@@ -23,6 +24,23 @@ func IsStateNotFound(err error) bool {
 type StateStore interface {
 	Save(ctx context.Context, snapshot MessageSnapshot) error
 	Load(ctx context.Context, messageID string) (MessageSnapshot, error)
+}
+
+// SnapshotFilter filters stored snapshots for diagnostic tools.
+type SnapshotFilter struct {
+	MessageID     string
+	CorrelationID string
+	TraceID       string
+	Workflow      string
+	Status        string
+	From          time.Time
+	To            time.Time
+	Limit         int
+}
+
+// StateSnapshotLister is optionally implemented by stores that can list states.
+type StateSnapshotLister interface {
+	List(ctx context.Context, filter SnapshotFilter) ([]MessageSnapshot, error)
 }
 
 // MemoryStateStore is useful for local tests and demos. Production adapters can
@@ -62,6 +80,25 @@ func (s *MemoryStateStore) Load(ctx context.Context, messageID string) (MessageS
 		return MessageSnapshot{}, fmt.Errorf("%w: %s", ErrStateNotFound, messageID)
 	}
 	return snapshot, nil
+}
+
+// List returns snapshots matching the filter.
+func (s *MemoryStateStore) List(ctx context.Context, filter SnapshotFilter) ([]MessageSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]MessageSnapshot, 0, len(s.snapshots))
+	for _, snapshot := range s.snapshots {
+		if snapshotMatches(snapshot, filter) {
+			out = append(out, snapshot)
+			if filter.Limit > 0 && len(out) >= filter.Limit {
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 // FileStateStore persists snapshots as JSON files. It is intentionally simple
@@ -123,6 +160,38 @@ func (s *FileStateStore) Load(ctx context.Context, messageID string) (MessageSna
 	return snapshot, nil
 }
 
+// List reads all JSON snapshots from disk and applies the filter.
+func (s *FileStateStore) List(ctx context.Context, filter SnapshotFilter) ([]MessageSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MessageSnapshot, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var snapshot MessageSnapshot
+		if err := json.Unmarshal(data, &snapshot); err != nil {
+			return nil, err
+		}
+		if snapshotMatches(snapshot, filter) {
+			out = append(out, snapshot)
+			if filter.Limit > 0 && len(out) >= filter.Limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 func (s *FileStateStore) path(messageID string) string {
 	return filepath.Join(s.dir, safeStateFileName(messageID)+".json")
 }
@@ -152,4 +221,29 @@ func safeStateFileName(value string) string {
 		return "unknown"
 	}
 	return cleaned
+}
+
+func snapshotMatches(snapshot MessageSnapshot, filter SnapshotFilter) bool {
+	if filter.MessageID != "" && snapshot.ID != filter.MessageID {
+		return false
+	}
+	if filter.CorrelationID != "" && snapshot.CorrelationID != filter.CorrelationID {
+		return false
+	}
+	if filter.TraceID != "" && snapshot.TraceID != filter.TraceID {
+		return false
+	}
+	if filter.Workflow != "" && snapshot.Workflow != filter.Workflow {
+		return false
+	}
+	if filter.Status != "" && snapshot.Status != filter.Status {
+		return false
+	}
+	if !filter.From.IsZero() && snapshot.UpdatedAt.Before(filter.From) {
+		return false
+	}
+	if !filter.To.IsZero() && snapshot.UpdatedAt.After(filter.To) {
+		return false
+	}
+	return true
 }
