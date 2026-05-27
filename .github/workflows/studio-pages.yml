@@ -5,37 +5,118 @@ on:
     branches:
       - main
       - develop
+    paths:
+      - studio/**
+      - .github/workflows/studio-pages.yml
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - studio/**
+      - .github/workflows/studio-pages.yml
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: studio-pages-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  validate:
+    name: Validar Studio
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ==========================================
-      #   DEPLOYS DA BRANCH MAIN (PRODUÇÃO)
-      # ==========================================
-      - name: Deploy Main
-        if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Configurar Node
+        uses: actions/setup-node@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./studio  # Copia seus arquivos estáticos diretamente
-          keep_files: true       # Impede que apague a pasta /dev
+          node-version: 20
 
-      # ==========================================
-      #   DEPLOYS DA BRANCH DEVELOP (HOMOLOGAÇÃO)
-      # ==========================================
-      - name: Deploy Develop
-        if: github.ref == 'refs/heads/develop'
+      - name: Validar assets e documentacao
+        shell: bash
+        run: |
+          test -f studio/index.html
+          test -f studio/scripts/routing-slip.studio.bootstrap.js
+          test -f studio/styles/routing-slip.studio.base.css
+          test -d studio/docs/content
+
+          for file in studio/scripts/*.js studio/docs/*.js; do
+            node --check "$file"
+          done
+
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const path = require('path');
+          const source = fs.readFileSync('studio/docs/documentation.js', 'utf8');
+          const sandbox = { window: {} };
+          vm.runInNewContext(source, sandbox);
+          let count = 0;
+          for (const section of sandbox.window.RoutingSlipDocs || []) {
+            for (const item of section.items || []) {
+              count++;
+              const file = path.join('studio/docs', item.file || '');
+              if (!item.file || !fs.existsSync(file)) {
+                throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
+              }
+            }
+          }
+          if (count === 0) throw new Error('Manifesto de documentacao sem itens');
+          console.log(`documentacao validada: ${count} itens`);
+          NODE
+
+  deploy:
+    name: Publicar Studio
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Montar artefato do Studio
+        shell: bash
+        run: |
+          rm -rf pages-dist
+          mkdir -p pages-dist
+          cp -R studio/. pages-dist/
+          touch pages-dist/.nojekyll
+
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            BASE_PATH="/routing-slip-pattern"
+            ENV_NAME="production"
+          else
+            BASE_PATH="/routing-slip-pattern/dev"
+            ENV_NAME="development"
+          fi
+
+          BASE_HREF="${BASE_PATH%/}/"
+          sed -i "s|</title>|</title><base href=\"${BASE_HREF}\">|" pages-dist/index.html
+          sed -i "s|</head>|<meta name=\"studio-env\" content=\"${ENV_NAME}\" data-base=\"${BASE_PATH}\"></head>|" pages-dist/index.html
+          find pages-dist -name ".DS_Store" -delete
+
+      - name: Publicar producao
+        if: github.ref_name == 'main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./studio  # Copia seus arquivos estáticos diretamente
-          destination_dir: dev   # Joga tudo para a subpasta /dev no Github Pages
-          keep_files: true       # Impede que apague os arquivos da raiz
+          publish_branch: gh-pages
+          publish_dir: ./pages-dist
+          keep_files: true
+
+      - name: Publicar desenvolvimento
+        if: github.ref_name == 'develop'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./pages-dist
+          destination_dir: dev
+          keep_files: true
