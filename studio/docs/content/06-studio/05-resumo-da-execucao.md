@@ -1,8 +1,8 @@
 ![Logs de execução das etapas](docs/images/studio-result.jpg#right-table)
 
-A area de resultado mostra a execucao do workflow em ordem cronologica. Cada grupo representa uma fase do processamento, normalmente associada a uma etapa do YAML.
+A area de resultado mostra a execucao do workflow em ordem cronologica. Cada grupo representa um trecho do processamento, normalmente associado a uma etapa do YAML.
 
-Dentro de uma fase voce pode encontrar logs de validacao, enriquecimento, simulacao de integracao, decisao, erro ou conclusao. A leitura por fase ajuda a responder perguntas bem praticas:<br>
+Dentro de um grupo voce pode encontrar logs de validacao, enriquecimento, simulacao de integracao, decisao, erro ou conclusao. A leitura por etapa ajuda a responder perguntas bem praticas:<br>
 
 - qual etapa foi executada;
 - qual entrada foi usada;
