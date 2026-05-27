@@ -26,7 +26,18 @@ features:
   tracing_enabled: true
   mcp_enabled: false
   async_metrics_enabled: false
-  persistent_state_enabled: false
+  persistent_state_enabled: ${PERSISTENT_STATE_ENABLED:-true}
+
+state_store:
+  type: "${STATE_STORE_TYPE:-file}"
+  path: "${STATE_STORE_PATH:-.routing-slip-state}"
+  table: "${STATE_STORE_TABLE:-routing-slip-state}"
+  endpoint: "${STATE_STORE_ENDPOINT:-}"
+  region: "${AWS_REGION:-us-east-1}"
+  ttl_days: ${STATE_STORE_TTL_DAYS:-30}
+  idempotency:
+    enabled: ${STATE_STORE_IDEMPOTENCY_ENABLED:-true}
+    key_template: "{workflow}:{message_id}:{step_index}:{step}"
 
 metrics:
   endpoint: "${METRICS_ENDPOINT:-http://localhost:8080/v1/metrics}"

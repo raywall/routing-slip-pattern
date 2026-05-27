@@ -1379,6 +1379,70 @@ steps:
 
 O histórico da etapa registra a tentativa final usada em `Attempt` e o status resultante (`success`, `failed`, `skipped`, `jumped` ou `stopped`). As métricas emitidas também carregam `attempt`, `trace_id`, `span_id`, `workflow`, `step` e `handler`.
 
+### 8. State Store Persistente e Reprocessamento Robusto
+
+A Fase 4 adiciona persistência durável do estado de execução. O runtime passa a salvar snapshots com cursor, payload atual, histórico, erros, trace, status geral e estado granular das etapas. Assim, quando um processamento falha ou a aplicação reinicia, o workflow pode continuar do ponto salvo.
+
+Stores suportados:
+
+| Tipo | Uso recomendado |
+|---|---|
+| `memory` | Testes unitários e demos descartáveis. |
+| `file` | Desenvolvimento local com snapshots JSON em disco. |
+| `dynamodb` | Execução distribuída, containers e ambientes com necessidade de retomada entre reinícios. |
+
+Configuração:
+
+```yaml
+features:
+  persistent_state_enabled: true
+
+state_store:
+  type: dynamodb
+  table: routing-slip-state
+  endpoint: http://dynamodb:8000
+  region: us-east-1
+  ttl_days: 30
+  idempotency:
+    enabled: true
+    key_template: "{workflow}:{message_id}:{step_index}:{step}"
+```
+
+Campos persistidos:
+
+| Campo | Descrição |
+|---|---|
+| `status` | Estado geral: `created`, `running`, `failed`, `stopped`, `cancelled` ou `completed`. |
+| `cursor` | Próxima etapa a executar. |
+| `payload` | Payload já enriquecido e transformado. |
+| `history` | Linha do tempo das etapas concluídas. |
+| `errors` | Falhas registradas. |
+| `step_states` | Status por etapa, tentativas, último erro, trace e span. |
+| `trace_id` | Chave técnica para cruzar logs, métricas e integrações. |
+
+```mermaid
+sequenceDiagram
+    participant Entrada as Evento
+    participant Runtime as Runtime
+    participant Store as State Store
+    participant Step as Etapa
+
+    Entrada->>Runtime: payload
+    Runtime->>Store: Load(message_id)
+    alt snapshot encontrado
+        Store-->>Runtime: payload + cursor + historico
+    else sem snapshot
+        Runtime->>Runtime: cria nova mensagem
+    end
+    Runtime->>Step: executa etapa do cursor
+    Step-->>Runtime: resultado ou erro
+    Runtime->>Store: Save(snapshot atualizado)
+```
+
+A idempotência por etapa usa a chave configurada em `key_template`. Se uma etapa já estiver com status `success` e o cursor voltar para ela por reprocessamento manual ou ajuste operacional, o runtime registra `idempotent_skip` e segue adiante sem repetir o efeito externo.
+
+Falhas reais ao carregar o state store, como indisponibilidade do DynamoDB, interrompem o processamento em vez de iniciar uma execução nova. Apenas o erro classificado como `state not found` permite criar uma mensagem do zero.
+
 ## Exemplo Principal: Pagamento para Fulfillment
 
 O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais próximo de um processo real:

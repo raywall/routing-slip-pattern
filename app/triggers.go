@@ -37,9 +37,13 @@ func newAppRuntime(cfg *AppConfig, workflow *WorkflowConfig, logger *slog.Logger
 		return nil, err
 	}
 
-	store := slip.NewMemoryStateStore()
+	store, err := buildStateStore(context.Background(), cfg)
+	if err != nil {
+		return nil, err
+	}
 	router := buildRouterWithOptions(logger, policy,
 		slip.WithStateStore(store),
+		slip.WithStateOptions(stateOptions(cfg, workflow)),
 		slip.WithMiddleware(slip.MetricsMiddleware(
 			slip.HTTPMetricsEmitter{Endpoint: cfg.Metrics.Endpoint},
 			slip.MetricsOptions{
@@ -99,12 +103,17 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 	msg := slip.NewMessage(messageID, payload)
 	if snapshot, err := r.store.Load(ctx, messageID); err == nil {
 		msg = slip.MessageFromSnapshot(snapshot)
+	} else if !slip.IsStateNotFound(err) {
+		return nil, fmt.Errorf("load state for message %q: %w", messageID, err)
 	}
 
 	for key, value := range headers {
 		msg.Headers[key] = value
 	}
 	msg.Headers["workflow"] = r.workflow.Name
+	if r.workflow.Version != "" {
+		msg.Headers["workflow_version"] = r.workflow.Version
+	}
 	if msg.RemainingSteps() == 0 && msg.Cursor() == 0 {
 		msg.AttachSlip(r.steps)
 	}
