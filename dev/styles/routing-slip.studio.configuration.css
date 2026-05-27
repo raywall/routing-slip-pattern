@@ -1,0 +1,19 @@
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
+}
