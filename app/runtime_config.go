@@ -13,10 +13,13 @@ import (
 )
 
 type AppConfig struct {
-	Service      ServiceConfig      `yaml:"service"`
-	Trigger      TriggerConfig      `yaml:"trigger"`
-	Metrics      MetricsConfig      `yaml:"metrics"`
-	Integrations IntegrationsConfig `yaml:"integrations"`
+	Service       ServiceConfig       `yaml:"service"`
+	Trigger       TriggerConfig       `yaml:"trigger"`
+	Features      FeatureFlagsConfig  `yaml:"features"`
+	Metrics       MetricsConfig       `yaml:"metrics"`
+	Observability ObservabilityConfig `yaml:"observability"`
+	Security      SecurityConfig      `yaml:"security"`
+	Integrations  IntegrationsConfig  `yaml:"integrations"`
 }
 
 type ServiceConfig struct {
@@ -74,6 +77,33 @@ type MetricsConfig struct {
 	Segment  string            `yaml:"segment"`
 	Source   string            `yaml:"source"`
 	Tags     map[string]string `yaml:"tags"`
+}
+
+type FeatureFlagsConfig struct {
+	TracingEnabled         *bool `yaml:"tracing_enabled"`
+	MCPEnabled             bool  `yaml:"mcp_enabled"`
+	AsyncMetricsEnabled    bool  `yaml:"async_metrics_enabled"`
+	PersistentStateEnabled bool  `yaml:"persistent_state_enabled"`
+}
+
+type ObservabilityConfig struct {
+	Tracing TracingConfig `yaml:"tracing"`
+}
+
+type TracingConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	Exporter    string `yaml:"exporter"`
+	Endpoint    string `yaml:"endpoint"`
+	ServiceName string `yaml:"service_name"`
+}
+
+type SecurityConfig struct {
+	Redaction RedactionConfig `yaml:"redaction"`
+}
+
+type RedactionConfig struct {
+	Enabled bool     `yaml:"enabled"`
+	Fields  []string `yaml:"fields"`
 }
 
 type IntegrationsConfig struct {
@@ -402,6 +432,20 @@ func applyConfigDefaults(cfg *AppConfig) {
 	if cfg.Metrics.Tags["run_id"] == "" {
 		cfg.Metrics.Tags["run_id"] = cfg.Service.RunID
 	}
+	if cfg.Features.TracingEnabled == nil {
+		enabled := true
+		cfg.Features.TracingEnabled = &enabled
+	}
+	if strings.TrimSpace(cfg.Observability.Tracing.Exporter) == "" {
+		cfg.Observability.Tracing.Exporter = "none"
+	}
+	if strings.TrimSpace(cfg.Observability.Tracing.ServiceName) == "" {
+		cfg.Observability.Tracing.ServiceName = cfg.Service.Name
+	}
+	if !cfg.Security.Redaction.Enabled && len(cfg.Security.Redaction.Fields) == 0 {
+		cfg.Security.Redaction.Enabled = true
+		cfg.Security.Redaction.Fields = []string{"authorization", "client_secret", "access_token", "refresh_token", "password", "token", "api_key", "x-api-key"}
+	}
 }
 
 func splitCSV(value string) []string {
@@ -475,6 +519,9 @@ func (cfg AppConfig) ApplyIntegrationEnv() {
 	setEnvIfEmpty("GRAPHQL_ENDPOINT", cfg.Integrations.GraphQLEndpoint)
 	setEnvIfEmpty("EXTERNAL_API_URL", cfg.Integrations.ExternalAPIURL)
 	setEnvIfEmpty("EXTERNAL_API_SERIAL", cfg.Integrations.ExternalAPISerial)
+	if cfg.Features.TracingEnabled != nil {
+		setEnvBoolIfEmpty("ROUTING_SLIP_TRACING_ENABLED", *cfg.Features.TracingEnabled)
+	}
 }
 
 func setEnvIfEmpty(key, value string) {
@@ -483,6 +530,17 @@ func setEnvIfEmpty(key, value string) {
 		return
 	}
 	_ = os.Setenv(key, value)
+}
+
+func setEnvBoolIfEmpty(key string, value bool) {
+	if strings.TrimSpace(os.Getenv(key)) != "" {
+		return
+	}
+	if value {
+		_ = os.Setenv(key, "true")
+		return
+	}
+	_ = os.Setenv(key, "false")
 }
 
 func stringFromPath(values map[string]any, path string) (string, bool) {

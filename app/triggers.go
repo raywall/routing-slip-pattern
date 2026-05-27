@@ -110,7 +110,14 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 	}
 
 	if correlationID, ok := stringFromPath(payload, r.workflow.CorrelationIDPath); ok {
+		msg.CorrelationID = correlationID
 		msg.Headers["correlation_id"] = correlationID
+	}
+	if trace, ok := slip.ParseTraceparent(msg.Headers["traceparent"]); ok {
+		msg.TraceID = trace.TraceID
+		msg.SpanID = trace.SpanID
+	} else if traceID := firstHeader(msg.Headers, "trace_id", "x-trace-id", "X-Trace-ID"); traceID != "" {
+		msg.TraceID = traceID
 	}
 
 	err := r.router.Process(ctx, msg)
@@ -148,10 +155,18 @@ func (r *AppRuntime) runREST(ctx context.Context) error {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		if msg.TraceID != "" {
+			w.Header().Set("X-Trace-ID", msg.TraceID)
+		}
+		if msg.Headers["traceparent"] != "" {
+			w.Header().Set("traceparent", msg.Headers["traceparent"])
+		}
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"message_id":      msg.ID,
 			"workflow":        r.workflow.Name,
+			"correlation_id":  msg.CorrelationID,
+			"trace_id":        msg.TraceID,
 			"cursor":          msg.Cursor(),
 			"remaining_steps": msg.RemainingSteps(),
 			"history":         msg.History,
@@ -336,4 +351,13 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func firstHeader(headers map[string]string, names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(headers[name]); value != "" {
+			return value
+		}
+	}
+	return ""
 }

@@ -54,6 +54,15 @@ func (h RESTCallHandler) Handle(ctx context.Context, msg *slip.Message, params m
 		return false, err
 	}
 	req.Header.Set("Accept", "application/json")
+	if traceparent := msg.Headers["traceparent"]; traceparent != "" {
+		req.Header.Set("traceparent", traceparent)
+	}
+	if msg.TraceID != "" {
+		req.Header.Set("X-Trace-ID", msg.TraceID)
+	}
+	if msg.CorrelationID != "" {
+		req.Header.Set("X-Correlation-ID", msg.CorrelationID)
+	}
 	if bodyReader.Len() > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}

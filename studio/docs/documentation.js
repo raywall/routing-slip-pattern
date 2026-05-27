@@ -16,6 +16,11 @@ window.RoutingSlipDocs = [
         "id": "intro-projetos",
         "title": "Projetos relacionados",
         "file": "content/01-introducao/03-projetos-relacionados.md"
+      },
+      {
+        "id": "intro-preparacao",
+        "title": "Preparacao tecnica",
+        "file": "content/01-introducao/04-preparacao-tecnica.md"
       }
     ]
   },
@@ -141,6 +146,11 @@ window.RoutingSlipDocs = [
         "id": "integracao-metricas-dashboard",
         "title": "Dashboards e beneficios",
         "file": "content/04-projetos-integrados/06-dashboards-e-beneficios.md"
+      },
+      {
+        "id": "integracao-rastreabilidade",
+        "title": "Rastreabilidade distribuida",
+        "file": "content/04-projetos-integrados/07-rastreabilidade-distribuida.md"
       }
     ]
   },

@@ -2,26 +2,22 @@ name: studio pages
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main, develop]
     paths:
       - studio/**
       - .github/workflows/studio-pages.yml
   push:
-    branches:
-      - main
+    branches: [main, develop]
     paths:
       - studio/**
       - .github/workflows/studio-pages.yml
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write # necessário para o peaceiris escrever na gh-pages
 
 concurrency:
-  group: studio-pages
+  group: studio-pages-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -37,9 +33,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: configurar github pages
-        uses: actions/configure-pages@v5
 
       - name: validar assets do studio
         shell: bash
@@ -78,28 +71,27 @@ jobs:
           rm -rf pages-dist
           mkdir -p pages-dist
           cp -R studio/. pages-dist/
-          test -f pages-dist/docs/content/06-studio/01-visao-geral.md
-          test -f pages-dist/docs/content/06-studio/04-payload.md
-          test -f pages-dist/docs/content/06-studio/05-resumo-da-execucao.md
-          test -f pages-dist/docs/content/06-studio/06-config-e-documentacao.md
           touch pages-dist/.nojekyll
 
-      - name: enviar artefato do pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: pages-dist
+          # injeta a variável de ambiente de versão no HTML
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "main" ]; then
+            BASE_PATH="/routing-slip-pattern"
+            ENV_NAME="production"
+          else
+            BASE_PATH="/routing-slip-pattern/dev"
+            ENV_NAME="development"
+          fi
 
-  deploy:
-    name: publicar pages
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+          # injeta meta tag legível pelo JS do studio
+          sed -i "s|</head>|<meta name=\"studio-env\" content=\"${ENV_NAME}\" data-base=\"${BASE_PATH}\"></head>|" pages-dist/index.html
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
       - name: publicar no github pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages-dist
+          # main → raiz, develop → /dev
+          destination_dir: ${{ github.ref_name == 'main' && '.' || 'dev' }}
+          keep_files: true # ← chave: não apaga o outro diretório

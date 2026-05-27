@@ -7,6 +7,10 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 // LoggingMiddleware logs the duration of each handler call.
@@ -55,6 +59,50 @@ func (r *recoveryHandler) Handle(ctx context.Context, msg *Message, params map[s
 		}
 	}()
 	return r.next.Handle(ctx, msg, params)
+}
+
+// TracingMiddleware creates a W3C trace span context for each handler call.
+// It intentionally keeps the implementation lightweight: the trace identifiers
+// are propagated through context/message headers and can be exported to OTel by
+// infrastructure adapters in later phases.
+func TracingMiddleware() Middleware {
+	return func(next Handler) Handler {
+		return &tracingHandler{next: next}
+	}
+}
+
+type tracingHandler struct {
+	next Handler
+}
+
+func (t *tracingHandler) Name() string { return t.next.Name() }
+
+func (t *tracingHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
+	ctx, trace := StartTraceSpan(ctx, msg)
+	if msg.Attempt <= 0 {
+		msg.Attempt = 1
+	}
+	msg.Headers["traceparent"] = Traceparent(trace)
+	tracer := otel.Tracer("routing-slip-pattern/slip")
+	ctx, span := tracer.Start(ctx, "routing-slip.step."+t.next.Name())
+	span.SetAttributes(
+		attribute.String("routing_slip.message_id", msg.ID),
+		attribute.String("routing_slip.correlation_id", msg.CorrelationID),
+		attribute.String("routing_slip.trace_id", msg.TraceID),
+		attribute.String("routing_slip.span_id", msg.SpanID),
+		attribute.String("routing_slip.handler", t.next.Name()),
+		attribute.Int("routing_slip.attempt", msg.Attempt),
+	)
+	defer span.End()
+
+	proceed, err := t.next.Handle(ctx, msg, params)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
+	return proceed, err
 }
 
 // MetricsMiddleware emits business metrics for each routing slip step.
@@ -115,6 +163,21 @@ func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status st
 	if correlationID := msg.GetString("correlation_id"); correlationID != "" {
 		tags["correlation_id"] = correlationID
 	}
+	if msg.CorrelationID != "" {
+		tags["correlation_id"] = msg.CorrelationID
+	}
+	if msg.TraceID != "" {
+		tags["trace_id"] = msg.TraceID
+	}
+	if msg.SpanID != "" {
+		tags["span_id"] = msg.SpanID
+	}
+	if msg.ParentSpanID != "" {
+		tags["parent_span_id"] = msg.ParentSpanID
+	}
+	if msg.Attempt > 0 {
+		tags["attempt"] = fmt.Sprintf("%d", msg.Attempt)
+	}
 	if customerID := msg.GetString("customer_id"); customerID != "" {
 		tags["customer_id"] = customerID
 	}
@@ -154,6 +217,8 @@ func (m *metricsHandler) emit(ctx context.Context, msg *Message, name, status st
 		Step:      m.next.Name(),
 		Status:    status,
 		Source:    m.opts.Source,
+		TraceID:   msg.TraceID,
+		SpanID:    msg.SpanID,
 		Tags:      tags,
 		Timestamp: time.Now(),
 	}
@@ -248,7 +313,7 @@ func compactJSON(value any) string {
 	if value == nil {
 		return ""
 	}
-	data, err := json.Marshal(value)
+	data, err := json.Marshal(RedactSensitive(value))
 	if err != nil {
 		return truncateText(fmt.Sprintf("%v", value), 900)
 	}

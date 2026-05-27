@@ -59,6 +59,15 @@ func (h GraphQLEnrichmentHandler) Handle(ctx context.Context, msg *slip.Message,
 		return true, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if traceparent := msg.Headers["traceparent"]; traceparent != "" {
+		req.Header.Set("traceparent", traceparent)
+	}
+	if msg.TraceID != "" {
+		req.Header.Set("X-Trace-ID", msg.TraceID)
+	}
+	if msg.CorrelationID != "" {
+		req.Header.Set("X-Correlation-ID", msg.CorrelationID)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

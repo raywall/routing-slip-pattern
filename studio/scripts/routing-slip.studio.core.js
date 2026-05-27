@@ -82,8 +82,11 @@ let activeRuntimeWorkflow = null;
 let lastExecutionSnapshot = null;
 
 async function boot() {
+  initEnvSwitcher();
+
   const restored = await restoreStudioState();
   if (!restored) loadExample("payment", { persist: false });
+  
   initTheme();
   renderIcons();
   bindEvents();
@@ -196,3 +199,36 @@ function initDocumentation() {
     panelMetaSelector: "#result-panel-meta",
   });
 }
+
+function initEnvSwitcher() {
+  const meta = document.querySelector('meta[name="studio-env"]');
+  if (!meta) return;
+
+  const currentEnv = meta.getAttribute('content');       // "production" | "development"
+  const basePath   = meta.getAttribute('data-base');     // "/routing-slip-pattern" | "/routing-slip-pattern/dev"
+
+  const ENVS = {
+    production:  { label: '🟢 Produção',      path: '/routing-slip-pattern/' },
+    development: { label: '🔵 Desenvolvimento', path: '/routing-slip-pattern/dev/' },
+  };
+
+  // cria o seletor
+  const select = document.createElement('select');
+  select.id = 'studio-env-switcher';
+
+  for (const [key, { label }] of Object.entries(ENVS)) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    if (key === currentEnv) opt.selected = true;
+    select.appendChild(opt);
+  }
+
+  select.addEventListener('change', () => {
+    window.location.href = ENVS[select.value].path;
+  });
+
+  // injeta onde fizer sentido no seu layout
+  const toolbar = document.querySelector('#studio-toolbar') || document.body;
+  toolbar.prepend(select);
+};

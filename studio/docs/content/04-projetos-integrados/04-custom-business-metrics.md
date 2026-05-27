@@ -19,3 +19,10 @@ flowchart LR
     Service --> Store[(DynamoDB ou memoria)]
     Webview[Webview] -->|consultas| Service
 ```
+
+Na rastreabilidade distribuida, cada evento pode trazer `trace_id` e `span_id`. Isso permite consultar toda a trilha tecnica de uma execucao, mesmo quando ela passa pelo workflow, pelo GraphQL connector e por APIs externas.
+
+```bash
+curl "http://localhost:8080/v1/metrics/events?trace_id=4bf92f3577b34da6a3ce929d0e0e4736"
+curl "http://localhost:8080/v1/metrics/trace/4bf92f3577b34da6a3ce929d0e0e4736"
+```
