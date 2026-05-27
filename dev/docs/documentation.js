@@ -181,11 +181,41 @@ window.RoutingSlipDocs = [
         "id": "integracao-planner-mcp",
         "title": "Criação assistida",
         "file": "content/04-projetos-integrados/09-planner-mcp.md"
+      }
+    ]
+  },
+  {
+    "title": "Projeto de Teste",
+    "items": [
+      {
+        "id": "teste-necessidade-especificacoes",
+        "title": "Necessidade e especificações",
+        "file": "content/07-projeto-de-teste/01-necessidade-e-especificacoes.md"
       },
       {
-        "id": "integracao-case-ecommerce",
-        "title": "Case ecommerce distribuido",
-        "file": "content/04-projetos-integrados/10-case-ecommerce-distribuido.md"
+        "id": "teste-estrategia-routing-slip",
+        "title": "Estratégia com Routing Slip",
+        "file": "content/07-projeto-de-teste/02-estrategia-routing-slip.md"
+      },
+      {
+        "id": "teste-regressivos",
+        "title": "Testes regressivos",
+        "file": "content/07-projeto-de-teste/03-testes-regressivos.md"
+      },
+      {
+        "id": "teste-performance",
+        "title": "Testes de performance",
+        "file": "content/07-projeto-de-teste/04-testes-performance.md"
+      },
+      {
+        "id": "teste-caos",
+        "title": "Testes de caos",
+        "file": "content/07-projeto-de-teste/05-testes-caos.md"
+      },
+      {
+        "id": "teste-mcp-server",
+        "title": "Testes do MCP Server",
+        "file": "content/07-projeto-de-teste/06-testes-mcp-server.md"
       }
     ]
   },
