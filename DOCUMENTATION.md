@@ -62,6 +62,13 @@ make start
 make studio
 ```
 
+O ambiente local possui dois modos de execucao.
+
+| Modo | Comando | Quando usar |
+| --- | --- | --- |
+| Stack padrao | `make prepare` | Usa containers separados para runtime, GraphQL, metricas e dependencias. E o modo recomendado para testes integrados mais fieis. |
+| Compacto | `make run-compact` | Executa `routing-slip-pattern`, `go-graphql-connector` e `custom-business-metrics` em um unico container local, com portas separadas. E util para demonstracoes e testes rapidos. |
+
 URLs comuns:
 
 | Recurso | URL |
@@ -71,6 +78,14 @@ URLs comuns:
 | GraphQL Connector | `http://localhost:8090/graphql` |
 | Metrics Webview | `http://localhost:5173` |
 | MCP Gateway | `http://localhost:9091/mcp` |
+
+No modo compacto, os logs dos processos sao prefixados para facilitar a leitura:
+
+```bash
+make logs-compact
+```
+
+Esse modo usa storage em memoria para metricas e state store em arquivo dentro do container. Para validar persistencia em DynamoDB, filas e isolamento por servico, use a stack padrao.
 
 ## Configuracao
 
