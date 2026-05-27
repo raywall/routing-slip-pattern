@@ -1,10 +1,10 @@
 window.RoutingSlipDocs = [
   {
-    "title": "Introducao",
+    "title": "Introdução",
     "items": [
       {
         "id": "intro-visao-geral",
-        "title": "Visao geral",
+        "title": "Visão geral",
         "file": "content/01-introducao/01-visao-geral.md"
       },
       {
@@ -24,22 +24,22 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "intro-capacidades",
-        "title": "Capacidades e beneficios",
+        "title": "Capacidades e benefícios",
         "file": "content/01-introducao/05-capacidades.md"
       }
     ]
   },
   {
-    "title": "Construindo workflows",
+    "title": "Construindo Workflows",
     "items": [
       {
         "id": "workflow-introducao",
-        "title": "Como o workflow funciona",
+        "title": "Como o workflow funciona?",
         "file": "content/02-construindo-workflows/01-como-funciona.md"
       },
       {
         "id": "workflow-estrutura",
-        "title": "Estrutura basica",
+        "title": "Estrutura básica",
         "file": "content/02-construindo-workflows/02-estrutura-basica.md"
       },
       {
@@ -54,12 +54,12 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "workflow-composicao",
-        "title": "Composicao de scripts",
+        "title": "Composição de scripts",
         "file": "content/02-construindo-workflows/05-composicao-de-scripts.md"
       },
       {
         "id": "workflow-resiliencia",
-        "title": "Resiliencia e escalabilidade",
+        "title": "Resiliência e escalabilidade",
         "file": "content/02-construindo-workflows/06-resiliencia-e-escalabilidade.md"
       },
       {
@@ -79,7 +79,7 @@ window.RoutingSlipDocs = [
     "items": [
       {
         "id": "handlers-visao-geral",
-        "title": "O que e um handler",
+        "title": "O que é um handler?",
         "file": "content/03-handlers/01-visao-geral.md"
       },
       {
@@ -94,7 +94,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "handlers-cel",
-        "title": "CEL expressions",
+        "title": "CEL Expressions",
         "file": "content/03-handlers/11-cel-expressions.md"
       },
       {
@@ -140,7 +140,7 @@ window.RoutingSlipDocs = [
     ]
   },
   {
-    "title": "Projetos integrados",
+    "title": "Projetos Integrados",
     "items": [
       {
         "id": "integracao-graphql-visao",
@@ -149,7 +149,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "integracao-graphql-config",
-        "title": "Configurar GraphQL Connector",
+        "title": "Configuração do conector",
         "file": "content/04-projetos-integrados/02-configurar-graphql-connector.md"
       },
       {
@@ -169,7 +169,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "integracao-metricas-dashboard",
-        "title": "Dashboards e beneficios",
+        "title": "Dashboards e benefícios",
         "file": "content/04-projetos-integrados/06-dashboards-e-beneficios.md"
       },
       {
@@ -179,7 +179,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "integracao-planner-mcp",
-        "title": "Criacao assistida",
+        "title": "Criação assistida",
         "file": "content/04-projetos-integrados/09-planner-mcp.md"
       }
     ]
@@ -194,7 +194,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "studio-config-docs",
-        "title": "Configuracao e documentacao",
+        "title": "Configuração e documentação",
         "file": "content/06-studio/02-configuracao-e-documentacao.md"
       },
       {
@@ -209,7 +209,7 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "studio-resumo-execucao",
-        "title": "Resumo detalhado da execucao",
+        "title": "Resumo detalhado da execução",
         "file": "content/06-studio/05-resumo-da-execucao.md"
       },
       {

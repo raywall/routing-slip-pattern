@@ -146,6 +146,7 @@
 .summary-metric strong {
   color: var(--text);
   font-size: 18px;
+  overflow-wrap: anywhere;
 }
 
 .execution-summary-integrations {
@@ -277,4 +278,57 @@
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.mcp-result {
+  margin: 0 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.mcp-result-content {
+  padding: 16px;
+  color: var(--text);
+}
+
+.mcp-result-content h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.mcp-result-content p {
+  color: var(--muted);
+}
+
+.mcp-result-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mcp-result-content th,
+.mcp-result-content td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.mcp-result-content th {
+  background: var(--surface-2);
+}
+
+.mcp-result-raw {
+  border-top: 1px solid var(--border);
+  padding: 10px 16px 16px;
+}
+
+.mcp-result-raw summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
 }

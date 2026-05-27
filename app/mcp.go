@@ -78,9 +78,10 @@ func (s *mcpServer) run(ctx context.Context) error {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, req *http.Request) {
+		setMCPCORSHeaders(w)
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "mode": s.cfg.MCP.Mode})
 	})
-	mux.HandleFunc("POST /mcp", s.handleMCP)
+	mux.HandleFunc("/mcp", s.handleMCP)
 
 	server := &http.Server{Addr: s.cfg.MCP.Bind, Handler: mux}
 	go func() {
@@ -98,6 +99,16 @@ func (s *mcpServer) run(ctx context.Context) error {
 }
 
 func (s *mcpServer) handleMCP(w http.ResponseWriter, req *http.Request) {
+	setMCPCORSHeaders(w)
+	if req.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if req.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(mcpError(nil, -32600, "method not allowed"))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	if !s.authorized(req) {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -125,6 +136,13 @@ func (s *mcpServer) handleMCP(w http.ResponseWriter, req *http.Request) {
 	default:
 		_ = json.NewEncoder(w).Encode(mcpError(request.ID, -32601, "method not found"))
 	}
+}
+
+func setMCPCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, traceparent, X-Trace-ID, X-Correlation-ID")
+	w.Header().Set("Access-Control-Expose-Headers", "traceparent, X-Trace-ID")
 }
 
 func (s *mcpServer) authorized(req *http.Request) bool {

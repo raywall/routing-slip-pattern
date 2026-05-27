@@ -86,12 +86,27 @@
             <input id="workflow-endpoint" type="url" value="http://localhost:8088/process" />
           </label>
           <label>
+            MCP endpoint
+            <input id="mcp-endpoint" type="url" value="http://localhost:9091/mcp" />
+          </label>
+          <label>
+            MCP API key
+            <input id="mcp-api-key" type="password" autocomplete="off" placeholder="Opcional" />
+          </label>
+          <label>
             External API URL
             <input id="external-api-url" type="url" value="https://mock.raysouz.studio" />
           </label>
           <div class="button-row">
             <button id="load-example" type="button">Carregar</button>
             <button id="send-rest" type="button">Enviar REST</button>
+          </div>
+          <div class="button-row">
+            <button id="mcp-validate" type="button">Validar MCP</button>
+            <button id="mcp-explain" type="button">Explicar MCP</button>
+          </div>
+          <div class="button-row">
+            <button id="mcp-diagnostics" type="button">Diagnosticar conectores</button>
           </div>
         </div>
 
@@ -173,6 +188,7 @@
     <script src="./scripts/routing-slip.studio.lint.js"></script>
     <script src="./scripts/routing-slip.studio.payload.js"></script>
     <script src="./scripts/routing-slip.studio.runtime.js"></script>
+    <script src="./scripts/routing-slip.studio.mcp.js"></script>
     <script src="./scripts/routing-slip.studio.logs.js"></script>
     <script src="./scripts/routing-slip.studio.utils.js"></script>
     <script src="./scripts/routing-slip.studio.bootstrap.js"></script>

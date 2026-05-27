@@ -33,6 +33,21 @@ func TestMCPToolsList(t *testing.T) {
 	}
 }
 
+func TestMCPCORSPreflight(t *testing.T) {
+	server := testMCPServer()
+	req := httptest.NewRequest(http.MethodOptions, "/mcp", nil)
+	rec := httptest.NewRecorder()
+
+	server.handleMCP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") == "" {
+		t.Fatal("expected CORS headers")
+	}
+}
+
 func TestMCPValidateWorkflow(t *testing.T) {
 	server := testMCPServer()
 	payload := `{

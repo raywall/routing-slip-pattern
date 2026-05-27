@@ -34,6 +34,9 @@ async function runLocalSimulation(options = {}) {
     cursor: startCursor,
     stopped: false,
     errors: [],
+    trace_id: payload.trace_id || generateTraceID(),
+    correlation_id: getPath(payload, workflow.correlation_id_path),
+    message_id: getPath(payload, workflow.message_id_path),
     reprocess: isReprocess ? {
       previousDurationMs: lastExecutionSnapshot.durationMs,
       previousCursor: lastExecutionSnapshot.resumeCursor,
@@ -44,9 +47,11 @@ async function runLocalSimulation(options = {}) {
       integrations: [],
     },
   };
+  state.payload.trace_id = state.payload.trace_id || state.trace_id;
   addLog("info", isReprocess ? "Reprocessamento iniciado" : "Workflow iniciado", `${workflow.name || "workflow"} com ${workflow.steps.length} etapa(s).`, {
-    message_id: getPath(state.payload, workflow.message_id_path),
-    correlation_id: getPath(state.payload, workflow.correlation_id_path),
+    message_id: state.message_id,
+    correlation_id: state.correlation_id,
+    trace_id: state.trace_id,
     cursor_inicial: startCursor,
     execucao_anterior_ms: state.reprocess?.previousDurationMs,
   });

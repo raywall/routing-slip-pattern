@@ -421,6 +421,8 @@ curl -s http://localhost:9091/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
+Quando usado pelo Studio no navegador, o gateway responde a preflight `OPTIONS` e expoe headers de rastreabilidade. Em ambiente compartilhado, mantenha `auth.type: api_key` e prefira bind local ou uma camada autenticada na frente do endpoint.
+
 ## Planner assistido
 
 O planner MCP ajuda a criar rascunhos a partir de descricao, campos obrigatorios e endpoints. Ele nao grava arquivos nem executa steps; sempre retorna uma proposta para revisao.
@@ -457,14 +459,18 @@ O Studio oferece:
 - workspace local por pastas e arquivos YAML;
 - editor com lint, linhas, comentarios, indentacao e atalhos;
 - payload de entrada em JSON;
-- configuracao de endpoints;
+- configuracao de endpoints REST, GraphQL e MCP;
 - execucao simulada;
 - logs agrupados por etapa;
-- resumo com tempo total, integracoes e erros;
+- resumo com tempo total, `trace_id`, `correlation_id`, integracoes e erros;
 - reprocessamento local;
+- validacao e explicacao de workflow via MCP;
+- diagnostico de conectores GraphQL, REST e notificacao;
 - documentacao integrada;
 - tema claro/escuro;
 - modo mobile focado em leitura.
+
+No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
 
 Atalhos:
 
