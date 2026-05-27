@@ -46,6 +46,10 @@ function recordIntegration(state, integration) {
     method: integration.method || "",
     status: integration.status || "attempted",
     started_at: new Date().toISOString(),
+    step_index: activeExecutionStepIndex,
+    step: Number.isInteger(activeExecutionStepIndex) ? activeRuntimeWorkflow?.steps?.[activeExecutionStepIndex]?.name || "" : "",
+    trace_id: state.trace_id || state.payload?.trace_id || "",
+    correlation_id: state.correlation_id || "",
   };
   if (!state.metrics) state.metrics = { integrations: [] };
   if (!Array.isArray(state.metrics.integrations)) state.metrics.integrations = [];
@@ -87,6 +91,8 @@ function renderExecutionSummary(workflow, state, status) {
       ${summaryMetric("Erros", errorCount)}
       ${summaryMetric("Tempo medio por step", formatDuration(avgStepDuration))}
       ${durationDelta === null ? "" : summaryMetric("Dif. tempo anterior", formatDurationDelta(durationDelta))}
+      ${summaryMetric("Trace ID", state.trace_id || "-")}
+      ${summaryMetric("Correlation ID", state.correlation_id || "-")}
       ${summaryMetric("Integracoes API/servico", integrations.length)}
       ${summaryMetric("Reais", realCount)}
       ${summaryMetric("Simuladas", simulatedCount)}
@@ -101,7 +107,7 @@ function renderExecutionSummary(workflow, state, status) {
           <div class="integration-row">
             <span>${escapeHtml(item.type)}</span>
             <strong>${escapeHtml(item.status)}</strong>
-            <em>${escapeHtml([item.method, item.target || item.endpoint].filter(Boolean).join(" "))}</em>
+            <em>${escapeHtml([item.method, item.target || item.endpoint, item.trace_id ? `trace:${item.trace_id}` : ""].filter(Boolean).join(" "))}</em>
           </div>
         `).join("")}
       </div>

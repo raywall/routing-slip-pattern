@@ -29,6 +29,8 @@ const els = {
   example: document.querySelector("#example-select"),
   graphqlEndpoint: document.querySelector("#graphql-endpoint"),
   workflowEndpoint: document.querySelector("#workflow-endpoint"),
+  mcpEndpoint: document.querySelector("#mcp-endpoint"),
+  mcpApiKey: document.querySelector("#mcp-api-key"),
   externalApiUrl: document.querySelector("#external-api-url"),
   integrations: document.querySelector("#execute-integrations"),
   sidebar: document.querySelector("#sidebar"),
@@ -101,7 +103,7 @@ function bindEvents() {
     scheduleStudioSave();
   });
   els.payload.addEventListener("keydown", handlePayloadKeydown);
-  [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.externalApiUrl, els.integrations].forEach((input) => {
+  [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.mcpEndpoint, els.mcpApiKey, els.externalApiUrl, els.integrations].forEach((input) => {
     input.addEventListener("change", () => {
       invalidateExecutionSnapshot();
       scheduleStudioSave();
@@ -118,6 +120,9 @@ function bindEvents() {
   document.querySelector("#format-yaml").addEventListener("click", formatWorkflow);
   document.querySelector("#toggle-comment").addEventListener("click", () => toggleYamlComment());
   document.querySelector("#send-rest").addEventListener("click", sendToRestEndpoint);
+  document.querySelector("#mcp-validate").addEventListener("click", validateWorkflowViaMCP);
+  document.querySelector("#mcp-explain").addEventListener("click", explainWorkflowViaMCP);
+  document.querySelector("#mcp-diagnostics").addEventListener("click", showConnectorDiagnostics);
   document.querySelectorAll("[data-tab]").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });

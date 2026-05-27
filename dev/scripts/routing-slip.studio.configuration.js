@@ -32,6 +32,8 @@ function currentStudioState() {
     example: els.example.value,
     graphqlEndpoint: els.graphqlEndpoint.value,
     workflowEndpoint: els.workflowEndpoint.value,
+    mcpEndpoint: els.mcpEndpoint.value,
+    mcpApiKey: els.mcpApiKey.value,
     externalApiUrl: els.externalApiUrl.value,
     executeIntegrations: els.integrations.checked,
     updatedAt: new Date().toISOString(),
@@ -46,6 +48,8 @@ async function restoreStudioState() {
   if (state.example && examples[state.example]) els.example.value = state.example;
   if (state.graphqlEndpoint) els.graphqlEndpoint.value = state.graphqlEndpoint;
   if (state.workflowEndpoint) els.workflowEndpoint.value = state.workflowEndpoint;
+  if (state.mcpEndpoint) els.mcpEndpoint.value = state.mcpEndpoint;
+  if (state.mcpApiKey) els.mcpApiKey.value = state.mcpApiKey;
   if (state.externalApiUrl) els.externalApiUrl.value = state.externalApiUrl;
   els.integrations.checked = Boolean(state.executeIntegrations);
   return els.workflow.value.trim() !== "";
