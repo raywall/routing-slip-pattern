@@ -166,6 +166,11 @@ window.RoutingSlipDocs = [
         "id": "integracao-mcp-foundation",
         "title": "MCP Foundation",
         "file": "content/04-projetos-integrados/08-mcp-foundation.md"
+      },
+      {
+        "id": "integracao-planner-mcp",
+        "title": "Planner MCP",
+        "file": "content/04-projetos-integrados/09-planner-mcp.md"
       }
     ]
   },
@@ -184,7 +189,7 @@ window.RoutingSlipDocs = [
     "items": [
       {
         "id": "studio-visao-geral",
-        "title": "Visãp geral",
+        "title": "Visão geral",
         "file": "content/06-studio/01-visao-geral.md"
       },
       {
