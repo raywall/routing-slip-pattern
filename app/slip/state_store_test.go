@@ -10,6 +10,74 @@ type failOnceHandler struct {
 	failed bool
 }
 
+func TestFileStateStorePersistsSnapshot(t *testing.T) {
+	store, err := NewFileStateStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("file store: %v", err)
+	}
+	msg := NewMessage("MSG/FILE:001", map[string]any{"input": "ok"})
+	msg.AttachSlip(NewSlip().Step("noop").Build())
+	msg.SetStatus("failed")
+
+	if err := store.Save(context.Background(), msg.Snapshot()); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	snapshot, err := store.Load(context.Background(), msg.ID)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if snapshot.ID != msg.ID {
+		t.Fatalf("snapshot id = %q", snapshot.ID)
+	}
+	if snapshot.Status != "failed" {
+		t.Fatalf("snapshot status = %q", snapshot.Status)
+	}
+}
+
+func TestStateStoreNotFoundIsClassified(t *testing.T) {
+	store := NewMemoryStateStore()
+	_, err := store.Load(context.Background(), "missing")
+	if !IsStateNotFound(err) {
+		t.Fatalf("expected state not found, got %v", err)
+	}
+}
+
+func TestRouterSkipsCompletedStepWhenIdempotencyEnabled(t *testing.T) {
+	store := NewMemoryStateStore()
+	router := NewRouter(
+		WithStateStore(store),
+		WithStateOptions(StateOptions{
+			Workflow:               "test-workflow",
+			IdempotencyEnabled:     true,
+			IdempotencyKeyTemplate: "{workflow}:{message_id}:{step_index}:{step}",
+		}),
+	)
+	handler := &countingHandler{name: "count"}
+	router.MustRegister(handler)
+
+	msg := NewMessage("MSG-IDEMPOTENT", map[string]any{})
+	msg.AttachSlip(NewSlip().Step("count").Build())
+	if err := router.Process(context.Background(), msg); err != nil {
+		t.Fatalf("first process: %v", err)
+	}
+
+	snapshot, err := store.Load(context.Background(), msg.ID)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	snapshot.Cursor = 0
+	resumed := MessageFromSnapshot(snapshot)
+	if err := router.Process(context.Background(), resumed); err != nil {
+		t.Fatalf("second process: %v", err)
+	}
+	if handler.count != 1 {
+		t.Fatalf("handler count = %d, expected 1", handler.count)
+	}
+	if len(resumed.History) == 0 || resumed.History[len(resumed.History)-1].Status != "idempotent_skip" {
+		t.Fatalf("expected idempotent skip history, got %#v", resumed.History)
+	}
+}
+
 func (h *failOnceHandler) Name() string { return "fail_once" }
 
 func (h *failOnceHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
@@ -109,5 +177,17 @@ func (h testSetHandler) Name() string { return h.name }
 
 func (h testSetHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
 	msg.Set(h.key, h.value)
+	return true, nil
+}
+
+type countingHandler struct {
+	name  string
+	count int
+}
+
+func (h *countingHandler) Name() string { return h.name }
+
+func (h *countingHandler) Handle(ctx context.Context, msg *Message, params map[string]any) (bool, error) {
+	h.count++
 	return true, nil
 }

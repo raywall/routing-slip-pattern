@@ -32,10 +32,12 @@ type Message struct {
 	ParentSpanID  string
 	SpanID        string
 	Attempt       int
+	Status        string
 	slip          []StepDef // ordered list of steps to execute
 	cursor        int       // next step index
 	History       []HistoryEntry
 	Errors        []StepError
+	StepStates    map[string]StepExecutionState
 }
 
 // NewMessage creates a new Message with the given ID and initial payload.
@@ -44,10 +46,12 @@ func NewMessage(id string, payload map[string]any) *Message {
 		payload = make(map[string]any)
 	}
 	return &Message{
-		ID:        id,
-		CreatedAt: time.Now(),
-		Payload:   payload,
-		Headers:   make(map[string]string),
+		ID:         id,
+		CreatedAt:  time.Now(),
+		Payload:    payload,
+		Headers:    make(map[string]string),
+		Status:     "created",
+		StepStates: make(map[string]StepExecutionState),
 	}
 }
 
@@ -166,6 +170,13 @@ func (m *Message) HasErrors() bool {
 	return len(m.Errors) > 0
 }
 
+// SetStatus updates the durable execution status.
+func (m *Message) SetStatus(status string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Status = strings.TrimSpace(status)
+}
+
 // RemainingSteps returns the number of steps not yet executed.
 func (m *Message) RemainingSteps() int {
 	m.mu.RLock()
@@ -176,6 +187,53 @@ func (m *Message) RemainingSteps() int {
 // Cursor returns the next step index to execute.
 func (m *Message) Cursor() int {
 	return m.currentCursor()
+}
+
+func (m *Message) markStepRunning(key string, step StepDef, index int, started time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StepStates == nil {
+		m.StepStates = make(map[string]StepExecutionState)
+	}
+	state := m.StepStates[key]
+	state.Key = key
+	state.StepID = step.ID
+	state.StepName = step.Name
+	state.StepIndex = index
+	state.Status = "running"
+	state.Attempts++
+	state.StartedAt = started
+	state.CompletedAt = time.Time{}
+	state.LastError = ""
+	state.TraceID = m.TraceID
+	state.SpanID = m.SpanID
+	m.StepStates[key] = state
+}
+
+func (m *Message) markStepFinished(key, status string, completed time.Time, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StepStates == nil {
+		m.StepStates = make(map[string]StepExecutionState)
+	}
+	state := m.StepStates[key]
+	state.Key = key
+	state.Status = status
+	state.CompletedAt = completed
+	state.TraceID = m.TraceID
+	state.SpanID = m.SpanID
+	state.Attempts = maxInt(state.Attempts, m.Attempt)
+	if err != nil {
+		state.LastError = err.Error()
+	}
+	m.StepStates[key] = state
+}
+
+func (m *Message) stepState(key string) (StepExecutionState, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	state, ok := m.StepStates[key]
+	return state, ok
 }
 
 // ---------------------------------------------------------------------------
@@ -215,24 +273,43 @@ type StepError struct {
 	Timestamp time.Time
 }
 
+// StepExecutionState records the durable status of a step execution.
+type StepExecutionState struct {
+	Key         string    `json:"key"`
+	StepID      string    `json:"step_id,omitempty"`
+	StepName    string    `json:"step_name"`
+	StepIndex   int       `json:"step_index"`
+	Status      string    `json:"status"`
+	Attempts    int       `json:"attempts"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+	CompletedAt time.Time `json:"completed_at,omitempty"`
+	LastError   string    `json:"last_error,omitempty"`
+	TraceID     string    `json:"trace_id,omitempty"`
+	SpanID      string    `json:"span_id,omitempty"`
+}
+
 // MessageSnapshot is a serializable view of a message execution state.
 // Persisting this snapshot enables a stopped workflow to resume from the
 // current cursor without repeating already completed steps.
 type MessageSnapshot struct {
-	ID            string
-	CreatedAt     time.Time
-	Payload       map[string]any
-	Headers       map[string]string
-	CorrelationID string
-	TraceID       string
-	ParentSpanID  string
-	SpanID        string
-	Attempt       int
-	Slip          []StepDef
-	Cursor        int
-	History       []HistoryEntry
-	Errors        []SerializableStepError
-	UpdatedAt     time.Time
+	ID              string                        `json:"id"`
+	Workflow        string                        `json:"workflow,omitempty"`
+	WorkflowVersion string                        `json:"workflow_version,omitempty"`
+	Status          string                        `json:"status"`
+	CreatedAt       time.Time                     `json:"created_at"`
+	Payload         map[string]any                `json:"payload"`
+	Headers         map[string]string             `json:"headers"`
+	CorrelationID   string                        `json:"correlation_id,omitempty"`
+	TraceID         string                        `json:"trace_id,omitempty"`
+	ParentSpanID    string                        `json:"parent_span_id,omitempty"`
+	SpanID          string                        `json:"span_id,omitempty"`
+	Attempt         int                           `json:"attempt"`
+	Slip            []StepDef                     `json:"slip"`
+	Cursor          int                           `json:"cursor"`
+	History         []HistoryEntry                `json:"history"`
+	Errors          []SerializableStepError       `json:"errors"`
+	StepStates      map[string]StepExecutionState `json:"step_states,omitempty"`
+	UpdatedAt       time.Time                     `json:"updated_at"`
 }
 
 // SerializableStepError stores an error message without depending on a concrete
@@ -258,6 +335,10 @@ func (m *Message) Snapshot() MessageSnapshot {
 	}
 	slip := append([]StepDef(nil), m.slip...)
 	history := append([]HistoryEntry(nil), m.History...)
+	stepStates := make(map[string]StepExecutionState, len(m.StepStates))
+	for key, value := range m.StepStates {
+		stepStates[key] = value
+	}
 
 	errs := make([]SerializableStepError, 0, len(m.Errors))
 	for _, e := range m.Errors {
@@ -273,20 +354,24 @@ func (m *Message) Snapshot() MessageSnapshot {
 	}
 
 	return MessageSnapshot{
-		ID:            m.ID,
-		CreatedAt:     m.CreatedAt,
-		Payload:       payload,
-		Headers:       headers,
-		CorrelationID: m.CorrelationID,
-		TraceID:       m.TraceID,
-		ParentSpanID:  m.ParentSpanID,
-		SpanID:        m.SpanID,
-		Attempt:       m.Attempt,
-		Slip:          slip,
-		Cursor:        m.cursor,
-		History:       history,
-		Errors:        errs,
-		UpdatedAt:     time.Now(),
+		ID:              m.ID,
+		Workflow:        m.Headers["workflow"],
+		WorkflowVersion: m.Headers["workflow_version"],
+		Status:          m.Status,
+		CreatedAt:       m.CreatedAt,
+		Payload:         payload,
+		Headers:         headers,
+		CorrelationID:   m.CorrelationID,
+		TraceID:         m.TraceID,
+		ParentSpanID:    m.ParentSpanID,
+		SpanID:          m.SpanID,
+		Attempt:         m.Attempt,
+		Slip:            slip,
+		Cursor:          m.cursor,
+		History:         history,
+		Errors:          errs,
+		StepStates:      stepStates,
+		UpdatedAt:       time.Now(),
 	}
 }
 
@@ -321,10 +406,18 @@ func MessageFromSnapshot(snapshot MessageSnapshot) *Message {
 		ParentSpanID:  snapshot.ParentSpanID,
 		SpanID:        snapshot.SpanID,
 		Attempt:       snapshot.Attempt,
+		Status:        snapshot.Status,
 		slip:          append([]StepDef(nil), snapshot.Slip...),
 		cursor:        snapshot.Cursor,
 		History:       append([]HistoryEntry(nil), snapshot.History...),
 		Errors:        errs,
+		StepStates:    make(map[string]StepExecutionState, len(snapshot.StepStates)),
+	}
+	if msg.Status == "" {
+		msg.Status = "loaded"
+	}
+	for key, value := range snapshot.StepStates {
+		msg.StepStates[key] = value
 	}
 	msg.setCursor(snapshot.Cursor)
 	return msg
@@ -364,6 +457,14 @@ const (
 // RouterOption is a functional option for Router.
 type RouterOption func(*Router)
 
+// StateOptions controls durable state metadata and idempotency.
+type StateOptions struct {
+	Workflow               string
+	WorkflowVersion        string
+	IdempotencyEnabled     bool
+	IdempotencyKeyTemplate string
+}
+
 // WithLogger sets a custom slog.Logger.
 func WithLogger(l *slog.Logger) RouterOption {
 	return func(r *Router) { r.logger = l }
@@ -385,6 +486,12 @@ func WithStateStore(store StateStore) RouterOption {
 	return func(r *Router) { r.stateStore = store }
 }
 
+// WithStateOptions configures metadata saved with snapshots and optional
+// idempotency checks for already completed steps.
+func WithStateOptions(options StateOptions) RouterOption {
+	return func(r *Router) { r.stateOptions = options }
+}
+
 // Middleware wraps a Handler, enabling cross-cutting concerns (logging, metrics, etc.).
 type Middleware func(next Handler) Handler
 
@@ -396,6 +503,7 @@ type Router struct {
 	logger            *slog.Logger
 	middleware        []Middleware
 	stateStore        StateStore
+	stateOptions      StateOptions
 }
 
 // NewRouter creates a Router with the given options.
@@ -432,6 +540,13 @@ func (r *Router) MustRegister(h Handler) { r.Register(h) }
 // It returns an error only when errorPolicy == StopOnError and a step fails.
 func (r *Router) Process(ctx context.Context, msg *Message) error {
 	ctx, trace := EnsureTraceContext(ctx, msg)
+	msg.SetStatus("running")
+	if r.stateOptions.Workflow != "" && msg.Headers["workflow"] == "" {
+		msg.Headers["workflow"] = r.stateOptions.Workflow
+	}
+	if r.stateOptions.WorkflowVersion != "" && msg.Headers["workflow_version"] == "" {
+		msg.Headers["workflow_version"] = r.stateOptions.WorkflowVersion
+	}
 	r.logger.Info("router: starting workflow",
 		slog.String("message_id", msg.ID),
 		slog.String("trace_id", trace.TraceID),
@@ -443,6 +558,7 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 
 	for {
 		if err := ctx.Err(); err != nil {
+			msg.SetStatus("cancelled")
 			_ = r.saveState(context.Background(), msg)
 			return fmt.Errorf("context cancelled before completing slip: %w", err)
 		}
@@ -464,6 +580,7 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			msg.AddError(StepError{Step: step.Name, Err: err, Timestamp: time.Now()})
 			if r.errorPolicy == StopOnError {
 				msg.setCursor(stepIndex)
+				msg.SetStatus("failed")
 				_ = r.saveState(context.Background(), msg)
 				return err
 			}
@@ -474,6 +591,22 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		}
 
 		start := time.Now()
+		stepKey := r.stepExecutionKey(msg, step, stepIndex)
+		if r.stateOptions.IdempotencyEnabled {
+			if state, ok := msg.stepState(stepKey); ok && state.Status == "success" {
+				msg.AddHistory(msg.historyEntry(step.Name, start, 0, true, "idempotent_skip"))
+				msg.setCursor(stepIndex + 1)
+				if err := r.saveState(ctx, msg); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		msg.markStepRunning(stepKey, step, stepIndex, start)
+		if err := r.saveState(ctx, msg); err != nil {
+			return err
+		}
+
 		r.logger.Info("router: executing step",
 			slog.String("step", step.Name),
 			slog.String("message_id", msg.ID),
@@ -485,12 +618,13 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		if err != nil {
 			stepErr := StepError{Step: step.Name, Err: err, Timestamp: time.Now()}
 			msg.AddError(stepErr)
+			msg.markStepFinished(stepKey, "failed", time.Now(), err)
 			r.logger.Error("router: step error",
 				slog.String("step", step.Name),
 				slog.String("error", err.Error()),
 			)
 			if step.Resilience.failureAction() != "default" {
-				if handled, handleErr := r.handleStepFailure(ctx, msg, step, stepIndex, start, duration, err); handled {
+				if handled, handleErr := r.handleStepFailure(ctx, msg, step, stepIndex, stepKey, start, duration, err); handled {
 					if handleErr != nil {
 						return handleErr
 					}
@@ -500,6 +634,7 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			switch r.errorPolicy {
 			case StopOnError:
 				msg.setCursor(stepIndex)
+				msg.SetStatus("failed")
 				_ = r.saveState(context.Background(), msg)
 				return fmt.Errorf("step %q: %w", step.Name, err)
 			case ContinueOnError:
@@ -522,13 +657,16 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			status = "stopped"
 		}
 		msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, status))
+		msg.markStepFinished(stepKey, status, time.Now(), nil)
 		if cursorHandler, ok := r.cursorControllers[step.Name]; ok {
 			nextCursor, changed, err := cursorHandler.NextCursor(msg, step, stepIndex)
 			if err != nil {
 				stepErr := StepError{Step: step.Name, Err: err, Timestamp: time.Now()}
 				msg.AddError(stepErr)
+				msg.markStepFinished(stepKey, "failed", time.Now(), err)
 				if r.errorPolicy == StopOnError {
 					msg.setCursor(stepIndex)
+					msg.SetStatus("failed")
 					_ = r.saveState(context.Background(), msg)
 					return fmt.Errorf("step %q: %w", step.Name, err)
 				}
@@ -543,10 +681,17 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 
 		if !proceed {
 			r.logger.Info("router: step requested stop", slog.String("step", step.Name))
+			msg.SetStatus("stopped")
 			break
 		}
 	}
 
+	if msg.Status == "running" || msg.Status == "" {
+		msg.SetStatus("completed")
+	}
+	if err := r.saveState(ctx, msg); err != nil {
+		return err
+	}
 	r.logger.Info("router: workflow complete",
 		slog.String("message_id", msg.ID),
 		slog.String("trace_id", msg.TraceID),
@@ -588,32 +733,38 @@ func (r *Router) handleStep(ctx context.Context, msg *Message, step StepDef, h H
 	return false, lastErr
 }
 
-func (r *Router) handleStepFailure(ctx context.Context, msg *Message, step StepDef, stepIndex int, start time.Time, duration time.Duration, err error) (bool, error) {
+func (r *Router) handleStepFailure(ctx context.Context, msg *Message, step StepDef, stepIndex int, stepKey string, start time.Time, duration time.Duration, err error) (bool, error) {
 	switch step.Resilience.failureAction() {
 	case "default":
 		return false, nil
 	case "stop":
 		msg.setCursor(stepIndex)
+		msg.SetStatus("failed")
 		_ = r.saveState(context.Background(), msg)
 		return true, fmt.Errorf("step %q: %w", step.Name, err)
 	case "continue":
 		msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, "failed"))
+		msg.markStepFinished(stepKey, "failed", time.Now(), err)
 		return true, r.saveState(ctx, msg)
 	case "skip":
 		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "skipped"))
+		msg.markStepFinished(stepKey, "skipped", time.Now(), err)
 		return true, r.saveState(ctx, msg)
 	case "jump":
 		nextCursor, ok := msg.FindStepIndex(step.Resilience.OnFailure.To)
 		if !ok {
 			msg.setCursor(stepIndex)
+			msg.SetStatus("failed")
 			_ = r.saveState(context.Background(), msg)
 			return true, fmt.Errorf("step %q: failure jump target %q not found", step.Name, step.Resilience.OnFailure.To)
 		}
 		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "jumped"))
+		msg.markStepFinished(stepKey, "jumped", time.Now(), err)
 		msg.setCursor(nextCursor)
 		return true, r.saveState(ctx, msg)
 	default:
 		msg.setCursor(stepIndex)
+		msg.SetStatus("failed")
 		_ = r.saveState(context.Background(), msg)
 		return true, fmt.Errorf("step %q: unknown on_failure action %q", step.Name, step.Resilience.OnFailure.Action)
 	}
@@ -663,6 +814,42 @@ func (r *Router) saveState(ctx context.Context, msg *Message) error {
 		return fmt.Errorf("routing-slip: save state: %w", err)
 	}
 	return nil
+}
+
+func (r *Router) stepExecutionKey(msg *Message, step StepDef, index int) string {
+	template := strings.TrimSpace(r.stateOptions.IdempotencyKeyTemplate)
+	if template == "" {
+		template = "{workflow}:{message_id}:{step_index}:{step}"
+	}
+	workflow := msg.Headers["workflow"]
+	if workflow == "" {
+		workflow = r.stateOptions.Workflow
+	}
+	stepRef := step.ID
+	if stepRef == "" {
+		stepRef = step.Name
+	}
+	replacements := map[string]string{
+		"{workflow}":       workflow,
+		"{message_id}":     msg.ID,
+		"{correlation_id}": msg.CorrelationID,
+		"{step}":           step.Name,
+		"{step_id}":        step.ID,
+		"{step_ref}":       stepRef,
+		"{step_index}":     strconv.Itoa(index),
+	}
+	key := template
+	for token, value := range replacements {
+		key = strings.ReplaceAll(key, token, value)
+	}
+	return key
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // applyMiddleware wraps h with all registered middleware (last-in, first-executed).

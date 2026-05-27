@@ -17,6 +17,7 @@ type AppConfig struct {
 	Trigger       TriggerConfig       `yaml:"trigger"`
 	Features      FeatureFlagsConfig  `yaml:"features"`
 	Metrics       MetricsConfig       `yaml:"metrics"`
+	StateStore    StateStoreConfig    `yaml:"state_store"`
 	Observability ObservabilityConfig `yaml:"observability"`
 	Security      SecurityConfig      `yaml:"security"`
 	Integrations  IntegrationsConfig  `yaml:"integrations"`
@@ -59,6 +60,7 @@ type SQSTriggerConfig struct {
 type WorkflowConfig struct {
 	Name              string       `yaml:"name"`
 	Description       string       `yaml:"description"`
+	Version           string       `yaml:"version"`
 	ErrorPolicy       string       `yaml:"error_policy"`
 	MessageIDPath     string       `yaml:"message_id_path"`
 	CorrelationIDPath string       `yaml:"correlation_id_path"`
@@ -78,6 +80,21 @@ type MetricsConfig struct {
 	Segment  string            `yaml:"segment"`
 	Source   string            `yaml:"source"`
 	Tags     map[string]string `yaml:"tags"`
+}
+
+type StateStoreConfig struct {
+	Type        string                 `yaml:"type"`
+	Path        string                 `yaml:"path"`
+	Table       string                 `yaml:"table"`
+	Endpoint    string                 `yaml:"endpoint"`
+	Region      string                 `yaml:"region"`
+	TTLDays     int                    `yaml:"ttl_days"`
+	Idempotency StateIdempotencyConfig `yaml:"idempotency"`
+}
+
+type StateIdempotencyConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	KeyTemplate string `yaml:"key_template"`
 }
 
 type FeatureFlagsConfig struct {
@@ -437,6 +454,25 @@ func applyConfigDefaults(cfg *AppConfig) {
 		enabled := true
 		cfg.Features.TracingEnabled = &enabled
 	}
+	cfg.StateStore.Type = strings.ToLower(strings.TrimSpace(cfg.StateStore.Type))
+	if cfg.StateStore.Type == "" {
+		cfg.StateStore.Type = "memory"
+	}
+	if strings.TrimSpace(cfg.StateStore.Path) == "" {
+		cfg.StateStore.Path = ".routing-slip-state"
+	}
+	if strings.TrimSpace(cfg.StateStore.Table) == "" {
+		cfg.StateStore.Table = "routing-slip-state"
+	}
+	if strings.TrimSpace(cfg.StateStore.Region) == "" {
+		cfg.StateStore.Region = env("AWS_REGION", "us-east-1")
+	}
+	if cfg.StateStore.TTLDays <= 0 {
+		cfg.StateStore.TTLDays = 30
+	}
+	if strings.TrimSpace(cfg.StateStore.Idempotency.KeyTemplate) == "" {
+		cfg.StateStore.Idempotency.KeyTemplate = "{workflow}:{message_id}:{step_index}:{step}"
+	}
 	if strings.TrimSpace(cfg.Observability.Tracing.Exporter) == "" {
 		cfg.Observability.Tracing.Exporter = "none"
 	}
@@ -481,6 +517,11 @@ func validateAppConfig(cfg *AppConfig) error {
 	case "rest", "kafka", "sqs":
 	default:
 		return fmt.Errorf("unsupported trigger type %q: use rest, kafka or sqs", cfg.Trigger.Type)
+	}
+	switch cfg.StateStore.Type {
+	case "memory", "file", "dynamodb":
+	default:
+		return fmt.Errorf("unsupported state_store.type %q: use memory, file or dynamodb", cfg.StateStore.Type)
 	}
 	return nil
 }
