@@ -15,15 +15,6 @@ const handlers = new Set([
   "workflow_ref",
 ]);
 
-const STUDIO_DB = {
-  name: "routing-slip-studio",
-  store: "state",
-  key: "current",
-  workspaceHandleKey: "workspace-handle",
-  currentFileKey: "workspace-current-file",
-};
-
-
 const els = {
   workflow: document.querySelector("#workflow-editor"),
   highlight: document.querySelector("#workflow-highlight"),
@@ -82,8 +73,11 @@ let activeRuntimeWorkflow = null;
 let lastExecutionSnapshot = null;
 
 async function boot() {
+  initEnvSwitcher();
+
   const restored = await restoreStudioState();
   if (!restored) loadExample("payment", { persist: false });
+
   initTheme();
   renderIcons();
   bindEvents();
@@ -195,4 +189,41 @@ function initDocumentation() {
     panelTitleSelector: "#result-panel-title",
     panelMetaSelector: "#result-panel-meta",
   });
+}
+
+function initEnvSwitcher() {
+  const meta = document.querySelector('meta[name="studio-env"]');
+  if (!meta) return;
+
+  const currentEnv = meta.getAttribute('content');
+  if (!["production", "development"].includes(currentEnv)) return;
+  if (document.querySelector("#studio-env-switcher")) return;
+
+  const repoName = window.location.pathname.split('/')[1] || "routing-slip-pattern";
+  const ENVS = {
+    production: { label: "Producao", path: `/${repoName}/` },
+    development: { label: "Desenvolvimento", path: `/${repoName}/dev/` },
+  };
+
+  const select = document.createElement('select');
+  select.id = 'studio-env-switcher';
+  select.className = "env-switcher";
+  select.title = "Alternar ambiente da documentacao";
+  select.setAttribute("aria-label", "Alternar ambiente da documentacao");
+
+  for (const [key, { label }] of Object.entries(ENVS)) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    if (key === currentEnv) opt.selected = true;
+    select.appendChild(opt);
+  }
+
+  select.addEventListener('change', () => {
+    window.location.href = ENVS[select.value].path;
+  });
+
+  const toolbar = document.querySelector(".topbar-actions");
+  if (!toolbar) return;
+  toolbar.prepend(select);
 }

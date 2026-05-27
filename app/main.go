@@ -32,6 +32,9 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 			slip.LoggingMiddleware(logger),
 		),
 	}
+	if envBool("ROUTING_SLIP_TRACING_ENABLED", true) {
+		routerOpts = append(routerOpts, slip.WithMiddleware(slip.TracingMiddleware()))
+	}
 	routerOpts = append(routerOpts, opts...)
 
 	r := slip.NewRouter(routerOpts...)
@@ -642,4 +645,12 @@ func env(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func envBool(key string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }

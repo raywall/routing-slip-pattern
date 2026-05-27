@@ -23,14 +23,19 @@ import (
 type Message struct {
 	mu sync.RWMutex
 
-	ID        string
-	CreatedAt time.Time
-	Payload   map[string]any // mutable data transformed by handlers
-	Headers   map[string]string
-	slip      []StepDef // ordered list of steps to execute
-	cursor    int       // next step index
-	History   []HistoryEntry
-	Errors    []StepError
+	ID            string
+	CreatedAt     time.Time
+	Payload       map[string]any // mutable data transformed by handlers
+	Headers       map[string]string
+	CorrelationID string
+	TraceID       string
+	ParentSpanID  string
+	SpanID        string
+	Attempt       int
+	slip          []StepDef // ordered list of steps to execute
+	cursor        int       // next step index
+	History       []HistoryEntry
+	Errors        []StepError
 }
 
 // NewMessage creates a new Message with the given ID and initial payload.
@@ -179,9 +184,10 @@ func (m *Message) Cursor() int {
 
 // StepDef describes a single step in the routing slip.
 type StepDef struct {
-	ID     string         // optional stable identifier used by jump/branch handlers
-	Name   string         // human-readable step name
-	Params map[string]any // arbitrary parameters passed to the handler
+	ID         string           // optional stable identifier used by jump/branch handlers
+	Name       string           // human-readable step name
+	Params     map[string]any   // arbitrary parameters passed to the handler
+	Resilience ResiliencePolicy // retry/failure policy for this step
 }
 
 // CursorController is optionally implemented by handlers that need to redirect
@@ -192,10 +198,14 @@ type CursorController interface {
 
 // HistoryEntry is an audit record for a completed step.
 type HistoryEntry struct {
-	Step      string
-	StartedAt time.Time
-	Duration  time.Duration
-	Skipped   bool
+	Step      string        `json:"Step"`
+	StartedAt time.Time     `json:"StartedAt"`
+	Duration  time.Duration `json:"Duration"`
+	Skipped   bool          `json:"Skipped"`
+	Status    string        `json:"Status,omitempty"`
+	TraceID   string        `json:"TraceID,omitempty"`
+	SpanID    string        `json:"SpanID,omitempty"`
+	Attempt   int           `json:"Attempt,omitempty"`
 }
 
 // StepError captures a failure in a specific step.
@@ -209,15 +219,20 @@ type StepError struct {
 // Persisting this snapshot enables a stopped workflow to resume from the
 // current cursor without repeating already completed steps.
 type MessageSnapshot struct {
-	ID        string
-	CreatedAt time.Time
-	Payload   map[string]any
-	Headers   map[string]string
-	Slip      []StepDef
-	Cursor    int
-	History   []HistoryEntry
-	Errors    []SerializableStepError
-	UpdatedAt time.Time
+	ID            string
+	CreatedAt     time.Time
+	Payload       map[string]any
+	Headers       map[string]string
+	CorrelationID string
+	TraceID       string
+	ParentSpanID  string
+	SpanID        string
+	Attempt       int
+	Slip          []StepDef
+	Cursor        int
+	History       []HistoryEntry
+	Errors        []SerializableStepError
+	UpdatedAt     time.Time
 }
 
 // SerializableStepError stores an error message without depending on a concrete
@@ -258,15 +273,20 @@ func (m *Message) Snapshot() MessageSnapshot {
 	}
 
 	return MessageSnapshot{
-		ID:        m.ID,
-		CreatedAt: m.CreatedAt,
-		Payload:   payload,
-		Headers:   headers,
-		Slip:      slip,
-		Cursor:    m.cursor,
-		History:   history,
-		Errors:    errs,
-		UpdatedAt: time.Now(),
+		ID:            m.ID,
+		CreatedAt:     m.CreatedAt,
+		Payload:       payload,
+		Headers:       headers,
+		CorrelationID: m.CorrelationID,
+		TraceID:       m.TraceID,
+		ParentSpanID:  m.ParentSpanID,
+		SpanID:        m.SpanID,
+		Attempt:       m.Attempt,
+		Slip:          slip,
+		Cursor:        m.cursor,
+		History:       history,
+		Errors:        errs,
+		UpdatedAt:     time.Now(),
 	}
 }
 
@@ -292,14 +312,19 @@ func MessageFromSnapshot(snapshot MessageSnapshot) *Message {
 	}
 
 	msg := &Message{
-		ID:        snapshot.ID,
-		CreatedAt: snapshot.CreatedAt,
-		Payload:   payload,
-		Headers:   headers,
-		slip:      append([]StepDef(nil), snapshot.Slip...),
-		cursor:    snapshot.Cursor,
-		History:   append([]HistoryEntry(nil), snapshot.History...),
-		Errors:    errs,
+		ID:            snapshot.ID,
+		CreatedAt:     snapshot.CreatedAt,
+		Payload:       payload,
+		Headers:       headers,
+		CorrelationID: snapshot.CorrelationID,
+		TraceID:       snapshot.TraceID,
+		ParentSpanID:  snapshot.ParentSpanID,
+		SpanID:        snapshot.SpanID,
+		Attempt:       snapshot.Attempt,
+		slip:          append([]StepDef(nil), snapshot.Slip...),
+		cursor:        snapshot.Cursor,
+		History:       append([]HistoryEntry(nil), snapshot.History...),
+		Errors:        errs,
 	}
 	msg.setCursor(snapshot.Cursor)
 	return msg
@@ -406,8 +431,10 @@ func (r *Router) MustRegister(h Handler) { r.Register(h) }
 // Process executes the routing slip attached to msg.
 // It returns an error only when errorPolicy == StopOnError and a step fails.
 func (r *Router) Process(ctx context.Context, msg *Message) error {
+	ctx, trace := EnsureTraceContext(ctx, msg)
 	r.logger.Info("router: starting workflow",
 		slog.String("message_id", msg.ID),
+		slog.String("trace_id", trace.TraceID),
 		slog.Int("total_steps", len(msg.slip)),
 	)
 	if err := r.saveState(ctx, msg); err != nil {
@@ -452,7 +479,7 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			slog.String("message_id", msg.ID),
 		)
 
-		proceed, err := h.Handle(ctx, msg, step.Params)
+		proceed, err := r.handleStep(ctx, msg, step, h)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -462,19 +489,27 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 				slog.String("step", step.Name),
 				slog.String("error", err.Error()),
 			)
+			if step.Resilience.failureAction() != "default" {
+				if handled, handleErr := r.handleStepFailure(ctx, msg, step, stepIndex, start, duration, err); handled {
+					if handleErr != nil {
+						return handleErr
+					}
+					continue
+				}
+			}
 			switch r.errorPolicy {
 			case StopOnError:
 				msg.setCursor(stepIndex)
 				_ = r.saveState(context.Background(), msg)
 				return fmt.Errorf("step %q: %w", step.Name, err)
 			case ContinueOnError:
-				msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration})
+				msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, "failed"))
 				if err := r.saveState(ctx, msg); err != nil {
 					return err
 				}
 				continue
 			case SkipOnError:
-				msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration, Skipped: true})
+				msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "skipped"))
 				if err := r.saveState(ctx, msg); err != nil {
 					return err
 				}
@@ -482,7 +517,11 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			}
 		}
 
-		msg.AddHistory(HistoryEntry{Step: step.Name, StartedAt: start, Duration: duration})
+		status := "success"
+		if !proceed {
+			status = "stopped"
+		}
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, status))
 		if cursorHandler, ok := r.cursorControllers[step.Name]; ok {
 			nextCursor, changed, err := cursorHandler.NextCursor(msg, step, stepIndex)
 			if err != nil {
@@ -510,10 +549,89 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 
 	r.logger.Info("router: workflow complete",
 		slog.String("message_id", msg.ID),
+		slog.String("trace_id", msg.TraceID),
 		slog.Int("steps_executed", len(msg.History)),
 		slog.Bool("has_errors", msg.HasErrors()),
 	)
 	return nil
+}
+
+func (r *Router) handleStep(ctx context.Context, msg *Message, step StepDef, h Handler) (bool, error) {
+	attempts := step.Resilience.attempts()
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		msg.Attempt = attempt
+		if delay := step.Resilience.backoffDuration(attempt); delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return false, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		proceed, err := h.Handle(ctx, msg, step.Params)
+		if err == nil {
+			return proceed, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		r.logger.Warn("router: step attempt failed",
+			slog.String("step", step.Name),
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", attempts),
+			slog.String("error", err.Error()),
+		)
+	}
+	return false, lastErr
+}
+
+func (r *Router) handleStepFailure(ctx context.Context, msg *Message, step StepDef, stepIndex int, start time.Time, duration time.Duration, err error) (bool, error) {
+	switch step.Resilience.failureAction() {
+	case "default":
+		return false, nil
+	case "stop":
+		msg.setCursor(stepIndex)
+		_ = r.saveState(context.Background(), msg)
+		return true, fmt.Errorf("step %q: %w", step.Name, err)
+	case "continue":
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, "failed"))
+		return true, r.saveState(ctx, msg)
+	case "skip":
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "skipped"))
+		return true, r.saveState(ctx, msg)
+	case "jump":
+		nextCursor, ok := msg.FindStepIndex(step.Resilience.OnFailure.To)
+		if !ok {
+			msg.setCursor(stepIndex)
+			_ = r.saveState(context.Background(), msg)
+			return true, fmt.Errorf("step %q: failure jump target %q not found", step.Name, step.Resilience.OnFailure.To)
+		}
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "jumped"))
+		msg.setCursor(nextCursor)
+		return true, r.saveState(ctx, msg)
+	default:
+		msg.setCursor(stepIndex)
+		_ = r.saveState(context.Background(), msg)
+		return true, fmt.Errorf("step %q: unknown on_failure action %q", step.Name, step.Resilience.OnFailure.Action)
+	}
+}
+
+func (m *Message) historyEntry(step string, start time.Time, duration time.Duration, skipped bool, status string) HistoryEntry {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return HistoryEntry{
+		Step:      step,
+		StartedAt: start,
+		Duration:  duration,
+		Skipped:   skipped,
+		Status:    status,
+		TraceID:   m.TraceID,
+		SpanID:    m.SpanID,
+		Attempt:   m.Attempt,
+	}
 }
 
 // FindStepIndex returns the index of a step by id first and by handler name as

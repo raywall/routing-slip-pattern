@@ -1,3 +1,14 @@
+const isDevEnvironment = window.location.pathname.includes('/dev/');
+const envSuffix = isDevEnvironment ? "-dev" : "";
+
+const STUDIO_DB = {
+  name: `routing-slip-studio${envSuffix}`,
+  store: "state",
+  key: "current",
+  workspaceHandleKey: "workspace-handle",
+  currentFileKey: "workspace-current-file",
+};
+
 function loadExample(key, options = {}) {
   if (workflowDirty && !confirm("Descartar alteracoes nao salvas no workflow atual?")) return;
   invalidateExecutionSnapshot();
@@ -78,7 +89,7 @@ const StudioDB = {
       return value;
     } catch (_) {
       try {
-        return JSON.parse(localStorage.getItem(`routing-slip-studio:${key}`) || "null");
+        return JSON.parse(localStorage.getItem(`routing-slip-studio${envSuffix}:${key}`) || "null");
       } catch {
         return null;
       }
@@ -96,7 +107,7 @@ const StudioDB = {
       });
       db.close();
     } catch (_) {
-      localStorage.setItem(`routing-slip-studio:${key}`, JSON.stringify(value));
+      localStorage.setItem(`routing-slip-studio${envSuffix}:${key}`, JSON.stringify(value));
     }
   },
 };

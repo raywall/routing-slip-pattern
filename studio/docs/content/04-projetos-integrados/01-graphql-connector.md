@@ -9,6 +9,7 @@ Ele funciona como uma **Anti-Corruption Layer**: o workflow conhece uma query Gr
 | Response transform | Simplificar respostas removendo wrappers desnecessarios. |
 | Timeout/retry/opcionalidade | Controlar resiliencia por fonte integrada. |
 | Configuracao por arquivo ou cloud | Usar local, env, SSM, Secrets Manager, S3 e DynamoDB. |
+| Trace context | Preservar `trace_id` e propagar `traceparent` ate APIs externas. |
 
 ```mermaid
 flowchart LR
@@ -35,3 +36,5 @@ No routing slip, o uso acontece pelo handler `graphql_enrich`:
     timeout_ms: 3000
     required: true
 ```
+
+Quando o workflow esta com rastreabilidade ativa, o `graphql_enrich` envia automaticamente `traceparent`, `X-Trace-ID` e `X-Correlation-ID`. O conector preserva o trace recebido, cria spans filhos para os connectors REST e devolve `X-Trace-ID` na resposta HTTP.

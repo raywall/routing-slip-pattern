@@ -25,6 +25,45 @@ Construir uma fundação técnica para workflows que precisam:
 - permitir visualização em tempo real do processamento;
 - ser reutilizada em diferentes domínios sem acoplamento ao caso de uso.
 
+## Preparação Técnica e Segurança
+
+A Fase 0 estabelece a base evolutiva do projeto. Ela não muda o formato dos workflows, mas cria pontos de configuração para ativar capacidades futuras com segurança.
+
+```yaml
+features:
+  tracing_enabled: true
+  mcp_enabled: false
+  async_metrics_enabled: false
+  persistent_state_enabled: false
+
+security:
+  redaction:
+    enabled: true
+    fields:
+      - authorization
+      - client_secret
+      - access_token
+      - refresh_token
+      - password
+      - token
+      - api_key
+      - x-api-key
+      - x-serial-number
+```
+
+Convenção comum:
+
+| Campo | Uso |
+|---|---|
+| `message_id` | Identifica a mensagem no runtime. |
+| `correlation_id` | Identifica o processo de negócio. |
+| `trace_id` | Identifica a trilha técnica distribuída. |
+| `span_id` | Identifica uma etapa ou chamada dentro do trace. |
+| `attempt` | Indica a tentativa de processamento. |
+| `workflow`, `step`, `handler` | Organizam métricas, logs, histórico e diagnósticos. |
+
+Os resumos emitidos em métricas aplicam mascaramento em campos sensíveis conhecidos. Isso evita que tokens, senhas ou chaves apareçam em painéis, logs ou futuras respostas MCP.
+
 ## Projetos Relacionados
 
 Os projetos internos devem ser incorporados ao repositório principal como **Git submodules**. Isso preserva a autonomia de cada projeto, evita copiar código privado para dentro do app e permite versionar exatamente qual revisão do conector GraphQL e da plataforma de métricas foi usada em cada versão do routing slip.
@@ -143,6 +182,7 @@ Recursos relevantes:
 - `timeoutMs`, `retries`, `optional` e `allow_partial` para resiliência por fonte;
 - configuração com `local:`, `env:`, `ssm:`, `secret:`, `secrets:` e `s3:`;
 - configuração de token STS via `authorization.require_token_sts`.
+- propagação de rastreabilidade distribuída via `traceparent` e `X-Trace-ID`.
 
 > Observação: a configuração de token STS cria o gerenciador de token no conector. Quando uma API REST precisar receber `Authorization: Bearer <token>`, valide se o adapter em uso injeta esse token automaticamente ou se será necessário plugar essa etapa na montagem dos headers.
 
@@ -171,6 +211,7 @@ Endpoints principais:
 |---|---|
 | `POST /v1/metrics` | Ingestão de eventos. |
 | `GET /v1/metrics/events` | Eventos crus filtrados. |
+| `GET /v1/metrics/trace/{trace_id}` | Eventos crus de uma trilha técnica distribuída. |
 | `GET /v1/metrics` | Agregações e sumários. |
 | `GET /v1/metrics/series` | Séries temporais por bucket. |
 | `GET /v1/metrics/dimensions` | Dimensões e tags disponíveis. |
@@ -1145,10 +1186,13 @@ Exemplo de evento:
   "step": "graphql_enrich",
   "status": "success",
   "source": "routing-slip-router",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
   "tags": {
     "message_id": "MSG-001",
     "correlation_id": "corr-abc",
-    "trace_id": "trace-xyz",
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "00f067aa0ba902b7",
     "handler": "graphql_enrich",
     "error_policy": "stop",
     "duration_ms": "37",
@@ -1167,6 +1211,173 @@ Consultas habilitadas:
 - quais workflows pararam por regra de decisão;
 - histórico granular por `message_id`, `correlation_id` ou `trace_id`;
 - throughput por workflow, domínio ou origem.
+
+### 6. Rastreabilidade Distribuída
+
+A Fase 1 da evolução adiciona rastreabilidade distribuída ao runtime. Cada execução passa a carregar identificadores técnicos que acompanham o payload durante o workflow, nas chamadas ao `go-graphql-connector`, em chamadas REST diretas e nas métricas enviadas ao `custom-business-metrics`.
+
+| Campo | Papel |
+|---|---|
+| `correlation_id` | Identifica o processo de negócio. Normalmente vem do payload. |
+| `trace_id` | Identifica a trilha técnica ponta a ponta. |
+| `span_id` | Identifica uma etapa ou chamada dentro do trace. |
+| `parent_span_id` | Informa qual span originou o span atual. |
+| `traceparent` | Header W3C usado para propagar `trace_id` e `span_id`. |
+
+O `Router` inicializa o trace quando a mensagem não traz um `traceparent`. Quando a requisição REST, evento Kafka ou mensagem SQS já possui `traceparent`, o runtime preserva o `trace_id` recebido e cria spans filhos para as etapas.
+
+Configuração aceita em `config.yaml`:
+
+```yaml
+observability:
+  tracing:
+    enabled: true
+    exporter: none
+    endpoint: http://localhost:4318
+    service_name: routing-slip-pattern
+```
+
+Nesta fase o runtime já cria spans usando a API do OpenTelemetry e propaga o contexto W3C. A ligação com um exporter OTLP real, sampling e collector dedicado fica preparada para as próximas fases.
+
+```mermaid
+sequenceDiagram
+    participant Entrada as Evento de entrada
+    participant Runtime as routing-slip-pattern
+    participant GraphQL as go-graphql-connector
+    participant API as API externa
+    participant Metrics as custom-business-metrics
+
+    Entrada->>Runtime: payload + traceparent opcional
+    Runtime->>Runtime: cria ou reutiliza trace_id
+    Runtime->>GraphQL: graphql_enrich + traceparent
+    GraphQL->>API: REST connector + traceparent
+    Runtime->>Metrics: evento com trace_id/span_id
+    Metrics-->>Runtime: metricas consultaveis por trace_id
+```
+
+Exemplo de resposta REST do workflow:
+
+```json
+{
+  "message_id": "MSG-001",
+  "workflow": "order-processing",
+  "correlation_id": "corr-001",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "cursor": 5,
+  "remaining_steps": 0
+}
+```
+
+Exemplo de histórico de etapa:
+
+```json
+{
+  "Step": "graphql_enrich",
+  "Status": "success",
+  "TraceID": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "SpanID": "00f067aa0ba902b7",
+  "Attempt": 1
+}
+```
+
+Exemplo de chamada externa propagada pelo `graphql_enrich`:
+
+```http
+POST /graphql HTTP/1.1
+traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+X-Trace-ID: 4bf92f3577b34da6a3ce929d0e0e4736
+X-Correlation-ID: corr-001
+```
+
+O handler `notify` tambem pode propagar esses headers quando uma implementacao real usa `SendWithHeaders`:
+
+```go
+handler := &handlers.NotificationHandler{
+    SendWithHeaders: func(channel, recipient, body string, headers map[string]string) error {
+        // use headers["traceparent"], headers["X-Trace-ID"] e headers["X-Correlation-ID"]
+        return nil
+    },
+}
+```
+
+Exemplo de consulta no `custom-business-metrics`:
+
+```bash
+curl "http://localhost:8080/v1/metrics/events?trace_id=4bf92f3577b34da6a3ce929d0e0e4736"
+curl "http://localhost:8080/v1/metrics/trace/4bf92f3577b34da6a3ce929d0e0e4736"
+```
+
+Benefícios práticos:
+
+- localizar rapidamente em qual etapa uma execução falhou;
+- cruzar logs, métricas e chamadas externas pelo mesmo `trace_id`;
+- manter explicabilidade do processamento mesmo em workflows longos;
+- preparar a base para OpenTelemetry, MCP analytics e reprocessamento auditável nas próximas fases.
+
+### 7. Resiliência por Etapa
+
+A Fase 3 adiciona política de resiliência diretamente no step do workflow. Isso permite tratar falhas transitórias sem alterar o handler e sem duplicar lógica de retry em cada integração.
+
+Exemplo:
+
+```yaml
+steps:
+  - id: carregar-contexto
+    name: graphql_enrich
+    params:
+      target: contexto
+      required: true
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 150
+        max_interval_ms: 1000
+        jitter: true
+      on_failure:
+        action: stop
+```
+
+Campos disponíveis:
+
+| Campo | Uso |
+|---|---|
+| `retry.attempts` | Quantidade total de tentativas. Se omitido, executa uma vez. |
+| `retry.backoff` | `exponential`, `fixed` ou `none`. |
+| `retry.initial_interval_ms` | Espera inicial antes da próxima tentativa. |
+| `retry.max_interval_ms` | Limite máximo entre tentativas. |
+| `retry.jitter` | Adiciona variação para evitar rajadas sincronizadas. |
+| `on_failure.action` | `stop`, `continue`, `skip` ou `jump`. |
+| `on_failure.to` | Destino usado quando `action: jump`. Aceita `id` do step ou nome do handler. |
+
+Exemplo com fallback:
+
+```yaml
+steps:
+  - id: chamar-servico-externo
+    name: rest_call
+    params:
+      base_url: https://api.example.test
+      endpoint: /orders/{order_id}
+      target: order_result
+      required: true
+    resilience:
+      retry:
+        attempts: 2
+        backoff: fixed
+        initial_interval_ms: 200
+      on_failure:
+        action: jump
+        to: fallback-manual
+
+  - id: fallback-manual
+    name: enrich
+    params:
+      data:
+        status: PENDING_MANUAL_REVIEW
+```
+
+O histórico da etapa registra a tentativa final usada em `Attempt` e o status resultante (`success`, `failed`, `skipped`, `jumped` ou `stopped`). As métricas emitidas também carregam `attempt`, `trace_id`, `span_id`, `workflow`, `step` e `handler`.
 
 ## Exemplo Principal: Pagamento para Fulfillment
 

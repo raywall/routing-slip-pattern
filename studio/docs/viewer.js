@@ -174,7 +174,7 @@
   }
 
   function resolveDocUrl(file) {
-    const url = new URL(file, new URL("docs/", window.location.href));
+    const url = new URL(file, new URL("docs/", document.baseURI || window.location.href));
     const version = window.RoutingSlipStudioAssetVersion || document.querySelector('meta[name="routing-slip-studio-version"]')?.content || Date.now();
     url.searchParams.set("v", version);
     return url.href;

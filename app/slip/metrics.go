@@ -20,6 +20,8 @@ type MetricEvent struct {
 	Step      string            `json:"step,omitempty"`
 	Status    string            `json:"status,omitempty"`
 	Source    string            `json:"source,omitempty"`
+	TraceID   string            `json:"trace_id,omitempty"`
+	SpanID    string            `json:"span_id,omitempty"`
 	Tags      map[string]string `json:"tags,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 }

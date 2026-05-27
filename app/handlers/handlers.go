@@ -188,6 +188,8 @@ func (ConditionGate) Handle(ctx context.Context, msg *slip.Message, params map[s
 type NotificationHandler struct {
 	// Send is the actual delivery function; defaults to a no-op logger.
 	Send func(channel, recipient, body string) error
+	// SendWithHeaders receives trace headers for real delivery integrations.
+	SendWithHeaders func(channel, recipient, body string, headers map[string]string) error
 }
 
 func (n *NotificationHandler) Name() string { return "notify" }
@@ -199,13 +201,19 @@ func (n *NotificationHandler) Handle(ctx context.Context, msg *slip.Message, par
 
 	body := interpolate(template, msg)
 
-	deliver := n.Send
-	if deliver == nil {
-		deliver = defaultSend
-	}
-
-	if err := deliver(channel, recipient, body); err != nil {
-		return false, fmt.Errorf("notify: %w", err)
+	headers := notificationTraceHeaders(msg)
+	if n.SendWithHeaders != nil {
+		if err := n.SendWithHeaders(channel, recipient, body, headers); err != nil {
+			return false, fmt.Errorf("notify: %w", err)
+		}
+	} else {
+		deliver := n.Send
+		if deliver == nil {
+			deliver = defaultSend
+		}
+		if err := deliver(channel, recipient, body); err != nil {
+			return false, fmt.Errorf("notify: %w", err)
+		}
 	}
 
 	msg.Set("notification_sent", true)
@@ -220,6 +228,26 @@ func defaultSend(channel, recipient, body string) error {
 		slog.String("body", body),
 	)
 	return nil
+}
+
+func notificationTraceHeaders(msg *slip.Message) map[string]string {
+	headers := map[string]string{}
+	if traceparent := msg.Headers["traceparent"]; traceparent != "" {
+		headers["traceparent"] = traceparent
+	}
+	if msg.TraceID != "" {
+		headers["X-Trace-ID"] = msg.TraceID
+	}
+	if msg.SpanID != "" {
+		headers["X-Span-ID"] = msg.SpanID
+	}
+	if msg.ParentSpanID != "" {
+		headers["X-Parent-Span-ID"] = msg.ParentSpanID
+	}
+	if msg.CorrelationID != "" {
+		headers["X-Correlation-ID"] = msg.CorrelationID
+	}
+	return headers
 }
 
 // interpolate replaces {key} tokens in the template with payload values.
