@@ -184,9 +184,10 @@ func (m *Message) Cursor() int {
 
 // StepDef describes a single step in the routing slip.
 type StepDef struct {
-	ID     string         // optional stable identifier used by jump/branch handlers
-	Name   string         // human-readable step name
-	Params map[string]any // arbitrary parameters passed to the handler
+	ID         string           // optional stable identifier used by jump/branch handlers
+	Name       string           // human-readable step name
+	Params     map[string]any   // arbitrary parameters passed to the handler
+	Resilience ResiliencePolicy // retry/failure policy for this step
 }
 
 // CursorController is optionally implemented by handlers that need to redirect
@@ -478,7 +479,7 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 			slog.String("message_id", msg.ID),
 		)
 
-		proceed, err := h.Handle(ctx, msg, step.Params)
+		proceed, err := r.handleStep(ctx, msg, step, h)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -488,6 +489,14 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 				slog.String("step", step.Name),
 				slog.String("error", err.Error()),
 			)
+			if step.Resilience.failureAction() != "default" {
+				if handled, handleErr := r.handleStepFailure(ctx, msg, step, stepIndex, start, duration, err); handled {
+					if handleErr != nil {
+						return handleErr
+					}
+					continue
+				}
+			}
 			switch r.errorPolicy {
 			case StopOnError:
 				msg.setCursor(stepIndex)
@@ -545,6 +554,69 @@ func (r *Router) Process(ctx context.Context, msg *Message) error {
 		slog.Bool("has_errors", msg.HasErrors()),
 	)
 	return nil
+}
+
+func (r *Router) handleStep(ctx context.Context, msg *Message, step StepDef, h Handler) (bool, error) {
+	attempts := step.Resilience.attempts()
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		msg.Attempt = attempt
+		if delay := step.Resilience.backoffDuration(attempt); delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return false, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		proceed, err := h.Handle(ctx, msg, step.Params)
+		if err == nil {
+			return proceed, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		r.logger.Warn("router: step attempt failed",
+			slog.String("step", step.Name),
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", attempts),
+			slog.String("error", err.Error()),
+		)
+	}
+	return false, lastErr
+}
+
+func (r *Router) handleStepFailure(ctx context.Context, msg *Message, step StepDef, stepIndex int, start time.Time, duration time.Duration, err error) (bool, error) {
+	switch step.Resilience.failureAction() {
+	case "default":
+		return false, nil
+	case "stop":
+		msg.setCursor(stepIndex)
+		_ = r.saveState(context.Background(), msg)
+		return true, fmt.Errorf("step %q: %w", step.Name, err)
+	case "continue":
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, false, "failed"))
+		return true, r.saveState(ctx, msg)
+	case "skip":
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "skipped"))
+		return true, r.saveState(ctx, msg)
+	case "jump":
+		nextCursor, ok := msg.FindStepIndex(step.Resilience.OnFailure.To)
+		if !ok {
+			msg.setCursor(stepIndex)
+			_ = r.saveState(context.Background(), msg)
+			return true, fmt.Errorf("step %q: failure jump target %q not found", step.Name, step.Resilience.OnFailure.To)
+		}
+		msg.AddHistory(msg.historyEntry(step.Name, start, duration, true, "jumped"))
+		msg.setCursor(nextCursor)
+		return true, r.saveState(ctx, msg)
+	default:
+		msg.setCursor(stepIndex)
+		_ = r.saveState(context.Background(), msg)
+		return true, fmt.Errorf("step %q: unknown on_failure action %q", step.Name, step.Resilience.OnFailure.Action)
+	}
 }
 
 func (m *Message) historyEntry(step string, start time.Time, duration time.Duration, skipped bool, status string) HistoryEntry {

@@ -66,9 +66,9 @@ async function runLocalSimulation(options = {}) {
     const started = performance.now();
     try {
       addLog("info", `Executando ${step.name}`, `Etapa ${i + 1} de ${workflow.steps.length}.`, step.params || {});
-      const proceed = await executeStep(step, state);
+      const proceed = await executeStepWithResilience(step, state);
       const duration = Math.round(performance.now() - started);
-      state.history.push({ step: step.name, duration_ms: duration, skipped: !proceed });
+      state.history.push({ step: step.name, duration_ms: duration, skipped: !proceed, attempt: state.__lastStepAttempt || 1 });
       addLog("ok", `Etapa ${step.name} concluida`, `${duration} ms`, snapshot(state));
       if (Number.isInteger(state.__jumpToIndex)) {
         const jumpTo = state.__jumpToIndex;
@@ -85,6 +85,23 @@ async function runLocalSimulation(options = {}) {
     } catch (err) {
       state.errors.push({ step: step.name, error: err.message, cursor: i });
       addLog("error", `Falha em ${step.name}`, err.message, snapshot(state));
+      const action = String(step.resilience?.on_failure?.action || "").toLowerCase();
+      if (action === "continue" || action === "skip") {
+        const duration = Math.round(performance.now() - started);
+        state.history.push({ step: step.name, duration_ms: duration, skipped: action === "skip", status: action === "skip" ? "skipped" : "failed", attempt: state.__lastStepAttempt || 1 });
+        continue;
+      }
+      if (action === "jump") {
+        const target = step.resilience?.on_failure?.to;
+        const jumpTo = findWorkflowStepIndex(target);
+        if (jumpTo >= 0) {
+          const duration = Math.round(performance.now() - started);
+          state.history.push({ step: step.name, duration_ms: duration, skipped: true, status: "jumped", attempt: state.__lastStepAttempt || 1 });
+          addLog("warn", "Fallback por resiliencia", `Falha redirecionada para ${target}.`, { cursor: jumpTo });
+          i = jumpTo - 1;
+          continue;
+        }
+      }
       if (String(workflow.error_policy || "stop").toLowerCase() === "stop") {
         state.cursor = i;
         addLog("warn", "Snapshot pronto para reprocessamento", `Reprocessamento deve retomar do cursor ${i}.`);
@@ -112,6 +129,44 @@ async function runLocalSimulation(options = {}) {
   };
   els.reprocess.disabled = false;
   activeRuntimeWorkflow = null;
+}
+
+async function executeStepWithResilience(step, state) {
+  const policy = step.resilience || {};
+  const retry = policy.retry || {};
+  const attempts = Math.max(1, Number(retry.attempts || 1));
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    state.__lastStepAttempt = attempt;
+    if (attempt > 1) {
+      const delay = resilienceBackoffMs(retry, attempt);
+      addLog("warn", "Retry de etapa", `${step.name} tentativa ${attempt}/${attempts}.`, { delay_ms: delay });
+      if (delay > 0) await sleep(delay);
+    }
+    try {
+      return await executeStep(step, state);
+    } catch (err) {
+      lastError = err;
+      if (attempt >= attempts) break;
+    }
+  }
+  throw lastError || new Error(`Falha em ${step.name}`);
+}
+
+function resilienceBackoffMs(retry, attempt) {
+  const strategy = String(retry.backoff || "exponential").toLowerCase();
+  let delay = Math.max(0, Number(retry.initial_interval_ms || 100));
+  const max = Math.max(delay, Number(retry.max_interval_ms || 1000));
+  if (strategy === "none") delay = 0;
+  if (strategy === "exponential") {
+    for (let i = 2; i < attempt; i += 1) delay = Math.min(max, delay * 2);
+  }
+  if (retry.jitter && delay > 0) delay += Math.floor(Math.random() * Math.max(1, delay / 2));
+  return Math.min(delay, max);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function executeStep(step, state) {

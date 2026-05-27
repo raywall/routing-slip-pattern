@@ -39,6 +39,30 @@ para:
 }
 ```
 
+## Backoff, jitter e circuit breaker
+
+Alem do retry simples, cada connector pode definir uma politica de resiliência:
+
+```json
+{
+  "timeoutMs": 1500,
+  "retries": 2,
+  "resilience": {
+    "backoff": "exponential",
+    "initial_interval_ms": 100,
+    "max_interval_ms": 1000,
+    "jitter": true,
+    "circuit_breaker": {
+      "enabled": true,
+      "failure_threshold": 5,
+      "open_timeout_ms": 30000
+    }
+  }
+}
+```
+
+O circuit breaker evita insistir em uma integração que já demonstrou estar indisponível. Enquanto o circuito estiver aberto, o connector falha rapidamente com a classe `circuit_open`, permitindo que o workflow aplique fallback, retry posterior ou reprocessamento.
+
 ## Token STS
 
 O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando habilitado, o runtime:

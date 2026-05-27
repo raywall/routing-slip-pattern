@@ -57,6 +57,7 @@ function validateStep(step, index, issues) {
     issues.push(error(`${label}.name "${step.name || ""}" nao e um handler registrado.`));
   }
   const params = step.params || {};
+  validateResilience(step, label, issues);
   if (step.name === "validate" && !Array.isArray(params.required)) {
     issues.push(error(`${label} validate precisa de params.required como lista.`));
   }
@@ -126,6 +127,30 @@ function validateStep(step, index, issues) {
     if (!currentWorkspaceFile.handle) {
       issues.push(warn(`${label} workflow_ref e melhor testado com um arquivo aberto no workspace.`));
     }
+  }
+}
+
+function validateResilience(step, label, issues) {
+  if (!step.resilience) return;
+  if (typeof step.resilience !== "object") {
+    issues.push(error(`${label}.resilience deve ser objeto.`));
+    return;
+  }
+  const retry = step.resilience.retry || {};
+  if (retry.attempts !== undefined && Number(retry.attempts) < 1) {
+    issues.push(error(`${label}.resilience.retry.attempts deve ser maior ou igual a 1.`));
+  }
+  const backoff = String(retry.backoff || "").toLowerCase();
+  if (backoff && !["exponential", "fixed", "none"].includes(backoff)) {
+    issues.push(error(`${label}.resilience.retry.backoff deve ser exponential, fixed ou none.`));
+  }
+  const onFailure = step.resilience.on_failure || {};
+  const action = String(onFailure.action || "").toLowerCase();
+  if (action && !["stop", "continue", "skip", "jump"].includes(action)) {
+    issues.push(error(`${label}.resilience.on_failure.action deve ser stop, continue, skip ou jump.`));
+  }
+  if (action === "jump" && !stringValue(onFailure.to)) {
+    issues.push(error(`${label}.resilience.on_failure.to e obrigatorio quando action for jump.`));
   }
 }
 

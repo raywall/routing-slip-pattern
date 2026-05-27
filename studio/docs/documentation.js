@@ -46,6 +46,11 @@ window.RoutingSlipDocs = [
         "id": "workflow-composicao",
         "title": "Composicao de scripts",
         "file": "content/02-construindo-workflows/04-composicao-de-scripts.md"
+      },
+      {
+        "id": "workflow-resiliencia",
+        "title": "Resiliencia",
+        "file": "content/02-construindo-workflows/05-resiliencia.md"
       }
     ]
   },

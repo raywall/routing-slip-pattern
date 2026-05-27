@@ -66,10 +66,11 @@ type WorkflowConfig struct {
 }
 
 type StepConfig struct {
-	ID      string         `yaml:"id"`
-	Name    string         `yaml:"name"`
-	Enabled *bool          `yaml:"enabled"`
-	Params  map[string]any `yaml:"params"`
+	ID         string                `yaml:"id"`
+	Name       string                `yaml:"name"`
+	Enabled    *bool                 `yaml:"enabled"`
+	Params     map[string]any        `yaml:"params"`
+	Resilience slip.ResiliencePolicy `yaml:"resilience"`
 }
 
 type MetricsConfig struct {
@@ -497,7 +498,7 @@ func (workflow WorkflowConfig) ToSlip() []slip.StepDef {
 		if step.Enabled != nil && !*step.Enabled {
 			continue
 		}
-		steps = append(steps, slip.StepDef{ID: step.ID, Name: step.Name, Params: step.Params})
+		steps = append(steps, slip.StepDef{ID: step.ID, Name: step.Name, Params: step.Params, Resilience: step.Resilience})
 	}
 	return steps
 }

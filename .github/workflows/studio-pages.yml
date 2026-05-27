@@ -83,8 +83,12 @@ jobs:
             ENV_NAME="development"
           fi
 
-          # injeta meta tag legível pelo JS do studio
+          BASE_HREF="${BASE_PATH%/}/"
+
+          # injeta base path e meta tag legíveis pelo JS do studio
+          sed -i "s|</title>|</title><base href=\"${BASE_HREF}\">|" pages-dist/index.html
           sed -i "s|</head>|<meta name=\"studio-env\" content=\"${ENV_NAME}\" data-base=\"${BASE_PATH}\"></head>|" pages-dist/index.html
+          find pages-dist -name ".DS_Store" -delete
 
       - name: publicar no github pages
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

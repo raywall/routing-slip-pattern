@@ -1314,6 +1314,71 @@ Benefícios práticos:
 - manter explicabilidade do processamento mesmo em workflows longos;
 - preparar a base para OpenTelemetry, MCP analytics e reprocessamento auditável nas próximas fases.
 
+### 7. Resiliência por Etapa
+
+A Fase 3 adiciona política de resiliência diretamente no step do workflow. Isso permite tratar falhas transitórias sem alterar o handler e sem duplicar lógica de retry em cada integração.
+
+Exemplo:
+
+```yaml
+steps:
+  - id: carregar-contexto
+    name: graphql_enrich
+    params:
+      target: contexto
+      required: true
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 150
+        max_interval_ms: 1000
+        jitter: true
+      on_failure:
+        action: stop
+```
+
+Campos disponíveis:
+
+| Campo | Uso |
+|---|---|
+| `retry.attempts` | Quantidade total de tentativas. Se omitido, executa uma vez. |
+| `retry.backoff` | `exponential`, `fixed` ou `none`. |
+| `retry.initial_interval_ms` | Espera inicial antes da próxima tentativa. |
+| `retry.max_interval_ms` | Limite máximo entre tentativas. |
+| `retry.jitter` | Adiciona variação para evitar rajadas sincronizadas. |
+| `on_failure.action` | `stop`, `continue`, `skip` ou `jump`. |
+| `on_failure.to` | Destino usado quando `action: jump`. Aceita `id` do step ou nome do handler. |
+
+Exemplo com fallback:
+
+```yaml
+steps:
+  - id: chamar-servico-externo
+    name: rest_call
+    params:
+      base_url: https://api.example.test
+      endpoint: /orders/{order_id}
+      target: order_result
+      required: true
+    resilience:
+      retry:
+        attempts: 2
+        backoff: fixed
+        initial_interval_ms: 200
+      on_failure:
+        action: jump
+        to: fallback-manual
+
+  - id: fallback-manual
+    name: enrich
+    params:
+      data:
+        status: PENDING_MANUAL_REVIEW
+```
+
+O histórico da etapa registra a tentativa final usada em `Attempt` e o status resultante (`success`, `failed`, `skipped`, `jumped` ou `stopped`). As métricas emitidas também carregam `attempt`, `trace_id`, `span_id`, `workflow`, `step` e `handler`.
+
 ## Exemplo Principal: Pagamento para Fulfillment
 
 O cenário `payment-event-fulfillment` simula um fluxo de pós-pagamento mais próximo de um processo real:
