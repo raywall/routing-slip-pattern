@@ -1,127 +1,66 @@
-name: studio pages
+name: Publicar Studio
 
 on:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - studio/**
-      - .github/workflows/studio-pages.yml
   push:
-    branches: [main, develop]
-    paths:
-      - studio/**
-      - .github/workflows/studio-pages.yml
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: studio-pages
-  cancel-in-progress: false
+  contents: write # Necessário para a action fazer o commit na branch gh-pages
 
 jobs:
-  build:
-    name: gerar studio
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: baixar codigo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: configurar node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20" # Ajuste se estiver usando outra versão
+          cache: "npm"
+          cache-dependency-path: "./studio/package-lock.json"
 
-      - name: validar assets do studio
-        shell: bash
-        run: |
-          test -f studio/index.html
-          test -f studio/scripts/routing-slip.studio.bootstrap.js
-          test -f studio/styles/routing-slip.studio.base.css
-          test -d studio/docs/content
-          for file in studio/scripts/*.js studio/docs/*.js; do
-            node --check "$file"
-          done
-          node <<'NODE'
-          const fs = require('fs');
-          const vm = require('vm');
-          const path = require('path');
-          const source = fs.readFileSync('studio/docs/documentation.js', 'utf8');
-          const sandbox = { window: {} };
-          vm.runInNewContext(source, sandbox);
-          let count = 0;
-          for (const section of sandbox.window.RoutingSlipDocs || []) {
-            for (const item of section.items || []) {
-              count++;
-              const file = path.join('studio/docs', item.file || '');
-              if (!item.file || !fs.existsSync(file)) {
-                throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
-              }
-            }
-          }
-          if (count === 0) throw new Error('Manifesto de documentacao sem itens');
-          console.log(`documentacao validada: ${count} itens`);
-          NODE
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./studio
 
-      - name: montar artefato
-        shell: bash
-        run: |
-          rm -rf pages-dist
-          mkdir -p pages-dist
+      # ==========================================
+      #   DEPLOYS DA BRANCH MAIN (PRODUÇÃO)
+      # ==========================================
+      - name: Build Main
+        if: github.ref == 'refs/heads/main'
+        env:
+          BASE_URL: /routing-slip-pattern/
+        run: npm run build # Ou o comando que aciona seu script em studio/scripts
+        working-directory: ./studio
 
-          build_studio() {
-            local source_dir="$1"
-            local target_dir="$2"
-            local env_name="$3"
-            local base_path="$4"
-            local base_href="${base_path%/}/"
-
-            mkdir -p "$target_dir"
-            cp -R "$source_dir"/. "$target_dir"/
-            touch "$target_dir/.nojekyll"
-
-            sed -i "s|</title>|</title><base href=\"${base_href}\">|" "$target_dir/index.html"
-            sed -i "s|</head>|<meta name=\"studio-env\" content=\"${env_name}\" data-base=\"${base_path}\"></head>|" "$target_dir/index.html"
-            find "$target_dir" -name ".DS_Store" -delete
-          }
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            build_studio "studio" "pages-dist" "preview" "/routing-slip-pattern"
-            exit 0
-          fi
-
-          rm -rf /tmp/routing-slip-pages-main /tmp/routing-slip-pages-develop
-          git fetch origin main:refs/remotes/origin/main develop:refs/remotes/origin/develop --depth=1
-          git worktree add /tmp/routing-slip-pages-main origin/main
-          git worktree add /tmp/routing-slip-pages-develop origin/develop
-
-          build_studio "/tmp/routing-slip-pages-main/studio" "pages-dist" "production" "/routing-slip-pattern"
-          build_studio "/tmp/routing-slip-pages-develop/studio" "pages-dist/dev" "development" "/routing-slip-pattern/dev"
-
-      - name: configurar github pages
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: actions/configure-pages@v5
-
-      - name: enviar artefato do github pages
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy Main
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ./pages-dist
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./studio/build # Ajuste se o Docusaurus/React cuspir a build em outra pasta
+          keep_files: true # CRUCIAL: Impede que apague a pasta /dev
 
-  deploy:
-    name: publicar studio
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      # ==========================================
+      #   DEPLOYS DA BRANCH DEVELOP (HOMOLOGAÇÃO)
+      # ==========================================
+      - name: Build Develop
+        if: github.ref == 'refs/heads/develop'
+        env:
+          BASE_URL: /routing-slip-pattern/dev/
+        run: npm run build # Ou o comando que aciona seu script em studio/scripts
+        working-directory: ./studio
 
-    steps:
-      - name: publicar no github pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy Develop
+        if: github.ref == 'refs/heads/develop'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./studio/build
+          destination_dir: dev # CRUCIAL: Joga a build para dentro da subpasta /dev na gh-pages
+          keep_files: true # CRUCIAL: Impede que apague a documentação raiz da main

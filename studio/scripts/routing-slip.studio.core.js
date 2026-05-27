@@ -86,7 +86,7 @@ async function boot() {
 
   const restored = await restoreStudioState();
   if (!restored) loadExample("payment", { persist: false });
-  
+
   initTheme();
   renderIcons();
   bindEvents();
@@ -204,13 +204,14 @@ function initEnvSwitcher() {
   const meta = document.querySelector('meta[name="studio-env"]');
   if (!meta) return;
 
-  const currentEnv = meta.getAttribute('content');       // "production" | "development"
+  const currentEnv = meta.getAttribute('content');
   if (!["production", "development"].includes(currentEnv)) return;
   if (document.querySelector("#studio-env-switcher")) return;
 
+  const repoName = window.location.pathname.split('/')[1] || "routing-slip-pattern";
   const ENVS = {
-    production: { label: "Producao", path: "/routing-slip-pattern/" },
-    development: { label: "Desenvolvimento", path: "/routing-slip-pattern/dev/" },
+    production: { label: "Producao", path: `/${repoName}/` },
+    development: { label: "Desenvolvimento", path: `/${repoName}/dev/` },
   };
 
   const select = document.createElement('select');
