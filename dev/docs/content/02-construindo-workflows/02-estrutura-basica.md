@@ -1,0 +1,73 @@
+# Estrutura basica
+
+Todo workflow possui metadados e uma lista de etapas. O exemplo abaixo valida um evento, adiciona metadados, chama uma API e registra auditoria.
+
+```yaml
+name: order-processing
+description: Processa evento de pedido recebido.
+version: "1.0"
+error_policy: stop
+message_id_path: order_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: validate-input
+    name: validate
+    params:
+      required:
+        - correlation_id
+        - order_id
+        - customer_id
+
+  - id: add-context
+    name: enrich
+    params:
+      data:
+        source: ONLINE_STORE
+        priority: NORMAL
+
+  - id: load-order
+    name: rest_call
+    params:
+      base_url: https://api.example.test
+      endpoint: /orders/{order_id}
+      method: GET
+      target: order
+      required: true
+
+  - id: audit-completed
+    name: audit
+    params:
+      event: order.processing.completed
+      fields:
+        - correlation_id
+        - order_id
+        - order.status
+```
+
+## Campos do cabecalho
+
+| Campo | Obrigatorio | Descricao |
+| --- | --- | --- |
+| `name` | Sim | Nome tecnico do workflow. |
+| `description` | Nao | Explica a finalidade do fluxo. |
+| `version` | Nao | Versao funcional do workflow. |
+| `error_policy` | Nao | `stop`, `continue` ou `skip`. |
+| `message_id_path` | Recomendado | Path usado para identificar a execucao e reprocessar. |
+| `correlation_id_path` | Recomendado | Path usado para correlacionar logs, metricas e traces. |
+| `steps` | Sim | Lista ordenada de etapas. |
+
+## Estrutura de um step
+
+```yaml
+- id: nome-estavel-da-etapa
+  name: handler_registrado
+  params:
+    chave: valor
+  resilience:
+    retry:
+      attempts: 3
+```
+
+Use `id` sempre que a etapa puder ser alvo de salto, auditoria, explicacao ou idempotencia. O `name` e o handler executado. O `params` muda conforme o handler.
+

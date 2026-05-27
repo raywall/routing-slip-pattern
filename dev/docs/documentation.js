@@ -13,14 +13,19 @@ window.RoutingSlipDocs = [
         "file": "content/01-introducao/02-objetivo.md"
       },
       {
-        "id": "intro-projetos",
-        "title": "Projetos relacionados",
-        "file": "content/01-introducao/03-projetos-relacionados.md"
+        "id": "intro-conceitos",
+        "title": "Conceitos fundamentais",
+        "file": "content/01-introducao/03-conceitos.md"
       },
       {
-        "id": "intro-preparacao",
-        "title": "Preparacao tecnica",
-        "file": "content/01-introducao/04-preparacao-tecnica.md"
+        "id": "intro-projetos",
+        "title": "Projetos do ecossistema",
+        "file": "content/01-introducao/04-projetos.md"
+      },
+      {
+        "id": "intro-capacidades",
+        "title": "Capacidades e beneficios",
+        "file": "content/01-introducao/05-capacidades.md"
       }
     ]
   },
@@ -28,34 +33,44 @@ window.RoutingSlipDocs = [
     "title": "Construindo workflows",
     "items": [
       {
+        "id": "workflow-introducao",
+        "title": "Como o workflow funciona",
+        "file": "content/02-construindo-workflows/01-como-funciona.md"
+      },
+      {
         "id": "workflow-estrutura",
         "title": "Estrutura basica",
-        "file": "content/02-construindo-workflows/01-estrutura-basica.md"
+        "file": "content/02-construindo-workflows/02-estrutura-basica.md"
       },
       {
         "id": "workflow-paths",
         "title": "Paths e arrays",
-        "file": "content/02-construindo-workflows/02-paths-e-arrays.md"
+        "file": "content/02-construindo-workflows/03-paths-e-arrays.md"
       },
       {
         "id": "workflow-reprocessamento",
         "title": "Reprocessamento",
-        "file": "content/02-construindo-workflows/03-reprocessamento.md"
+        "file": "content/02-construindo-workflows/04-reprocessamento.md"
       },
       {
         "id": "workflow-composicao",
         "title": "Composicao de scripts",
-        "file": "content/02-construindo-workflows/04-composicao-de-scripts.md"
+        "file": "content/02-construindo-workflows/05-composicao-de-scripts.md"
       },
       {
         "id": "workflow-resiliencia",
-        "title": "Resiliencia",
-        "file": "content/02-construindo-workflows/05-resiliencia.md"
+        "title": "Resiliencia e escalabilidade",
+        "file": "content/02-construindo-workflows/06-resiliencia-e-escalabilidade.md"
       },
       {
         "id": "workflow-state-store",
         "title": "State store",
-        "file": "content/02-construindo-workflows/06-state-store.md"
+        "file": "content/02-construindo-workflows/07-state-store.md"
+      },
+      {
+        "id": "workflow-rastreabilidade",
+        "title": "Rastreabilidade e explicabilidade",
+        "file": "content/02-construindo-workflows/08-rastreabilidade-e-explicabilidade.md"
       }
     ]
   },
@@ -64,48 +79,13 @@ window.RoutingSlipDocs = [
     "items": [
       {
         "id": "handlers-visao-geral",
-        "title": "Visao geral",
+        "title": "O que e um handler",
         "file": "content/03-handlers/01-visao-geral.md"
-      },
-      {
-        "id": "handlers-validate",
-        "title": "Validate",
-        "file": "content/03-handlers/02-validate.md"
-      },
-      {
-        "id": "handlers-condition",
-        "title": "Condition",
-        "file": "content/03-handlers/03-condition.md"
       },
       {
         "id": "handlers-assert",
         "title": "Assert",
         "file": "content/03-handlers/04-assert.md"
-      },
-      {
-        "id": "handlers-compute",
-        "title": "Compute",
-        "file": "content/03-handlers/05-compute.md"
-      },
-      {
-        "id": "handlers-jump-if",
-        "title": "Jump_if",
-        "file": "content/03-handlers/06-jump-if.md"
-      },
-      {
-        "id": "handlers-enrich-transform",
-        "title": "Enrich e transform",
-        "file": "content/03-handlers/07-enrich-e-transform.md"
-      },
-      {
-        "id": "handlers-graphql",
-        "title": "GraphQL enrich",
-        "file": "content/03-handlers/08-graphql-enrich.md"
-      },
-      {
-        "id": "handlers-rest",
-        "title": "Rest call",
-        "file": "content/03-handlers/09-rest-call.md"
       },
       {
         "id": "handlers-audit-notify",
@@ -118,9 +98,44 @@ window.RoutingSlipDocs = [
         "file": "content/03-handlers/11-cel-expressions.md"
       },
       {
+        "id": "handlers-condition",
+        "title": "Condition",
+        "file": "content/03-handlers/03-condition.md"
+      },
+      {
+        "id": "handlers-compute",
+        "title": "Compute",
+        "file": "content/03-handlers/05-compute.md"
+      },
+      {
+        "id": "handlers-enrich-transform",
+        "title": "Enrich e transform",
+        "file": "content/03-handlers/07-enrich-e-transform.md"
+      },
+      {
         "id": "handlers-filter-array",
         "title": "Filter array",
         "file": "content/03-handlers/12-filter-array.md"
+      },
+      {
+        "id": "handlers-graphql",
+        "title": "GraphQL enrich",
+        "file": "content/03-handlers/08-graphql-enrich.md"
+      },
+      {
+        "id": "handlers-jump-if",
+        "title": "Jump_if",
+        "file": "content/03-handlers/06-jump-if.md"
+      },
+      {
+        "id": "handlers-rest",
+        "title": "Rest call",
+        "file": "content/03-handlers/09-rest-call.md"
+      },
+      {
+        "id": "handlers-validate",
+        "title": "Validate",
+        "file": "content/03-handlers/02-validate.md"
       }
     ]
   },
@@ -158,48 +173,33 @@ window.RoutingSlipDocs = [
         "file": "content/04-projetos-integrados/06-dashboards-e-beneficios.md"
       },
       {
-        "id": "integracao-rastreabilidade",
-        "title": "Rastreabilidade distribuida",
-        "file": "content/04-projetos-integrados/07-rastreabilidade-distribuida.md"
-      },
-      {
         "id": "integracao-mcp-foundation",
-        "title": "MCP Foundation",
+        "title": "MCP e planner assistido",
         "file": "content/04-projetos-integrados/08-mcp-foundation.md"
       },
       {
         "id": "integracao-planner-mcp",
-        "title": "Planner MCP",
+        "title": "Criacao assistida",
         "file": "content/04-projetos-integrados/09-planner-mcp.md"
       }
     ]
   },
   {
-    "title": "Potencial",
+    "title": "Routing Slip Studio",
     "items": [
       {
-        "id": "potencial-beneficios",
-        "title": "Beneficios",
-        "file": "content/05-potencial/01-beneficios.md"
-      }
-    ]
-  },
-  {
-    "title": "Studio",
-    "items": [
-      {
-        "id": "studio-visao-geral",
-        "title": "Visão geral",
-        "file": "content/06-studio/01-visao-geral.md"
+        "id": "studio-interface",
+        "title": "Interface",
+        "file": "content/06-studio/01-interface.md"
       },
       {
-        "id": "studio-workspace",
-        "title": "Workspace",
-        "file": "content/06-studio/02-workspace.md"
+        "id": "studio-config-docs",
+        "title": "Configuracao e documentacao",
+        "file": "content/06-studio/02-configuracao-e-documentacao.md"
       },
       {
         "id": "studio-editor",
-        "title": "Editor e atalhos",
+        "title": "Editor de script e atalhos",
         "file": "content/06-studio/03-editor-e-atalhos.md"
       },
       {
@@ -209,13 +209,13 @@ window.RoutingSlipDocs = [
       },
       {
         "id": "studio-resumo-execucao",
-        "title": "Resumo da execucao",
+        "title": "Resumo detalhado da execucao",
         "file": "content/06-studio/05-resumo-da-execucao.md"
       },
       {
-        "id": "studio-documentacao",
-        "title": "Configuração e documentação",
-        "file": "content/06-studio/06-config-e-documentacao.md"
+        "id": "studio-workspace",
+        "title": "Workspace",
+        "file": "content/06-studio/06-workspace.md"
       }
     ]
   }

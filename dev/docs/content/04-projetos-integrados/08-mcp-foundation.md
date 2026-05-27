@@ -1,6 +1,6 @@
-# MCP Foundation
+# MCP e planner assistido
 
-A fase MCP Foundation expõe capacidades internas do ecossistema como ferramentas consultáveis por Studio, agentes e automações de suporte. A ideia não é substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.
+O MCP Gateway expoe capacidades internas do ecossistema como ferramentas consultaveis por Studio, agentes e automacoes de suporte. A ideia nao e substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.
 
 No `routing-slip-pattern`, o gateway MCP roda separado do endpoint REST do workflow:
 
@@ -36,8 +36,8 @@ Por padrao, o modo recomendado e `readonly`. Ferramentas que alteram estado ou r
 | `export_workflow` | readonly | Exporta o workflow expandido em YAML. |
 | `get_execution` | readonly | Recupera snapshot por `message_id`, `correlation_id` ou `trace_id`. |
 | `list_state_snapshots` | readonly | Lista snapshots por filtros simples. |
-| `dry_run_step` | maintenance | Reservado para execucao controlada de etapa isolada. |
-| `reprocess_execution` | maintenance | Reservado para reprocessamento assistido. |
+| `dry_run_step` | maintenance | Execucao controlada de etapa isolada, liberada apenas em modo de manutencao. |
+| `reprocess_execution` | maintenance | Reprocessamento assistido, liberado apenas em modo de manutencao. |
 
 ## Listando tools
 
