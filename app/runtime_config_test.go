@@ -81,3 +81,19 @@ steps:
 		t.Fatal("expected cycle error")
 	}
 }
+
+func TestLoadEcommerceDistributedCaseWorkflow(t *testing.T) {
+	workflow, err := loadWorkflowConfig("../workflows/ecommerce-distributed/order-fulfillment-main.yaml")
+	if err != nil {
+		t.Fatalf("load ecommerce case workflow: %v", err)
+	}
+	if workflow.Name != "ecommerce-order-fulfillment" {
+		t.Fatalf("workflow name = %q", workflow.Name)
+	}
+	if got, want := len(workflow.Steps), 21; got != want {
+		t.Fatalf("expanded steps = %d want %d", got, want)
+	}
+	if workflow.Steps[2].ID != "context.graphql-enrich" {
+		t.Fatalf("unexpected first referenced step: %#v", workflow.Steps[2])
+	}
+}

@@ -181,6 +181,11 @@ window.RoutingSlipDocs = [
         "id": "integracao-planner-mcp",
         "title": "Criação assistida",
         "file": "content/04-projetos-integrados/09-planner-mcp.md"
+      },
+      {
+        "id": "integracao-case-ecommerce",
+        "title": "Case ecommerce distribuido",
+        "file": "content/04-projetos-integrados/10-case-ecommerce-distribuido.md"
       }
     ]
   },

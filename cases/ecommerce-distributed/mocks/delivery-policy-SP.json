@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/ecommerce/v1/delivery/policies/SP"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "data": {
+        "region": "SP",
+        "promise_days": 2,
+        "carriers": [
+          { "id": "fastlog", "name": "FastLog", "priority": 1 },
+          { "id": "urbanpack", "name": "Urban Pack", "priority": 2 }
+        ]
+      },
+      "errors": []
+    }
+  }
+}

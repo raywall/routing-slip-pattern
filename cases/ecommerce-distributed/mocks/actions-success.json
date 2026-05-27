@@ -1,0 +1,87 @@
+{
+  "mocks": [
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/inventory/reservations" },
+      "response": {
+        "status": 200,
+        "body": {
+          "reservation_id": "RSV-1001",
+          "status": "RESERVED",
+          "expires_at": "2026-05-27T10:30:00Z"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/delivery/promises" },
+      "response": {
+        "status": 200,
+        "body": {
+          "promise_id": "PRM-1001",
+          "estimated_date": "2026-05-29",
+          "service_level": "EXPRESS"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/logistics/carriers/selection" },
+      "response": {
+        "status": 200,
+        "body": {
+          "shipment_id": "SHP-1001",
+          "carrier": "fastlog",
+          "tracking_prefix": "FL"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/operations/documents" },
+      "response": {
+        "status": 200,
+        "body": {
+          "document_id": "DOC-1001",
+          "status": "ISSUED"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/warehouse/picking" },
+      "response": {
+        "status": 200,
+        "body": {
+          "picking_id": "PCK-1001",
+          "status": "REQUESTED"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/notifications" },
+      "response": {
+        "status": 200,
+        "body": {
+          "notification_id": "NTF-1001",
+          "status": "SENT"
+        }
+      }
+    },
+    {
+      "request": { "method": "PATCH", "path": "/ecommerce/v1/orders/ORD-1001/status" },
+      "response": {
+        "status": 200,
+        "body": {
+          "order_id": "ORD-1001",
+          "status": "READY_FOR_SHIPMENT"
+        }
+      }
+    },
+    {
+      "request": { "method": "POST", "path": "/ecommerce/v1/events/order-ready" },
+      "response": {
+        "status": 200,
+        "body": {
+          "event_id": "evt-ready-ORD-1001",
+          "status": "PUBLISHED"
+        }
+      }
+    }
+  ]
+}

@@ -487,6 +487,45 @@ O Studio oferece:
 
 No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
 
+## Case ecommerce distribuido
+
+O projeto inclui um case completo para validar o ecossistema em um cenário distribuido e neutro: atendimento e entrega de um pedido confirmado em ecommerce.
+
+O case cobre:
+
+- recebimento de evento REST, Kafka ou SQS;
+- validacao de payload;
+- enriquecimento via `go-graphql-connector`;
+- consulta de pedido, cliente, estoque e politica de entrega;
+- reserva de estoque;
+- calculo de promessa de entrega;
+- selecao de transportadora;
+- emissao de documento operacional;
+- separacao em centro de distribuicao;
+- notificacao do cliente;
+- atualizacao de status;
+- publicacao de evento final;
+- metricas, traces, snapshots e reprocessamento.
+
+Arquivos principais:
+
+| Caminho | Uso |
+| --- | --- |
+| `workflows/ecommerce-distributed/order-fulfillment-main.yaml` | Workflow principal composto. |
+| `cases/ecommerce-distributed/payloads` | Payloads de teste. |
+| `cases/ecommerce-distributed/mocks` | Modelos para cadastro no mock service. |
+| `cases/ecommerce-distributed/bruno` | Colecao Bruno do case. |
+| `cases/ecommerce-distributed/scripts/generate_events.py` | Gerador de eventos e carga REST. |
+| `go-graphql-connector/examples/ecommerce-distributed` | Configuracao GraphQL do case. |
+
+Comandos:
+
+```bash
+make run-ecommerce-case
+make ecommerce-rest
+make ecommerce-load COUNT=25
+```
+
 Atalhos:
 
 | Atalho | Acao |

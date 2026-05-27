@@ -1,0 +1,153 @@
+name: operations-and-notification
+description: Aciona operacoes logisticas, notifica cliente, atualiza status e publica evento final.
+version: "1.0"
+error_policy: stop
+message_id_path: event_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: issue-operational-document
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/operations/documents
+      method: POST
+      target: operational_document
+      timeout_ms: 2000
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        reservation_id: "{inventory_reservation.reservation_id}"
+        carrier: "{shipment.carrier}"
+    resilience:
+      retry:
+        attempts: 2
+        backoff: exponential
+        initial_interval_ms: 200
+        max_interval_ms: 1000
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: dispatch-picking
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/warehouse/picking
+      method: POST
+      target: picking
+      timeout_ms: 2000
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        warehouse: "{available_inventory.0.warehouse}"
+        document_id: "{operational_document.document_id}"
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 250
+        max_interval_ms: 1200
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: notify-customer
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/notifications
+      method: POST
+      target: notification
+      timeout_ms: 1500
+      required: false
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        customer_id: "{customer_id}"
+        channel: "{context.customer.notification_channel}"
+        estimated_date: "{delivery_promise.estimated_date}"
+    resilience:
+      retry:
+        attempts: 2
+        backoff: fixed
+        initial_interval_ms: 200
+        max_interval_ms: 600
+        jitter: true
+      on_failure:
+        action: continue
+
+  - id: update-order-status
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/orders/{order_id}/status
+      method: PATCH
+      target: status_update
+      timeout_ms: 1500
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        status: READY_FOR_SHIPMENT
+        shipment_id: "{shipment.shipment_id}"
+        picking_id: "{picking.picking_id}"
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 150
+        max_interval_ms: 1000
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: publish-ready-event
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/events/order-ready
+      method: POST
+      target: ready_event
+      timeout_ms: 1500
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        event_name: ORDER_READY_FOR_SHIPMENT
+        order_id: "{order_id}"
+        correlation_id: "{correlation_id}"
+        trace_id: "{trace_id}"
+    resilience:
+      retry:
+        attempts: 2
+        backoff: exponential
+        initial_interval_ms: 200
+        max_interval_ms: 800
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: compute-status
+    name: enrich
+    params:
+      data:
+        fulfillment_status: READY_FOR_SHIPMENT
+
+  - id: audit-operations-completed
+    name: audit
+    params:
+      event: ecommerce_order_fulfillment.operations_completed
+      fields:
+        - correlation_id
+        - order_id
+        - operational_document.document_id
+        - picking.picking_id
+        - notification.status
+        - status_update.status
+        - ready_event.event_id

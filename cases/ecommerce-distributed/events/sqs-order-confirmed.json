@@ -1,0 +1,9 @@
+{
+  "queue": "payment-events",
+  "message_attributes": {
+    "source": "ecommerce-checkout",
+    "event_name": "ORDER_CONFIRMED",
+    "content-type": "application/json"
+  },
+  "payload_file": "../payloads/happy-path.json"
+}

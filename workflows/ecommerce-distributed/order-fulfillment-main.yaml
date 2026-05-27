@@ -1,0 +1,60 @@
+name: ecommerce-order-fulfillment
+description: Orquestra atendimento, entrega e pos-venda de um pedido confirmado.
+version: "1.0"
+error_policy: stop
+message_id_path: event_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: validate-event
+    name: validate
+    params:
+      required:
+        - event_id
+        - correlation_id
+        - event_name
+        - order_id
+        - customer_id
+        - region
+
+  - id: audit-received
+    name: audit
+    params:
+      event: ecommerce_order_fulfillment.received
+      fields:
+        - event_id
+        - correlation_id
+        - order_id
+        - customer_id
+        - region
+
+  - id: load-context
+    name: workflow_ref
+    params:
+      file: order-context.yaml
+      prefix: context
+
+  - id: reserve-and-plan
+    name: workflow_ref
+    params:
+      file: reserve-and-delivery.yaml
+      prefix: delivery
+
+  - id: operations
+    name: workflow_ref
+    params:
+      file: operations-and-notification.yaml
+      prefix: operations
+
+  - id: audit-completed
+    name: audit
+    params:
+      event: ecommerce_order_fulfillment.completed
+      fields:
+        - event_id
+        - correlation_id
+        - order_id
+        - customer_id
+        - fulfillment_status
+        - delivery_promise.estimated_date
+        - shipment.carrier
