@@ -15,15 +15,6 @@ const handlers = new Set([
   "workflow_ref",
 ]);
 
-const STUDIO_DB = {
-  name: "routing-slip-studio",
-  store: "state",
-  key: "current",
-  workspaceHandleKey: "workspace-handle",
-  currentFileKey: "workspace-current-file",
-};
-
-
 const els = {
   workflow: document.querySelector("#workflow-editor"),
   highlight: document.querySelector("#workflow-highlight"),
