@@ -1,3 +1,5 @@
+# Rest call
+
 Use `rest_call` quando o workflow precisa acionar uma API REST diretamente.
 
 ```yaml

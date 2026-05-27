@@ -1,3 +1,5 @@
+# Validate
+
 Use `validate` para garantir que campos essenciais existem antes de executar efeitos externos.
 
 ```yaml

@@ -1,14 +1,16 @@
-O handler `cel` avalia uma expressao CEL e espera resultado booleano. Ele pode falhar o workflow, continuar, parar sem erro ou saltar para outra etapa quando a expressao for falsa.
+# CEL Expression
+
+O handler `cel` avalia uma [expressão CEL](https://cel.dev/) e espera resultado booleano. Ele pode falhar o workflow, continuar, parar sem erro ou saltar para outra etapa quando a expressao for falsa.
 
 O runtime disponibiliza:
 
-| Nome | Conteudo |
+| Nome | Conteúdo |
 |---|---|
 | `payload` | Payload completo da mensagem. |
 | `headers` | Headers da mensagem. |
-| Variaveis de primeiro nivel | Campos do payload com nomes validos, como `pedido`, `itens`, `catalogo`. |
+| Variáveis de primeiro nível | Campos do payload com nomes validos, como `pedido`, `itens`, `catalogo`. |
 
-## Validacao obrigatoria
+## Validação obrigatória
 
 ```yaml
 - name: cel
@@ -18,7 +20,7 @@ O runtime disponibiliza:
     on_false: error
 ```
 
-Quando `on_false` nao e informado e nao existe `to`, o comportamento padrao e `error`.
+Quando `on_false` nao e informado e nao existe `to`, o comportamento padrão e `error`.
 
 ## Salto quando falso
 
@@ -54,7 +56,7 @@ Quando `on_false` nao e informado e nao existe `to`, o comportamento padrao e `e
 | `fail` | Alias de `error`. |
 | `jump` | Continua no step indicado em `to`. |
 | `continue` | Grava o resultado e segue para a proxima etapa. |
-| `stop` | Interrompe o workflow sem erro tecnico. |
+| `stop` | Interrompe o workflow sem erro técnico. |
 
 ## Exemplos
 
@@ -79,4 +81,4 @@ Quando `on_false` nao e informado e nao existe `to`, o comportamento padrao e `e
     on_false: continue
 ```
 
-O Studio simula o subconjunto mais comum de CEL: comparacoes, operadores booleanos, acesso por ponto, `size()` e `has()`. Para expressoes avancadas, valide tambem no runtime Go.
+O Studio simula o subconjunto mais comum de CEL: comparações, operadores booleanos, acesso por ponto, `size()` e `has()`. Para expressões avançadas, valide também no runtime Go.

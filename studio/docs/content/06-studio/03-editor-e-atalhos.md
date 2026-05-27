@@ -1,13 +1,15 @@
+# Editor de scripts e atalhos
+
 ![Editor de script e atalhos](docs/images/studio-editor.jpg#right)
 
-Atalhos disponiveis:
+Atalhos disponíveis:
 
-- Tab: indenta o trecho selecionado.
-- Shift+Tab: remove indentacao.
-- Cmd+/ ou Ctrl+/: comenta ou descomenta o bloco selecionado.
-- Cmd+Enter ou Ctrl+Enter: executa a simulacao.
+- Tab: indena o trecho selecionado.
+- Shift+Tab: remove intentadão.
+- Cmd+/ ou Ctrl+/: comenta ou descometa o bloco selecionado.
+- Cmd+Enter ou Ctrl+Enter: executa a simulação.
 - Cmd+S ou Ctrl+S: salva o arquivo aberto no workspace.
 
-Os logs da execucao aparecem agrupados por etapa. Clicar em um log foca a etapa correspondente no YAML.
+Os logs da execução aparecem agrupados por etapa. Clicar em um log foca a etapa correspondente no YAML.
 
-Depois de uma execucao, o botao **Reprocessar** fica disponivel. Ele usa o snapshot da execucao anterior para retomar do cursor salvo, preservando as etapas ja processadas e executando somente o trecho restante.
+Depois de uma execução, o botão **Reprocessar** fica disponível. Ele usa o snapshot da execução anterior para retomar do cursor salvo, preservando as etapas ja processadas e executando somente o trecho restante.

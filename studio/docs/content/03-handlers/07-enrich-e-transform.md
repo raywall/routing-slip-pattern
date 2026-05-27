@@ -1,3 +1,5 @@
+# Enrich
+
 Use `enrich` para adicionar dados ao payload.
 
 ```yaml
@@ -28,4 +30,4 @@ Use `transform` para normalizar texto.
     target: comprador_email_normalizado
 ```
 
-Operacoes suportadas: `uppercase`, `lowercase`, `trim`, `prefix:<valor>` e `suffix:<valor>`.
+Operações suportadas: `uppercase`, `lowercase`, `trim`, `prefix:<valor>` e `suffix:<valor>`.

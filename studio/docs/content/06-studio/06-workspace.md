@@ -1,19 +1,20 @@
 # Workspace
 
-![Workspace](docs/images/studio-workspace.jpg#right)
 
-O workspace organiza arquivos locais. A ideia e representar contextos de negocio ou microservicos como pastas, e workflows como arquivos YAML dentro dessas pastas.
+O workspace organiza arquivos locais. A ideia e representar contextos de negocio ou microsserviços como pastas, e workflows como arquivos YAML dentro dessas pastas.
 
-| Elemento | Representacao |
+| Elemento | Representação |
 | --- | --- |
-| Pasta | Microservico, dominio ou contexto. |
+| Pasta | Microservice, domínio ou contexto. |
 | Arquivo `.yaml`/`.yml` | Workflow daquele contexto. |
-| Arquivo aberto | Conteudo carregado no editor. |
+| Arquivo aberto | Conteúdo carregado no editor. |
 
-## Acoes disponiveis
+![Workspace](docs/images/studio-workspace.jpg)
+
+## Acoes disponíveis
 
 - abrir uma pasta local;
-- criar microservico/pasta;
+- criar microservice/pasta;
 - criar workflow;
 - renomear;
 - excluir;
@@ -21,9 +22,9 @@ O workspace organiza arquivos locais. A ideia e representar contextos de negocio
 - atualizar;
 - exportar workflow composto.
 
-O workspace usa a File System Access API. Chrome e Edge oferecem a melhor experiencia para abrir uma pasta com permissao de leitura e escrita.
+O workspace usa a File System Access API. Chrome e Edge oferecem a melhor experiencia para abrir uma pasta com permissão de leitura e escrita.
 
-## Organizacao recomendada
+## Organização recomendada
 
 ```text
 workflows/
@@ -36,5 +37,5 @@ workflows/
     update-stock.yaml
 ```
 
-Use composicao com `workflow_ref` quando um fluxo principal precisar chamar workflows de outros contextos.
+Use composição com `workflow_ref` quando um fluxo principal precisar chamar workflows de outros contextos.
 

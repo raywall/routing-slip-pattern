@@ -1,6 +1,6 @@
 # State store
 
-O state store guarda snapshots de execucao. Ele e o componente que permite que um workflow continue do ponto correto apos erro, parada ou reinicio.
+O state store guarda snapshots de execução. Ele e o componente que permite que um workflow continue do ponto correto apos erro, parada ou reinicio.
 
 Um snapshot contem:
 
@@ -20,9 +20,9 @@ Um snapshot contem:
 
 | Tipo | Uso |
 | --- | --- |
-| `memory` | Testes e execucoes descartaveis. |
+| `memory` | Testes e execuções descartáveis. |
 | `file` | Desenvolvimento local com snapshots JSON. |
-| `dynamodb` | Ambientes distribuidos e execucao local com container. |
+| `dynamodb` | Ambientes distribuídos e execução local com container. |
 
 ## Exemplo com arquivo
 
@@ -56,9 +56,9 @@ A tabela usa chave composta:
 | `pk` | String | `message_id`. |
 | `sk` | String | valor fixo `state`. |
 
-## Idempotencia
+## Idempotência
 
-Quando `idempotency.enabled` esta ativo, o runtime calcula uma chave por etapa. Se a etapa ja foi concluida com sucesso e o cursor voltar para ela, o runtime registra `idempotent_skip` e segue sem repetir o efeito.
+Quando `idempotency.enabled` esta ativo, o runtime calcula uma chave por etapa. Se a etapa ja foi concluída com sucesso e o cursor voltar para ela, o runtime registra `idempotent_skip` e segue sem repetir o efeito.
 
-Isso e essencial para etapas que chamam APIs, notificam usuarios ou atualizam sistemas externos.
+Isso e essencial para etapas que chamam APIs, notificam usuários ou atualizam sistemas externos.
 

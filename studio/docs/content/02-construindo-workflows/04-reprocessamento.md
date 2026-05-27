@@ -2,7 +2,7 @@
 
 Reprocessar nao significa executar tudo novamente. No Routing Slip, reprocessar significa carregar o snapshot salvo, recuperar o cursor e continuar da etapa correta.
 
-Isso e util quando uma etapa falha depois que etapas anteriores ja produziram resultado. Por exemplo: o fluxo validou o evento, carregou dados do pedido, reservou uma janela de entrega e falhou ao notificar o cliente. Ao reprocessar, o runtime pode continuar da notificacao em vez de repetir as etapas anteriores.
+Isso e util quando uma etapa falha depois que etapas anteriores ja produziram resultado. Por exemplo: o fluxo validou o evento, carregou dados do pedido, reservou uma janela de entrega e falhou ao notificar o cliente. Ao reprocessar, o runtime pode continuar da notificação em vez de repetir as etapas anteriores.
 
 ## Como funciona
 
@@ -23,14 +23,14 @@ sequenceDiagram
 
 ## O que torna o reprocessamento seguro
 
-- `message_id_path` estavel;
+- `message_id_path` estável;
 - `state_store` habilitado;
-- `id` estavel nos steps;
-- idempotencia por etapa;
+- `id` estável nos steps;
+- idempotência por etapa;
 - handlers com efeitos externos bem isolados;
-- auditoria antes e depois de integracoes importantes.
+- auditoria antes e depois de integrações importantes;
 
-## Configuracao recomendada
+## Configuração recomendada
 
 ```yaml
 features:
@@ -47,9 +47,9 @@ state_store:
 
 ## Boas praticas
 
-- Nao use timestamp aleatorio como `message_id`.
+- Nao use timestamp aleatório como `message_id`.
 - Prefira IDs do evento ou do processo de negocio.
 - Use `audit` em pontos importantes.
-- Use `required: true` para integracoes obrigatorias.
-- Em integracoes com efeito externo, garanta idempotencia tambem no sistema chamado quando possivel.
+- Use `required: true` para integrações obrigatórias.
+- Em integrações com efeito externo, garanta idempotência também no sistema chamado quando possível.
 

@@ -1,14 +1,16 @@
-O `go-graphql-connector` e a camada de integracao usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou servicos externos.
+# GraphQL Connector
 
-Ele funciona como uma **Anti-Corruption Layer**: o workflow conhece uma query GraphQL estavel, enquanto o conector resolve como buscar os dados nas fontes configuradas.
+O `go-graphql-connector` e a camada de integração usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou serviços externos.
+
+Ele funciona como uma **Anti-Corruption Layer**: o workflow conhece uma query GraphQL estável, enquanto o conector resolve como buscar os dados nas fontes configuradas.
 
 | Papel | Beneficio |
 |---|---|
-| API GraphQL dinamica | Expor um contrato unico para varias fontes externas. |
-| Connectors configuraveis | Trocar origem de dados sem mudar o workflow. |
-| Response transform | Simplificar respostas removendo wrappers desnecessarios. |
-| Timeout/retry/opcionalidade | Controlar resiliencia por fonte integrada. |
-| Configuracao por arquivo ou cloud | Usar local, env, SSM, Secrets Manager, S3 e DynamoDB. |
+| API GraphQL dinâmica | Expor um contrato único para varias fontes externas. |
+| Connectors configuráveis | Trocar origem de dados sem mudar o workflow. |
+| Response transform | Simplificar respostas removendo wrappers desnecessários. |
+| Timeout/retry/opcionalidade | Controlar resiliência por fonte integrada. |
+| Configuração por arquivo ou cloud | Usar local, env, SSM, Secrets Manager, S3 e DynamoDB. |
 | Trace context | Preservar `trace_id` e propagar `traceparent` ate APIs externas. |
 
 ```mermaid

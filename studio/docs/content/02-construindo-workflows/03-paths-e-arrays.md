@@ -1,6 +1,6 @@
 # Paths e arrays
 
-Paths sao caminhos em notacao de ponto usados para ler valores dentro do payload. Eles aparecem em validacoes, asserts, computacoes, integracoes, auditoria e filtros.
+Paths sao caminhos em notação de ponto usados para ler valores dentro do payload. Eles aparecem em validações, asserts, computações, integrações, auditoria e filtros.
 
 ```json
 {
@@ -28,7 +28,7 @@ Exemplos:
 
 ## Onde usar paths
 
-Validacao:
+Validação:
 
 ```yaml
 - name: validate
@@ -39,7 +39,7 @@ Validacao:
       - order.items.0.sku
 ```
 
-Variaveis GraphQL:
+Variáveis GraphQL:
 
 ```yaml
 - name: graphql_enrich
@@ -62,7 +62,7 @@ Auditoria:
 
 ## Arrays
 
-Para acessar uma posicao especifica, use indice numerico. Para trabalhar com todos os itens, use `filter_array` ou uma expressao CEL.
+Para acessar uma posição especifica, use índice numérico. Para trabalhar com todos os itens, use `filter_array` ou uma expressão CEL.
 
 ```yaml
 - name: filter_array
@@ -74,5 +74,5 @@ Para acessar uma posicao especifica, use indice numerico. Para trabalhar com tod
       greater_than: 0
 ```
 
-Use arrays quando o workflow precisa limpar, validar ou selecionar subconjuntos antes de chamar uma integracao ou decidir a proxima rota.
+Use arrays quando o workflow precisa limpar, validar ou selecionar subconjuntos antes de chamar uma integração ou decidir a proxima rota.
 
