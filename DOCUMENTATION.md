@@ -518,6 +518,8 @@ Arquivos principais:
 | `cases/ecommerce-distributed/scripts/generate_events.py` | Gerador de eventos e carga REST. |
 | `go-graphql-connector/examples/ecommerce-distributed` | Configuracao GraphQL do case. |
 
+O script `cases/ecommerce-distributed/scripts/generate_events.py` gera um UUID v4 novo para `correlation_id` em cada processamento. Os payloads base tambem usam formato UUID, mas cargas repetidas devem preferir o gerador para evitar reutilizacao manual do mesmo identificador.
+
 Comandos:
 
 ```bash
@@ -525,6 +527,8 @@ make run-ecommerce-case
 make ecommerce-rest
 make ecommerce-load COUNT=25
 ```
+
+A colecao Bruno do case possui requisicoes MCP para listar tools, validar o workflow carregado, explicar o fluxo e sugerir metricas. Isso permite testar a camada MCP no mesmo cenario usado para performance, resiliencia e observabilidade.
 
 Atalhos:
 

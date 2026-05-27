@@ -75,6 +75,21 @@ Envie 25 eventos via REST:
 make ecommerce-load COUNT=25
 ```
 
+O gerador sempre substitui o `correlation_id` por um UUID v4 novo a cada processamento, inclusive quando `COUNT=1`. Isso evita reutilizar o identificador do arquivo base e torna cada execucao rastreavel de forma independente.
+
+## Experimentando MCP
+
+Com o runtime iniciado e MCP habilitado, use a pasta `cases/ecommerce-distributed/bruno/MCP` para testar:
+
+| Requisicao | Tool | Uso |
+|---|---|---|
+| `Listar tools MCP` | `tools/list` | Confirma quais tools estao expostas. |
+| `Validar workflow ecommerce` | `validate_workflow` | Valida o workflow carregado pelo runtime. |
+| `Explicar workflow ecommerce` | `explain_workflow` | Mostra etapas, controles e integracoes. |
+| `Sugerir metricas ecommerce` | `suggest_metrics` | Sugere metricas e pontos de auditoria para o case. |
+
+Essas chamadas nao executam steps do workflow. Elas servem para inspecao, explicabilidade e validacao assistida.
+
 ## Variantes de teste
 
 | Cenario | Objetivo |

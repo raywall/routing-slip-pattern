@@ -3,6 +3,7 @@ import argparse
 import json
 import pathlib
 import time
+import uuid
 import urllib.request
 
 
@@ -19,7 +20,13 @@ def with_sequence(payload: dict, index: int) -> dict:
     value = dict(payload)
     suffix = f"{index:06d}"
     value["event_id"] = f"{payload['event_id']}-{suffix}"
-    value["correlation_id"] = f"{payload['correlation_id']}-{suffix}"
+    value["correlation_id"] = str(uuid.uuid4())
+    return value
+
+
+def with_unique_correlation(payload: dict) -> dict:
+    value = dict(payload)
+    value["correlation_id"] = str(uuid.uuid4())
     return value
 
 
@@ -55,13 +62,13 @@ def main() -> None:
     base = load_payload(args.scenario)
     started = time.time()
     for index in range(args.count):
-        payload = with_sequence(base, index) if args.count > 1 else dict(base)
+        payload = with_sequence(base, index) if args.count > 1 else with_unique_correlation(base)
         if args.target == "rest":
             status = send_rest(args.rest_url, payload)
-            print(f"sent rest status={status} event_id={payload['event_id']}")
+            print(f"sent rest status={status} event_id={payload['event_id']} correlation_id={payload['correlation_id']}")
         else:
             write_file(pathlib.Path(args.output), payload)
-            print(f"wrote event_id={payload['event_id']}")
+            print(f"wrote event_id={payload['event_id']} correlation_id={payload['correlation_id']}")
         if args.sleep_ms > 0:
             time.sleep(args.sleep_ms / 1000)
     elapsed = time.time() - started

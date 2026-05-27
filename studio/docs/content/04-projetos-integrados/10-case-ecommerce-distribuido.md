@@ -70,4 +70,17 @@ make ecommerce-load COUNT=25
 - `retry-success`: falha transitória seguida de sucesso.
 - `circuit-open`: indisponibilidade ate abrir circuit breaker.
 
+## Correlation ID
+
+O gerador de eventos cria um UUID v4 novo para `correlation_id` em cada processamento. Os payloads de exemplo usam formato UUID, mas execuções repetidas devem preferir `make ecommerce-events` ou `make ecommerce-load` para evitar reutilização manual do mesmo identificador.
+
+## MCP no case
+
+A coleção Bruno inclui requisições MCP para:
+
+- listar tools disponíveis;
+- validar o workflow carregado;
+- explicar o workflow expandido;
+- sugerir métricas e pontos de auditoria.
+
 Use o Studio para abrir o workflow principal, validar via MCP, diagnosticar conectores e acompanhar os logs agrupados por etapa.

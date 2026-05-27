@@ -1,7 +1,7 @@
 {
   "event_id": "evt-order-1001",
   "event_name": "ORDER_CONFIRMED",
-  "correlation_id": "corr-order-1001",
+  "correlation_id": "839e2b76-0aa1-47dc-96b1-67f41b73c795",
   "order_id": "ORD-1001",
   "customer_id": "CUS-1001",
   "region": "SP",

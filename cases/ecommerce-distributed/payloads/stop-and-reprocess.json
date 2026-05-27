@@ -1,7 +1,7 @@
 {
   "event_id": "evt-order-3001",
   "event_name": "ORDER_CONFIRMED",
-  "correlation_id": "corr-order-3001",
+  "correlation_id": "c098a984-0218-4246-b806-64a182895251",
   "order_id": "ORD-3001",
   "customer_id": "CUS-3001",
   "region": "MG",
