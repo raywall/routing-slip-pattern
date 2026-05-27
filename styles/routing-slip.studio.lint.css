@@ -1,0 +1,9 @@
+.lint-result {
+  min-height: 44px;
+  max-height: 120px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  color: var(--muted);
+  background: var(--surface-3);
+}

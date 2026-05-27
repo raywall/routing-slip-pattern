@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Routing Slip Studio: editor, lint e simulador de workflows YAML." />
+    <meta name="routing-slip-studio-version" content="2026-05-26-docs-1" />
+    
+    <title>Routing Slip Studio</title><base href="/routing-slip-pattern/">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="icon" href="./favicon.png" type="image/x-icon" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.base.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.sidebar.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.configuration.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.payload.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.editor.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.lint.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.workspace.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.documentation.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.execution.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.responsive.css" />
+  <meta name="studio-env" content="production" data-base="/routing-slip-pattern"></head>
+  <body>
+    <aside id="sidebar" class="sidebar">
+      <header class="sidebar-head">
+        <div>
+          <p class="eyebrow">Routing Slip</p>
+          <h1>Studio</h1>
+        </div>
+        <span id="lint-badge" class="badge badge-warn">Lint</span>
+      </header>
+
+      <section id="side-tabs" class="side-tabs">
+        <div class="tab-list" role="tablist" aria-label="Paineis do studio">
+          <button class="tab-button active" type="button" data-tab="workspace">Workspace</button>
+          <button class="tab-button" type="button" data-tab="payload">Payload de Entrada</button>
+          <button class="tab-button tab-icon" type="button" data-tab="config" title="Configuracao" aria-label="Configuracao"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+          <button class="tab-button tab-icon" type="button" data-tab="docs" title="Documentacao" aria-label="Documentacao"><i class="fa-solid fa-info" aria-hidden="true"></i></button>
+          <button id="collapse-tabs" class="tab-close" type="button" title="Minimizar painel" aria-label="Minimizar painel"><i data-lucide="minus"></i></button>
+        </div>
+
+        <div id="workspace-panel" class="tab-panel workspace-panel active" data-panel="workspace">
+          <div class="workspace-toolbar">
+            <div>
+              <span class="workspace-label">Workspace</span>
+              <strong id="workspace-name">Nenhum diretorio</strong>
+            </div>
+            <div class="workspace-actions" aria-label="Acoes do workspace">
+              <button id="open-workspace" class="icon-button" type="button" title="Abrir workspace" aria-label="Abrir workspace"><i data-lucide="folder-open"></i></button>
+              <button id="new-service" class="icon-button" type="button" title="Novo microservico" aria-label="Novo microservico" disabled><i data-lucide="folder-plus"></i></button>
+              <button id="new-workflow" class="icon-button" type="button" title="Novo workflow" aria-label="Novo workflow" disabled><i data-lucide="file-plus"></i></button>
+              <button id="save-workflow-file" class="icon-button" type="button" title="Salvar workflow" aria-label="Salvar workflow" disabled><i data-lucide="save"></i></button>
+              <button id="export-workflow-file" class="icon-button" type="button" title="Exportar workflow composto" aria-label="Exportar workflow composto" disabled><i data-lucide="download"></i></button>
+              <button id="refresh-workspace" class="icon-button" type="button" title="Atualizar workspace" aria-label="Atualizar workspace" disabled><i data-lucide="refresh-cw"></i></button>
+            </div>
+          </div>
+          <div id="workspace-tree" class="workspace-tree" aria-label="Workflows do workspace"></div>
+          <div id="workspace-current" class="workspace-current"></div>
+        </div>
+
+        <div id="payload-panel" class="tab-panel payload-panel" data-panel="payload">
+          <textarea id="payload-editor" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+
+        <div id="config-panel" class="tab-panel control-panel" data-panel="config">
+          <label>
+            Exemplo
+            <select id="example-select">
+              <option value="payment">Pagamento aprovado</option>
+              <option value="baixa">Baixa de parcelas</option>
+              <option value="blank">Workflow vazio</option>
+            </select>
+          </label>
+          <label class="toggle">
+            <input id="execute-integrations" type="checkbox" />
+            <span>Chamar integracoes reais</span>
+          </label>
+          <label>
+            GraphQL endpoint
+            <input id="graphql-endpoint" type="url" value="http://localhost:8090/graphql" />
+          </label>
+          <label>
+            REST workflow endpoint
+            <input id="workflow-endpoint" type="url" value="http://localhost:8088/process" />
+          </label>
+          <label>
+            External API URL
+            <input id="external-api-url" type="url" value="https://mock.raysouz.studio" />
+          </label>
+          <div class="button-row">
+            <button id="load-example" type="button">Carregar</button>
+            <button id="send-rest" type="button">Enviar REST</button>
+          </div>
+        </div>
+
+        <div id="docs-panel" class="tab-panel docs-panel" data-panel="docs">
+          <div id="docs-tree" class="docs-tree" aria-label="Documentacao do routing slip"></div>
+        </div>
+      </section>
+      <div id="tabs-resizer" class="tabs-resizer" role="separator" aria-label="Redimensionar painel lateral" aria-orientation="horizontal"></div>
+
+      <section class="editor-panel">
+        <div class="panel-title">
+          <h2>Workflow YAML</h2>
+          <span id="line-count">0 linhas</span>
+        </div>
+        <div class="editor-frame">
+          <pre id="editor-lines" class="editor-lines" aria-hidden="true">1</pre>
+          <div class="editor-stack">
+            <pre id="workflow-highlight" class="workflow-highlight" aria-hidden="true"></pre>
+            <textarea id="workflow-editor" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+          </div>
+        </div>
+        <div id="lint-result" class="lint-result">Aguardando validacao.</div>
+        <footer class="editor-actions">
+          <button id="toggle-comment" class="editor-icon-button" type="button" title="Comentar" aria-label="Comentar"><i class="fa-solid fa-comment"></i></button>
+          <button id="format-yaml" class="editor-icon-button" type="button" title="Organizar" aria-label="Organizar"><i class="fa-solid fa-indent"></i></button>
+          <button id="lint-now" class="editor-icon-button" type="button" title="Validar" aria-label="Validar"><i class="fa-solid fa-check"></i></button>
+          <button id="clear-logs" class="editor-icon-button" type="button" title="Limpar logs" aria-label="Limpar logs"><i class="fa-solid fa-eraser"></i></button>
+          <button id="run-test" class="primary" type="button">Executar</button>
+          <button id="reprocess-test" class="secondary" type="button" disabled>Reprocessar</button>
+        </footer>
+      </section>
+    </aside>
+    <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-label="Redimensionar sidebar"></div>
+    <button id="mobile-docs-backdrop" class="mobile-docs-backdrop" type="button" aria-label="Fechar navegacao"></button>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button id="mobile-docs-toggle" class="mobile-docs-toggle" type="button" title="Abrir documentacao" aria-label="Abrir documentacao">
+          <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+        <div>
+          <p id="workspace-mode-label" class="eyebrow">Execucao</p>
+          <h2 id="workflow-title">Workflow</h2>
+        </div>
+        <div class="topbar-actions">
+          <span id="run-summary">Nenhuma execucao</span>
+          <button id="theme-toggle" class="theme-toggle" type="button" title="Alternar tema escuro" aria-label="Alternar tema escuro">
+            <i class="fa-solid fa-moon" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+
+      <section class="execution-panel">
+        <div class="panel-title">
+          <h2 id="result-panel-title">Logs da execucao</h2>
+          <span id="result-panel-meta">Timeline</span>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    
+    <script>
+      window.RoutingSlipStudioAssetVersion = String(Date.now());
+      document.write(`<script src="./docs/documentation.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
+      document.write(`<script src="./docs/viewer.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
+    </script>
+
+    <script src="./scripts/routing-slip.studio.examples.js"></script>
+    <script src="./scripts/routing-slip.studio.core.js"></script>
+    <script src="./scripts/routing-slip.studio.configuration.js"></script>
+    <script src="./scripts/routing-slip.studio.editor.js"></script>
+    <script src="./scripts/routing-slip.studio.sidebar.js"></script>
+    <script src="./scripts/routing-slip.studio.workspace.js"></script>
+    <script src="./scripts/routing-slip.studio.lint.js"></script>
+    <script src="./scripts/routing-slip.studio.payload.js"></script>
+    <script src="./scripts/routing-slip.studio.runtime.js"></script>
+    <script src="./scripts/routing-slip.studio.logs.js"></script>
+    <script src="./scripts/routing-slip.studio.utils.js"></script>
+    <script src="./scripts/routing-slip.studio.bootstrap.js"></script>
+  </body>
+</html>

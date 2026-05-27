@@ -1,0 +1,254 @@
+.docs-panel {
+  background: var(--surface-3);
+}
+
+.docs-tree {
+  min-height: 100%;
+  padding: 8px;
+}
+
+.docs-section {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.docs-section + .docs-section {
+  margin-top: 4px;
+}
+
+.docs-section.open {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.docs-section-head,
+.docs-item {
+  width: 100%;
+  min-height: 27px;
+  display: grid;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 6px;
+  text-align: left;
+}
+
+.docs-section-head {
+  grid-template-columns: 12px minmax(0, 1fr);
+  font-weight: 850;
+}
+
+.docs-item {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 24px;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.docs-section-head:hover,
+.docs-item:hover {
+  background: var(--surface-2);
+}
+
+.docs-item.active {
+  background: var(--selection-bg);
+  color: var(--accent-2);
+  font-weight: 800;
+}
+
+.docs-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline--docs {
+  padding: 0;
+  background: var(--surface);
+}
+
+.doc-view {
+  max-width: 1250px;
+  padding: 28px 32px 40px;
+  color: var(--text);
+}
+
+.doc-view h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.doc-view h2 {
+  margin: 24px 0 8px;
+  font-size: 16px;
+}
+
+.doc-view h3 {
+  margin: 18px 0 7px;
+  font-size: 14px;
+}
+
+.doc-view p {
+  max-width: 120ch;
+  margin: 0 0 12px;
+  color: var(--text);
+  line-height: 1.62;
+}
+
+.doc-view ul,
+.doc-view ol {
+  max-width: 78ch;
+  margin: 0 0 14px 20px;
+  padding: 0;
+  color: var(--text);
+  line-height: 1.62;
+}
+
+.doc-view li + li {
+  margin-top: 3px;
+  margin-left: 18px;
+}
+
+.doc-view blockquote {
+  max-width: 78ch;
+  margin: 12px 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--log-hover);
+  color: var(--text);
+}
+
+.doc-view table {
+  width: 100%;
+  max-width: 85%;
+  margin: 12px 0 18px;
+  border-collapse: collapse;
+  position: relative;
+  font-size: 12px;
+}
+
+.doc-view th,
+.doc-view td {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc-view th {
+  background: var(--surface-2);
+  font-weight: 850;
+}
+
+.doc-view hr {
+  margin-bottom: 50px;
+  border: none;
+  height: 1px;
+  background-color: #15803d;
+}
+
+.doc-view pre {
+  max-width: 100%;
+  overflow: auto;
+  margin: 12px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  line-height: 1.55;
+}
+
+.doc-view code {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.doc-view img {
+  max-width: 100%;
+  margin: 12px 0 58px;
+  border-radius: 17px;
+  border: 1px solid #CCC;
+}
+
+.doc-view img[src$="#right-table"] {
+  width: min(40%, 46ch);
+  max-width: 46ch;
+  margin: 55px 0 18px 24px;
+  box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.3);
+  float: right;
+}
+
+.doc-view img[src$="#right"] {
+  width: min(36%, 42ch);
+  max-width: 42ch;
+  margin: 0 0 18px 24px;
+  box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.3);
+  float: right;
+}
+
+.doc-view img[src$="#left"] {
+  width: min(36%, 42ch);
+  max-width: 42ch;
+  margin: 0 24px 18px 0;
+  box-shadow: -5px 5px 0px 0px rgba(0,0,0,0.3);
+  float: left;
+}
+
+@media (max-width: 1320px) {
+  .doc-view img[src$="#right-table"],
+  .doc-view img[src$="#right"],
+  .doc-view img[src$="#left"] {
+    float: none;
+    display: block;
+    width: min(100%, 720px);
+    max-width: 100%;
+    height: auto;
+    margin: 18px 0 22px;
+  }
+}
+
+.doc-view :not(pre) > code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.doc-view .mermaid {
+  max-width: 100%;
+  margin: 12px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+
+body[data-theme="dark"] .doc-view .mermaid svg {
+  color: var(--text);
+}
+
+body[data-theme="dark"] .doc-view .mermaid text,
+body[data-theme="dark"] .doc-view .mermaid .label,
+body[data-theme="dark"] .doc-view .mermaid .nodeLabel,
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel,
+body[data-theme="dark"] .doc-view .mermaid .cluster-label {
+  color: #f8fafc !important;
+  fill: #f8fafc !important;
+}
+
+body[data-theme="dark"] .doc-view .mermaid .node rect,
+body[data-theme="dark"] .doc-view .mermaid .node polygon,
+body[data-theme="dark"] .doc-view .mermaid .node circle,
+body[data-theme="dark"] .doc-view .mermaid .node ellipse {
+  fill: #1f2937 !important;
+  stroke: #2dd4bf !important;
+}
+
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel,
+body[data-theme="dark"] .doc-view .mermaid .edgeLabel p {
+  background-color: #111827 !important;
+}
