@@ -230,5 +230,10 @@ function initEnvSwitcher() {
 
   const toolbar = document.querySelector(".topbar-actions");
   if (!toolbar) return;
-  toolbar.prepend(select);
+  const themeToggle = document.querySelector("#theme-toggle");
+  if (themeToggle && themeToggle.parentElement === toolbar) {
+    toolbar.insertBefore(select, themeToggle);
+    return;
+  }
+  toolbar.appendChild(select);
 }
