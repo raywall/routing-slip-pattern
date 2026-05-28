@@ -4,6 +4,8 @@ O `custom-business-metrics` e a camada usada para observar o processamento em te
 
 Ele complementa logs técnicos: em vez de responder apenas "a aplicação esta de pe?", ele ajuda a responder "onde esta cada processamento?", "qual etapa falhou?", "quanto falta?" e "qual fluxo esta demorando mais?".
 
+![Visão geral da interface do CBM](docs/images/cbm-interface.jpg)
+
 Componentes principais:
 
 | Componente | Papel |
