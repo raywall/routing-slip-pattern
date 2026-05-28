@@ -26,7 +26,7 @@ type ValidationHandler struct{}
 func (ValidationHandler) Name() string { return "validate" }
 
 func (ValidationHandler) Handle(ctx context.Context, msg *slip.Message, params map[string]any) (bool, error) {
-	required, _ := params["required"].([]string)
+	required := stringListParam(params["required"])
 	stopOnFailure := true
 	if v, ok := params["stop_on_failure"].(bool); ok {
 		stopOnFailure = v
@@ -51,6 +51,23 @@ func (ValidationHandler) Handle(ctx context.Context, msg *slip.Message, params m
 		msg.Set("validation_passed", true)
 	}
 	return true, nil
+}
+
+func stringListParam(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text := strings.TrimSpace(fmt.Sprint(item)); text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // ---------------------------------------------------------------------------

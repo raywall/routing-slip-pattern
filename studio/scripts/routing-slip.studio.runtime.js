@@ -27,6 +27,11 @@ async function runLocalSimulation(options = {}) {
     return;
   }
   activeRuntimeWorkflow = workflow;
+  if (!isReprocess) {
+    ensureCorrelationID(payload, workflow.correlation_id_path);
+    els.payload.value = JSON.stringify(payload, null, 2);
+    scheduleStudioSave();
+  }
   const startCursor = isReprocess ? Math.min(lastExecutionSnapshot.resumeCursor || 0, workflow.steps.length) : 0;
   const state = {
     payload: structuredClone(payload),

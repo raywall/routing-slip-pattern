@@ -72,4 +72,5 @@ flowchart TD
 | `cases/ecommerce-distributed/mocks` | Modelos para o mock service. |
 | `cases/ecommerce-distributed/bruno` | Requisições REST, GraphQL e MCP. |
 | `cases/ecommerce-distributed/scripts/generate_events.py` | Geração de eventos e carga REST. |
+| `cases/ecommerce-distributed/scripts/run_tests.py` | Execução das suites regressiva, performance, caos e MCP. |
 | `go-graphql-connector/examples/ecommerce-distributed` | Schema e connectors GraphQL. |

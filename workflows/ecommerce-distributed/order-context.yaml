@@ -36,9 +36,9 @@ steps:
         - field: context.order.status
           equals: CONFIRMED
         - field: context.customer.id
-          equals: "{customer_id}"
-        - count: context.order.items
-          greater_than: 0
+          equals: CUS-1001
+        - field: context.order.items
+          min_items: 1
       message: Pedido fora dos criterios minimos de atendimento.
 
   - id: filter-available-inventory

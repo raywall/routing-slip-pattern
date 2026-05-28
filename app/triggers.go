@@ -3,12 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -19,6 +24,8 @@ import (
 )
 
 const defaultShutdownTimeout = 5 * time.Second
+
+var correlationFallbackCounter atomic.Uint64
 
 type AppRuntime struct {
 	config   *AppConfig
@@ -100,12 +107,15 @@ func runConfiguredApp(ctx context.Context, cfg *AppConfig, workflow *WorkflowCon
 }
 
 func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any, headers map[string]string) (*slip.Message, error) {
+	correlationID, hasCorrelation := stringFromPath(payload, r.workflow.CorrelationIDPath)
+	if !hasCorrelation {
+		correlationID = newCorrelationUUID()
+		setPayloadPath(payload, r.workflow.CorrelationIDPath, correlationID)
+	}
+
 	messageID, ok := stringFromPath(payload, r.workflow.MessageIDPath)
 	if !ok {
-		messageID, ok = stringFromPath(payload, r.workflow.CorrelationIDPath)
-	}
-	if !ok {
-		messageID = r.config.Service.RunID
+		messageID = correlationID
 	}
 
 	msg := slip.NewMessage(messageID, payload)
@@ -126,9 +136,11 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 		msg.AttachSlip(r.steps)
 	}
 
-	if correlationID, ok := stringFromPath(payload, r.workflow.CorrelationIDPath); ok {
+	if msg.CorrelationID == "" {
 		msg.CorrelationID = correlationID
 		msg.Headers["correlation_id"] = correlationID
+	} else {
+		msg.Headers["correlation_id"] = msg.CorrelationID
 	}
 	if trace, ok := slip.ParseTraceparent(msg.Headers["traceparent"]); ok {
 		msg.TraceID = trace.TraceID
@@ -139,6 +151,37 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 
 	err := r.router.Process(ctx, msg)
 	return msg, err
+}
+
+func newCorrelationUUID() string {
+	var bytes [16]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		seed := fmt.Sprintf("%d:%d:%d", time.Now().UnixNano(), os.Getpid(), correlationFallbackCounter.Add(1))
+		sum := sha256.Sum256([]byte(seed))
+		copy(bytes[:], sum[:16])
+	}
+	bytes[6] = (bytes[6] & 0x0f) | 0x40
+	bytes[8] = (bytes[8] & 0x3f) | 0x80
+	encoded := hex.EncodeToString(bytes[:])
+	return fmt.Sprintf("%s-%s-%s-%s-%s", encoded[0:8], encoded[8:12], encoded[12:16], encoded[16:20], encoded[20:32])
+}
+
+func setPayloadPath(payload map[string]any, path string, value any) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	parts := strings.Split(path, ".")
+	current := payload
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := current[part].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			current[part] = next
+		}
+		current = next
+	}
+	current[parts[len(parts)-1]] = value
 }
 
 func (r *AppRuntime) runREST(ctx context.Context) error {

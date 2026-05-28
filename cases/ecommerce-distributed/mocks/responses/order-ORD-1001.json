@@ -1,0 +1,14 @@
+{
+  "data": {
+    "id": "ORD-1001",
+    "status": "CONFIRMED",
+    "channel": "web",
+    "total": 742.5,
+    "currency": "BRL",
+    "items": [
+      { "sku": "SKU-BOOK-001", "quantity": 1, "category": "books" },
+      { "sku": "SKU-ELEC-010", "quantity": 1, "category": "electronics" }
+    ]
+  },
+  "errors": []
+}

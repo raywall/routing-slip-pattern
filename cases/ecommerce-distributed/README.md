@@ -38,7 +38,8 @@ flowchart TD
 | `workflows/ecommerce-distributed/reserve-and-delivery.yaml` | Reserva, promessa e transportadora. |
 | `workflows/ecommerce-distributed/operations-and-notification.yaml` | Operacoes, notificacao e evento final. |
 | `cases/ecommerce-distributed/payloads/*.json` | Payloads de teste. |
-| `cases/ecommerce-distributed/mocks/*.json` | Modelos de mocks externos. |
+| `cases/ecommerce-distributed/mocks/register.sh` | Cadastro dos mocks externos no `api-mock-service`. |
+| `cases/ecommerce-distributed/mocks/responses/*.json` | Respostas usadas pelos mocks externos. |
 | `cases/ecommerce-distributed/bruno` | Colecao Bruno do case. |
 | `cases/ecommerce-distributed/scripts/generate_events.py` | Gerador simples de eventos e carga REST. |
 
@@ -51,7 +52,7 @@ cd /Users/raysouz/Workspace/estudos/workflows
 make prepare
 ```
 
-Execute o workflow localmente:
+Prepare e valide o case no Docker:
 
 ```bash
 make run-ecommerce-case
@@ -63,10 +64,16 @@ Envie um payload REST:
 make ecommerce-rest
 ```
 
-Gere 100 eventos em arquivo NDJSON:
+Gere e envie 100 eventos via REST:
 
 ```bash
 make ecommerce-events COUNT=100
+```
+
+Gere 100 eventos em arquivo NDJSON:
+
+```bash
+make ecommerce-events-file COUNT=100
 ```
 
 Envie 25 eventos via REST:
@@ -75,7 +82,7 @@ Envie 25 eventos via REST:
 make ecommerce-load COUNT=25
 ```
 
-O gerador sempre substitui o `correlation_id` por um UUID v4 novo a cada processamento, inclusive quando `COUNT=1`. Isso evita reutilizar o identificador do arquivo base e torna cada execucao rastreavel de forma independente.
+O gerador sempre substitui o `correlation_id` por um UUID v4 novo e cria um `event_id` unico a cada processamento, inclusive quando `COUNT=1`. Isso evita reutilizar identificadores do arquivo base, impede colisao com snapshots anteriores no state store e torna cada execucao rastreavel de forma independente.
 
 ## Experimentando MCP
 

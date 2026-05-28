@@ -16,7 +16,7 @@ O Routing Slip registra informações que ajudam os times a responder perguntas 
 | Campo | Papel |
 | --- | --- |
 | `message_id` | Identifica a execução e o snapshot. |
-| `correlation_id` | Agrupa eventos do mesmo processo de negocio. |
+| `correlation_id` | Agrupa eventos do mesmo processo de negocio. Se ausente, o runtime gera um UUID v4. |
 | `trace_id` | Agrupa chamadas técnicas ponta a ponta. |
 | `span_id` | Identifica uma etapa ou chamada dentro do trace. |
 | `cursor` | Indica a proxima etapa a executar. |
@@ -46,4 +46,3 @@ Cada etapa pode registrar:
 ## Explicabilidade no desenho
 
 Use `id` nos steps, `audit` em pontos importantes, `assert` para regras obrigatórias e `condition` para paradas funcionais esperadas. Assim, a execução fica compreensível tanto durante o teste quanto em produção.
-

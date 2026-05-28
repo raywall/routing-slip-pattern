@@ -19,13 +19,14 @@ def load_payload(name: str) -> dict:
 def with_sequence(payload: dict, index: int) -> dict:
     value = dict(payload)
     suffix = f"{index:06d}"
-    value["event_id"] = f"{payload['event_id']}-{suffix}"
+    value["event_id"] = f"{payload['event_id']}-{suffix}-{uuid.uuid4().hex[:12]}"
     value["correlation_id"] = str(uuid.uuid4())
     return value
 
 
 def with_unique_correlation(payload: dict) -> dict:
     value = dict(payload)
+    value["event_id"] = f"{payload['event_id']}-{uuid.uuid4().hex[:12]}"
     value["correlation_id"] = str(uuid.uuid4())
     return value
 

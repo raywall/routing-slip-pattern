@@ -24,6 +24,27 @@ O objetivo é confirmar que o MCP funciona como uma camada segura de leitura, ex
 | `Explicar workflow ecommerce` | `explain_workflow` | Lista das etapas, handlers, integrações e controles. |
 | `Sugerir metricas ecommerce` | `suggest_metrics` | Métricas e pontos de auditoria recomendados. |
 
+## Suite automatizada
+
+```bash
+make ecommerce-mcp-test
+```
+
+Ela executa:
+
+- `tools/list`;
+- `validate_workflow`;
+- `explain_workflow`;
+- `suggest_metrics`;
+- execução de um workflow real;
+- `get_execution` por `message_id`.
+
+O resultado mais recente fica em:
+
+```text
+cases/ecommerce-distributed/results/latest-mcp.json
+```
+
 ## Consultas manuais
 
 Listar tools:
@@ -103,11 +124,11 @@ curl -s http://localhost:9091/mcp \
 
 | Teste | Resultado esperado | Resultado observado | Evidência |
 |---|---|---|---|
-| Listar tools | Tools retornadas com sucesso. | A preencher. | A preencher. |
-| Validar workflow | `valid: true`. | A preencher. | A preencher. |
-| Explicar workflow | Etapas e integrações descritas. | A preencher. | A preencher. |
-| Consultar execução | Snapshot encontrado após execução. | A preencher. | A preencher. |
-| Listar snapshots | Lista filtrada conforme argumentos. | A preencher. | A preencher. |
-| Sugerir métricas | Métricas recomendadas. | A preencher. | A preencher. |
+| Listar tools | Tools retornadas com sucesso. | Registrado no runner. | `latest-mcp.json` |
+| Validar workflow | `valid: true`. | Registrado no runner. | `latest-mcp.json` |
+| Explicar workflow | Etapas e integrações descritas. | Registrado no runner. | `latest-mcp.json` |
+| Consultar execução | Snapshot encontrado após execução. | Registrado no runner. | `latest-mcp.json` |
+| Listar snapshots | Lista filtrada conforme argumentos. | Disponível para consulta manual. | Capturas futuras |
+| Sugerir métricas | Métricas recomendadas. | Registrado no runner. | `latest-mcp.json` |
 
 Use a coluna de evidência para inserir imagens ou links para capturas depois dos testes.

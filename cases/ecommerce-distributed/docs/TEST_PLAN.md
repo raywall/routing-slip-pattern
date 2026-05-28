@@ -1,42 +1,103 @@
 # Plano de testes do case ecommerce-distributed
 
-## Performance
+# Plano de testes do case ecommerce-distributed
+
+Este plano possui quatro suites executáveis:
+
+| Suite | Comando |
+|---|---|
+| Regressivos | `make ecommerce-regression` |
+| Performance | `make ecommerce-performance COUNT=25 CONCURRENCY=4` |
+| Caos | `make ecommerce-chaos` |
+| MCP Server | `make ecommerce-mcp-test` |
+| Todas | `make ecommerce-test-suite COUNT=25 CONCURRENCY=4` |
+
+Cada execução grava evidências em `cases/ecommerce-distributed/results/` no formato JSON. Os arquivos `latest-*.json` mantêm o resultado mais recente por suite.
+
+## Testes regressivos
+
+| Teste | Evidencia esperada |
+|---|---|
+| `graphql_context` | GraphQL retorna `order`, `customer`, `inventory` e `deliveryPolicy` sem erros. |
+| `workflow_happy_path` | Workflow REST conclui com HTTP 200 e sem campo `error`. |
+| `metrics_available` | Metrics API responde uma lista de métricas. |
+| `mcp_health` | MCP server responde health check. |
+
+Comando:
+
+```bash
+make ecommerce-regression
+```
+
+Resultado:
+
+- `results/latest-regression.json`
+- status geral em `passed`;
+- lista de checks com status HTTP, duração e identificadores relevantes.
+
+## Testes de performance
 
 | Teste | Como executar | Evidencia esperada |
 |---|---|---|
-| Carga REST simples | `make ecommerce-load COUNT=100` | Throughput, tempo medio e p95 no metrics service. |
-| Geração NDJSON | `make ecommerce-events COUNT=1000` | Arquivo de eventos para publicacao posterior em Kafka/SQS. |
-| GraphQL sob carga | Repetir consulta Bruno ou script externo | Tempo de resposta e retries por connector. |
+| Carga REST concorrente | `make ecommerce-performance COUNT=100 CONCURRENCY=8` | Total, concluídos, falhos, tempo médio, p95, p99 e throughput. |
+| Geração NDJSON | `make ecommerce-events-file COUNT=1000` | Arquivo de eventos para publicação posterior em Kafka/SQS. |
+| Carga REST simples | `make ecommerce-load COUNT=25` | Disparo sequencial para comparação com a carga concorrente. |
 
-Cada evento gerado pelo script recebe um `correlation_id` UUID v4 novo. Para validar unicidade, gere um arquivo NDJSON e confira se a quantidade de `correlation_id` distintos e igual ao total de linhas.
+Cada evento gerado recebe `event_id` único e `correlation_id` UUID v4 novo. Isso evita colisão com snapshots antigos no state store e permite medir execuções independentes.
 
-## Resiliencia
+Resultado:
+
+- `results/latest-performance.json`;
+- `summary.total`;
+- `summary.completed`;
+- `summary.failed`;
+- `summary.average_ms`;
+- `summary.p95_ms`;
+- `summary.p99_ms`;
+- `summary.throughput_per_second`.
+
+## Testes de caos
 
 | Falha | Configuracao | Resultado esperado |
 |---|---|---|
-| API lenta | Mock `slow-connector` | Timeout, retry e erro classificado. |
-| Erro transitorio | Mock `retry-success` | Sucesso apos retry sem parar workflow. |
-| API indisponivel | Mock `circuit-open` | Circuit breaker abre e o workflow salva snapshot. |
-| Notificacao falha | Endpoint de notificacao retorna 500 | Workflow continua porque `required: false` e `on_failure: continue`. |
-| Runtime interrompido | Parar container durante execucao | State store preserva cursor para reprocessamento. |
+| Payload inválido | Remove `order_id` do evento | Workflow retorna erro controlado e snapshot. |
+| GraphQL indisponível | Para temporariamente `go-graphql-connector` | Workflow falha em `graphql_enrich` e preserva cursor. |
+| Recuperação da integração | Religa `go-graphql-connector` e reenvia o mesmo evento | Workflow reprocessa do snapshot e conclui. |
 
-## Escalabilidade
+Comando:
 
-| Teste | Objetivo |
-|---|---|
-| Aumentar volume Kafka | Avaliar throughput e lag. |
-| Aumentar volume SQS | Avaliar drenagem gradual e reprocessamento. |
-| Repetir mesmo `event_id` | Validar idempotencia por etapa. |
-| Executar com métricas indisponíveis | Garantir que emissão de métricas nao bloqueia workflow. |
+```bash
+make ecommerce-chaos
+```
 
-## MCP
+Resultado:
 
-| Teste | Requisicao Bruno | Evidencia esperada |
+- `results/latest-chaos.json`;
+- evidência de erro controlado;
+- evidência de reprocessamento com o mesmo `message_id`.
+
+## Testes do MCP Server
+
+| Teste | Tool | Evidencia esperada |
 |---|---|---|
-| Listar tools | `MCP/Listar tools MCP` | Lista contem `validate_workflow`, `explain_workflow`, `suggest_metrics` e tools de planner. |
-| Validar workflow | `MCP/Validar workflow ecommerce` | Retorno `valid: true` para o workflow carregado no runtime. |
-| Explicar workflow | `MCP/Explicar workflow ecommerce` | Etapas compostas aparecem expandidas com handlers e integracoes. |
-| Sugerir metricas | `MCP/Sugerir metricas ecommerce` | Retorno com metricas e pontos de auditoria sugeridos. |
+| Listar tools | `tools/list` | Lista contém `validate_workflow`, `explain_workflow`, `suggest_metrics`, `get_execution` e `list_state_snapshots`. |
+| Validar workflow | `validate_workflow` | Retorno `valid: true` para o workflow carregado no runtime. |
+| Explicar workflow | `explain_workflow` | Etapas compostas aparecem expandidas com handlers e integrações. |
+| Sugerir métricas | `suggest_metrics` | Retorno com métricas e pontos de auditoria sugeridos. |
+| Consultar execução | `get_execution` | Após executar um workflow, recupera snapshot por `message_id`. |
+
+Comando:
+
+```bash
+make ecommerce-mcp-test
+```
+
+Resultado:
+
+- `results/latest-mcp.json`;
+- lista de tools encontradas;
+- quantidade de steps explicados;
+- snapshot recuperado do state store.
 
 ## Relatorio esperado
 

@@ -143,7 +143,6 @@ steps:
     name: validate
     params:
       required:
-        - correlation_id
         - order_id
         - customer_id
 
@@ -175,6 +174,10 @@ steps:
 | `message_id_path` | Campo usado para identificar e reprocessar. |
 | `correlation_id_path` | Campo usado para correlacionar logs, metricas e traces. |
 | `steps` | Lista ordenada de etapas. |
+
+Se o payload recebido nao trouxer o campo definido em `correlation_id_path`, o runtime gera automaticamente um UUID v4 com `crypto/rand`, injeta o valor no payload antes da primeira etapa e propaga o mesmo identificador em headers, logs, metricas e traces. Isso evita exemplos com correlacoes fixas como `corr-001` e reduz o risco de duas execucoes independentes compartilharem o mesmo identificador por terem sido disparadas no mesmo instante.
+
+Para idempotencia e retomada, prefira que `message_id_path` aponte para um identificador funcional estavel do evento, como `order_id` ou `event_id`. O `correlation_id` identifica a execucao ponta a ponta; o `message_id` identifica o snapshot usado para reprocessar do ponto em que parou.
 
 ## Paths e arrays
 
@@ -513,12 +516,13 @@ Arquivos principais:
 | --- | --- |
 | `workflows/ecommerce-distributed/order-fulfillment-main.yaml` | Workflow principal composto. |
 | `cases/ecommerce-distributed/payloads` | Payloads de teste. |
-| `cases/ecommerce-distributed/mocks` | Modelos para cadastro no mock service. |
+| `cases/ecommerce-distributed/mocks` | Script de cadastro e respostas usadas pelo mock service. |
 | `cases/ecommerce-distributed/bruno` | Colecao Bruno do case. |
 | `cases/ecommerce-distributed/scripts/generate_events.py` | Gerador de eventos e carga REST. |
+| `cases/ecommerce-distributed/scripts/run_tests.py` | Runner das suites regressiva, performance, caos e MCP. |
 | `go-graphql-connector/examples/ecommerce-distributed` | Configuracao GraphQL do case. |
 
-O script `cases/ecommerce-distributed/scripts/generate_events.py` gera um UUID v4 novo para `correlation_id` em cada processamento. Os payloads base tambem usam formato UUID, mas cargas repetidas devem preferir o gerador para evitar reutilizacao manual do mesmo identificador.
+O script `cases/ecommerce-distributed/scripts/generate_events.py` gera `event_id` unico e UUID v4 novo para `correlation_id` em cada processamento. Isso evita colisao com snapshots antigos e torna cada execucao rastreavel de forma independente.
 
 Comandos:
 
@@ -526,9 +530,16 @@ Comandos:
 make run-ecommerce-case
 make ecommerce-rest
 make ecommerce-load COUNT=25
+make ecommerce-regression
+make ecommerce-performance COUNT=100 CONCURRENCY=8
+make ecommerce-chaos
+make ecommerce-mcp-test
+make ecommerce-test-suite COUNT=25 CONCURRENCY=4
 ```
 
 A colecao Bruno do case possui requisicoes MCP para listar tools, validar o workflow carregado, explicar o fluxo e sugerir metricas. Isso permite testar a camada MCP no mesmo cenario usado para performance, resiliencia e observabilidade.
+
+As suites gravam evidencias em `cases/ecommerce-distributed/results/` com arquivos `latest-regression.json`, `latest-performance.json`, `latest-chaos.json` e `latest-mcp.json`.
 
 Atalhos:
 

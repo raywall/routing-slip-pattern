@@ -269,7 +269,7 @@ func requiredFieldsFromArgs(args map[string]any) []string {
 
 func payloadForWorkflow(workflow WorkflowConfig, eventName string) map[string]any {
 	payload := map[string]any{
-		"correlation_id": "corr-" + workflow.Name + "-001",
+		"correlation_id": newCorrelationUUID(),
 		"event_name":     eventName,
 		"received_at":    "2026-05-27T12:00:00Z",
 	}
@@ -337,7 +337,7 @@ func auditPoints(workflow WorkflowConfig) []map[string]any {
 
 func brunoRequestsForWorkflow(workflow string) []map[string]any {
 	return []map[string]any{
-		{"name": "Executar workflow", "method": "POST", "url": "http://localhost:8088/process", "body": map[string]any{"correlation_id": "corr-" + workflow + "-001", "event_name": workflow + ".requested"}},
+		{"name": "Executar workflow", "method": "POST", "url": "http://localhost:8088/process", "body": map[string]any{"correlation_id": newCorrelationUUID(), "event_name": workflow + ".requested"}},
 		{"name": "Listar tools MCP", "method": "POST", "url": "http://localhost:9091/mcp", "body": map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}},
 		{"name": "Explicar workflow via MCP", "method": "POST", "url": "http://localhost:9091/mcp", "body": map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": "explain_workflow", "arguments": map[string]any{}}}},
 	}

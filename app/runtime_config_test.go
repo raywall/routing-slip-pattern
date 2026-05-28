@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -95,5 +99,64 @@ func TestLoadEcommerceDistributedCaseWorkflow(t *testing.T) {
 	}
 	if workflow.Steps[2].ID != "context.graphql-enrich" {
 		t.Fatalf("unexpected first referenced step: %#v", workflow.Steps[2])
+	}
+}
+
+func TestNewCorrelationUUIDGeneratesUniqueUUIDv4(t *testing.T) {
+	pattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	seen := map[string]bool{}
+
+	for i := 0; i < 100; i++ {
+		id := newCorrelationUUID()
+		if !pattern.MatchString(id) {
+			t.Fatalf("correlation id %q is not uuid v4", id)
+		}
+		if seen[id] {
+			t.Fatalf("duplicated correlation id %q", id)
+		}
+		seen[id] = true
+	}
+}
+
+func TestProcessPayloadGeneratesCorrelationIDWhenMissing(t *testing.T) {
+	cfg := AppConfig{}
+	applyConfigDefaults(&cfg)
+	cfg.Features.PersistentStateEnabled = false
+	cfg.Metrics.Endpoint = ""
+
+	workflow := WorkflowConfig{
+		Name:              "test-workflow",
+		ErrorPolicy:       "stop",
+		MessageIDPath:     "id",
+		CorrelationIDPath: "correlation_id",
+		Steps: []StepConfig{
+			{
+				Name: "audit",
+				Params: map[string]any{
+					"event": "test.completed",
+				},
+			},
+		},
+	}
+
+	runtime, err := newAppRuntime(&cfg, &workflow, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("new runtime: %v", err)
+	}
+
+	payload := map[string]any{"id": "MSG-1"}
+	msg, err := runtime.processPayload(context.Background(), payload, map[string]string{"trigger": "test"})
+	if err != nil {
+		t.Fatalf("process payload: %v", err)
+	}
+
+	if msg.CorrelationID == "" {
+		t.Fatal("expected generated correlation id")
+	}
+	if got := payload["correlation_id"]; got != msg.CorrelationID {
+		t.Fatalf("payload correlation_id = %v want %q", got, msg.CorrelationID)
+	}
+	if msg.Headers["correlation_id"] != msg.CorrelationID {
+		t.Fatalf("header correlation_id = %q want %q", msg.Headers["correlation_id"], msg.CorrelationID)
 	}
 }
