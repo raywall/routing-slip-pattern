@@ -18,6 +18,12 @@ Os testes regressivos garantem que mudanças no runtime, nos handlers, no conect
 
 ```bash
 make prepare
+make ecommerce-regression
+```
+
+Para validar manualmente o fluxo feliz:
+
+```bash
 make run-ecommerce-case
 make ecommerce-rest
 ```
@@ -25,13 +31,7 @@ make ecommerce-rest
 Para gerar eventos sem enviar:
 
 ```bash
-make ecommerce-events COUNT=100
-```
-
-Para enviar carga REST:
-
-```bash
-make ecommerce-load COUNT=25
+make ecommerce-events-file COUNT=100
 ```
 
 ## Resultados esperados
@@ -39,7 +39,7 @@ make ecommerce-load COUNT=25
 | Verificação | Como avaliar |
 |---|---|
 | Workflow expandido | O runtime carrega `workflow_ref` sem erro. |
-| Correlação única | Cada evento gerado possui `correlation_id` UUID distinto. |
+| Correlação única | Cada evento gerado possui `event_id` unico e `correlation_id` UUID distinto. |
 | Estado final | Payload possui `fulfillment_status: READY_FOR_SHIPMENT` no cenário feliz. |
 | Auditoria | Logs/metricas registram recebido, contexto carregado, entrega planejada, operações concluídas e conclusão. |
 | Reprocessamento | Cursor salvo aponta para a etapa que falhou. |
@@ -47,12 +47,8 @@ make ecommerce-load COUNT=25
 
 ## Resultado registrado
 
-Até o momento, a validação automatizada cobre:
+A suite regressiva automatizada cobre GraphQL, workflow REST, Metrics API e health do MCP. O resultado mais recente fica em:
 
-- carga do workflow composto no teste Go do runtime;
-- validação sintática dos YAMLs;
-- validação JSON dos payloads, mocks e configs;
-- validação do exemplo GraphQL `ecommerce-distributed`;
-- validação do manifesto de documentação do Studio.
-
-Os resultados de execução funcional contra mocks reais devem ser registrados em `cases/ecommerce-distributed/results/`.
+```text
+cases/ecommerce-distributed/results/latest-regression.json
+```

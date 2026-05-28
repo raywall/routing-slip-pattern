@@ -17,12 +17,15 @@ Os testes de caos validam se o workflow continua explicável e recuperável quan
 
 | Cenário | Como simular | Resultado esperado |
 |---|---|---|
-| `slow-connector` | Mock com atraso acima do timeout. | Retry, timeout e registro da falha. |
-| `retry-success` | Mock falha nas primeiras chamadas e depois responde. | Workflow conclui após retry. |
-| `circuit-open` | Mock retorna 503 repetidamente. | Circuit breaker abre no connector. |
-| Falha de notificação | Endpoint de notificação retorna 500. | Workflow continua, pois a etapa é opcional. |
-| Interrupção do runtime | Parar container no meio da execução. | Snapshot preserva cursor e payload. |
-| Reenvio duplicado | Enviar mesmo `event_id`. | Idempotência evita repetir etapas concluídas. |
+| Payload inválido | Runner remove `order_id`. | Workflow para no `validate` com erro controlado. |
+| GraphQL indisponível | Runner para temporariamente `go-graphql-connector`. | Workflow falha em `graphql_enrich` e salva snapshot. |
+| Recuperação | Runner religa GraphQL e reenvia o mesmo evento. | Workflow reprocessa do cursor salvo e conclui. |
+
+Comando:
+
+```bash
+make ecommerce-chaos
+```
 
 ## Evidências
 
@@ -50,4 +53,10 @@ Durante os testes, registre:
 
 ## Resultado registrado
 
-Os cenários e mocks estão preparados. A execução real dos testes de caos deve ser feita com os mocks configurados no `mock.raysouz.studio` ou em um ambiente local equivalente, registrando os resultados em `cases/ecommerce-distributed/results/`.
+O resultado mais recente fica em:
+
+```text
+cases/ecommerce-distributed/results/latest-chaos.json
+```
+
+O runner sempre tenta religar o `go-graphql-connector` antes de encerrar a suite.

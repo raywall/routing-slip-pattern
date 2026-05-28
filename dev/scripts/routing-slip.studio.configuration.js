@@ -13,9 +13,10 @@ function loadExample(key, options = {}) {
   if (workflowDirty && !confirm("Descartar alteracoes nao salvas no workflow atual?")) return;
   invalidateExecutionSnapshot();
   const example = examples[key] || examples.payment;
+  const payload = withFreshCorrelationID(structuredClone(example.payload || {}));
   els.example.value = key;
   els.workflow.value = example.workflow;
-  els.payload.value = JSON.stringify(example.payload, null, 2);
+  els.payload.value = JSON.stringify(payload, null, 2);
   currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
   workflowDirty = false;
   renderWorkspace();

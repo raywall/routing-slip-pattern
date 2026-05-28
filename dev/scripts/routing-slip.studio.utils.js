@@ -83,6 +83,7 @@ function isCountable(value) {
 }
 
 function setPath(obj, path, value) {
+  if (!path) return;
   const parts = String(path).split(".");
   let current = obj;
   parts.slice(0, -1).forEach((part) => {
@@ -90,6 +91,20 @@ function setPath(obj, path, value) {
     current = current[part];
   });
   current[parts[parts.length - 1]] = value;
+}
+
+function withFreshCorrelationID(payload, path = "correlation_id") {
+  ensureCorrelationID(payload, path, { force: true });
+  return payload;
+}
+
+function ensureCorrelationID(payload, path = "correlation_id", options = {}) {
+  const targetPath = path || "correlation_id";
+  const current = getPath(payload, targetPath);
+  if (options.force || current === undefined || current === null || current === "") {
+    setPath(payload, targetPath, generateUUID());
+  }
+  return getPath(payload, targetPath);
 }
 
 function interpolateAny(value, payload) {
@@ -148,4 +163,17 @@ function generateTraceID() {
     for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
   }
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function generateUUID() {
+  const bytes = new Uint8Array(16);
+  if (window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

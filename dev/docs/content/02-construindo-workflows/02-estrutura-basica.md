@@ -15,7 +15,6 @@ steps:
     name: validate
     params:
       required:
-        - correlation_id
         - order_id
         - customer_id
 
@@ -57,6 +56,10 @@ steps:
 | `correlation_id_path` | Recomendado | Path usado para correlacionar logs, métricas e traces. |
 | `steps` | Sim | Lista ordenada de etapas. |
 
+Quando o payload nao traz o campo configurado em `correlation_id_path`, o runtime gera um UUID v4 automaticamente e o injeta antes da primeira etapa. Isso evita reutilizar identificadores fixos em testes e mantém logs, métricas e traces ligados ao mesmo processamento.
+
+Use `message_id_path` para a chave funcional de retomada e idempotência. O `correlation_id` acompanha a jornada; o `message_id` aponta para o snapshot que permite continuar de onde parou.
+
 ## Estrutura de um step
 
 ```yaml
@@ -70,4 +73,3 @@ steps:
 ```
 
 Use `id` sempre que a etapa puder ser alvo de salto, auditoria, explicação ou idempotência. O `name` e o handler executado. O `params` muda conforme o handler.
-

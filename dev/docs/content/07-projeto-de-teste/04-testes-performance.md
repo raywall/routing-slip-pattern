@@ -20,8 +20,8 @@ Os testes de performance medem como o ecossistema se comporta quando o volume de
 | Cenário | Comando base | Resultado esperado |
 |---|---|---|
 | Carga REST curta | `make ecommerce-load COUNT=25` | Validar estabilidade inicial. |
-| Carga REST média | `make ecommerce-load COUNT=250` | Observar latência e erros. |
-| Geração NDJSON | `make ecommerce-events COUNT=1000` | Criar massa para Kafka/SQS. |
+| Carga REST concorrente | `make ecommerce-performance COUNT=100 CONCURRENCY=8` | Observar latência, throughput, p95 e p99. |
+| Geração NDJSON | `make ecommerce-events-file COUNT=1000` | Criar massa para Kafka/SQS. |
 | GraphQL sob repetição | Bruno ou script externo | Medir tempo do conector e APIs mockadas. |
 | Métricas sob carga | Dashboard e API de métricas | Confirmar ingestão e consulta por trace/correlation. |
 
@@ -29,8 +29,7 @@ Os testes de performance medem como o ecossistema se comporta quando o volume de
 
 1. Subir a stack com `make prepare`.
 2. Garantir mocks cadastrados.
-3. Iniciar o runtime com `make run-ecommerce-case`.
-4. Executar a carga.
+3. Executar a carga com `make ecommerce-performance COUNT=100 CONCURRENCY=8`.
 5. Consultar métricas por workflow, step, status e `trace_id`.
 6. Registrar resultados em `cases/ecommerce-distributed/results/`.
 
@@ -46,4 +45,10 @@ Os testes de performance medem como o ecossistema se comporta quando o volume de
 
 ## Resultado registrado
 
-O projeto já possui gerador de carga REST e geração NDJSON. Os números de throughput, percentis e uso de recursos devem ser preenchidos após execução em ambiente com Docker ativo e mocks disponíveis.
+O runner grava automaticamente:
+
+```text
+cases/ecommerce-distributed/results/latest-performance.json
+```
+
+O arquivo contém total, concluídos, falhos, média, p95, p99, tempo máximo e throughput por segundo.
