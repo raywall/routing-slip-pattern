@@ -101,6 +101,17 @@ function validateStep(step, index, issues) {
       issues.push(error(`${label} filter_array where deve ser objeto ou lista.`));
     }
   }
+  if (step.name === "array_transform") {
+    if (!stringValue(params.source)) {
+      issues.push(error(`${label} array_transform precisa de source.`));
+    }
+    if (params.updates && !Array.isArray(params.updates)) {
+      issues.push(error(`${label} array_transform updates deve ser uma lista.`));
+    }
+    if (params.nested && !Array.isArray(params.nested)) {
+      issues.push(error(`${label} array_transform nested deve ser uma lista.`));
+    }
+  }
   if (step.name === "jump_if") {
     if (!stringValue(params.field)) issues.push(error(`${label} jump_if precisa de field.`));
     if (!stringValue(params.to)) issues.push(error(`${label} jump_if precisa de to com id ou name do step destino.`));

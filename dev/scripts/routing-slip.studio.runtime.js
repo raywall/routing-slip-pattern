@@ -194,6 +194,8 @@ async function executeStep(step, state) {
       return runCEL(params, state);
     case "filter_array":
       return runFilterArray(params, state);
+    case "array_transform":
+      return runArrayTransform(params, state);
     case "enrich":
       return runEnrich(params, state);
     case "transform":
@@ -333,6 +335,94 @@ function evaluateFilterArrayItem(params, state, item, index) {
     return params.where.every((condition) => evaluateConditionConfig(condition, itemState));
   }
   return evaluateAssertConfig(params.where, itemState).matched;
+}
+
+function runArrayTransform(params, state) {
+  const source = params.source || params.field;
+  if (!source) throw new Error("array_transform: source is required");
+  const target = params.target || source;
+  const items = getPath(state.payload, source);
+  if (!Array.isArray(items)) throw new Error(`array_transform: source "${source}" must be an array`);
+
+  const transformed = transformArrayItems(params, state, items, null);
+  setPath(state.payload, target, transformed);
+  state.payload[`${target}_transformed_count`] = transformed.length;
+  addLog("info", "Array transformado", `${transformed.length} item(ns) mantido(s).`, {
+    source,
+    target,
+    transformed_count: transformed.length,
+  });
+  return true;
+}
+
+function transformArrayItems(params, state, items, parent) {
+  return items
+    .map((item, index) => structuredCloneSafe(item))
+    .filter((item, index) => evaluateArrayTransformFilters(params, state, item, index, parent))
+    .map((item, index) => {
+      applyArrayTransformUpdates(params, state, item, index, parent);
+      applyNestedArrayTransforms(params, state, item);
+      return item;
+    });
+}
+
+function evaluateArrayTransformFilters(params, state, item, index, parent) {
+  const filters = params.filters || params.where;
+  if (!filters) return true;
+  return evaluateArrayTransformCondition(filters, state, item, index, parent);
+}
+
+function applyArrayTransformUpdates(params, state, item, index, parent) {
+  for (const update of params.updates || []) {
+    if (update.when && !evaluateArrayTransformCondition(update.when, state, item, index, parent)) continue;
+    for (const [path, value] of Object.entries(update.set || {})) {
+      setPath(item, path, resolveArrayTransformValue(value, state, item, index, parent));
+    }
+  }
+}
+
+function applyNestedArrayTransforms(params, state, item) {
+  for (const nested of params.nested || []) {
+    const source = nested.source || nested.field;
+    if (!source) throw new Error("array_transform: nested.source is required");
+    const target = nested.target || source;
+    const items = getPath(item, source);
+    if (items === undefined) continue;
+    if (!Array.isArray(items)) throw new Error(`array_transform: nested source "${source}" must be an array`);
+    setPath(item, target, transformArrayItems(nested, state, items, item));
+  }
+}
+
+function evaluateArrayTransformCondition(condition, state, item, index, parent) {
+  const payload = {
+    ...state.payload,
+    item,
+    index,
+    parent,
+    today: new Date().toISOString().slice(0, 10),
+    end_of_current_month_plus_2: endOfCurrentMonthPlus(2),
+  };
+  if (typeof condition === "string") return evaluateCELExpression(condition, payload);
+  if (condition.expr || condition.expression) return evaluateCELExpression(condition.expr || condition.expression, payload);
+  const itemState = { ...state, payload };
+  if (Array.isArray(condition)) return condition.every((entry) => evaluateConditionConfig(entry, itemState));
+  return evaluateAssertConfig(condition, itemState).matched;
+}
+
+function resolveArrayTransformValue(value, state, item, index, parent) {
+  if (value && typeof value === "object" && !Array.isArray(value) && value.from) {
+    return getPath({ ...state.payload, item, index, parent }, value.from);
+  }
+  return value;
+}
+
+function structuredCloneSafe(value) {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+function endOfCurrentMonthPlus(months) {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + months + 1, 0).toISOString().slice(0, 10);
 }
 
 function evaluateCELExpression(expression, payload) {

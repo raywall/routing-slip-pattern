@@ -118,6 +118,11 @@ window.RoutingSlipDocs = [
         "file": "content/03-handlers/12-filter-array.md"
       },
       {
+        "id": "handlers-array-transform",
+        "title": "Array transform",
+        "file": "content/03-handlers/13-array-transform.md"
+      },
+      {
         "id": "handlers-graphql",
         "title": "GraphQL enrich",
         "file": "content/03-handlers/08-graphql-enrich.md"

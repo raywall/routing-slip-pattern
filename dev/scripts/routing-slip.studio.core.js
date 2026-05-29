@@ -5,6 +5,7 @@ const handlers = new Set([
   "compute",
   "cel",
   "filter_array",
+  "array_transform",
   "enrich",
   "transform",
   "notify",
