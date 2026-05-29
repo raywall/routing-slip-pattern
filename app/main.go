@@ -45,6 +45,7 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 	r.MustRegister(handlers.ComputeHandler{})
 	r.MustRegister(handlers.CELHandler{})
 	r.MustRegister(handlers.FilterArrayHandler{})
+	r.MustRegister(handlers.ArrayTransformHandler{})
 	r.MustRegister(handlers.TransformHandler{})
 	r.MustRegister(handlers.ConditionGate{})
 	r.MustRegister(handlers.JumpIfHandler{})

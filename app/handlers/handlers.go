@@ -90,7 +90,7 @@ func (EnrichmentHandler) Handle(ctx context.Context, msg *slip.Message, params m
 
 	for k, v := range data {
 		key := prefix + k
-		msg.Set(key, v)
+		msg.Set(key, interpolateAny(v, msg))
 	}
 	// Always stamp enrichment time
 	msg.Set(prefix+"enriched_at", time.Now().Format(time.RFC3339))

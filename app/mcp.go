@@ -378,6 +378,7 @@ func registeredHandlerSpecs() []map[string]any {
 		{"name": "compute", "params": []string{"target", "value"}},
 		{"name": "cel", "params": []string{"expr", "on_false", "to"}},
 		{"name": "filter_array", "params": []string{"source", "target", "where", "expr"}},
+		{"name": "array_transform", "params": []string{"source", "target", "filters", "updates", "nested"}},
 		{"name": "enrich", "params": []string{"data", "prefix"}},
 		{"name": "transform", "params": []string{"field", "operation", "target"}},
 		{"name": "notify", "params": []string{"channel", "recipient", "template"}},

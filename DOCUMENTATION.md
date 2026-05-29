@@ -292,6 +292,7 @@ O runtime expande o arquivo referenciado e prefixa IDs para evitar conflito.
 | `compute` | Criar valores derivados. |
 | `cel` | Avaliar expressoes CEL. |
 | `filter_array` | Filtrar itens de arrays. |
+| `array_transform` | Filtrar arrays, alterar campos dos itens e transformar arrays aninhados. |
 | `enrich` | Adicionar dados estaticos ao payload. |
 | `transform` | Normalizar texto. |
 | `graphql_enrich` | Enriquecer via GraphQL Connector. |
@@ -374,6 +375,31 @@ Operadores: `equals`, `not_equals`, `less_than`, `less_than_or_equal`, `greater_
       field: item.quantity
       greater_than: 0
 ```
+
+### array_transform
+
+Use quando alem de filtrar itens for necessario alterar campos dos itens ou processar arrays aninhados.
+
+```yaml
+- name: array_transform
+  params:
+    source: order.items
+    target: eligible_items
+    filters:
+      expr: "item.status == 'AVAILABLE'"
+    updates:
+      - when:
+          field: item.warehouse
+          equals: MAIN
+        set:
+          priority: HIGH
+    nested:
+      - source: batches
+        filters:
+          expr: "item.expires_at > today"
+```
+
+Durante a avaliacao, o handler disponibiliza `item`, `index`, `parent`, `today` e `end_of_current_month_plus_2`.
 
 ### cel
 

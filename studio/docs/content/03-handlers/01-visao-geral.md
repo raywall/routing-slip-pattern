@@ -10,6 +10,7 @@ Handlers sao unidades pequenas e combináveis. Cada handler recebe o payload atu
 | `compute` | Calcula e grava valores no payload. |
 | `cel` | Avalia expressões CEL e decide erro, salto, continuidade ou parada. |
 | `filter_array` | Remove itens de arrays que nao atendem a uma condição. |
+| `array_transform` | Filtra arrays, altera campos dos itens e transforma arrays aninhados. |
 | `jump_if` | Altera o cursor para uma etapa posterior. |
 | `enrich` | Injeta dados estáticos no payload. |
 | `transform` | Normaliza texto. |
