@@ -68,6 +68,7 @@
 .timeline--docs {
   padding: 0;
   background: var(--surface);
+  overflow-y: auto !important;
 }
 
 .doc-view {
