@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Assert"
+---
+
 # Assert
 
 Use `assert` quando a regra e **obrigatória** e deve falhar o workflow se nao for atendida.

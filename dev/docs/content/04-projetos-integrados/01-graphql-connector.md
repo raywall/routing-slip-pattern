@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "GraphQL Connector"
+---
+
 # GraphQL Connector
 
 O `go-graphql-connector` e a camada de integração usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou serviços externos.

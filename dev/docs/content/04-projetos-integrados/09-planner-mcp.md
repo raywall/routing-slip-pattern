@@ -1,3 +1,8 @@
+---
+sidebar_position: 8
+sidebar_label: "Criação assistida"
+---
+
 # Planner assistido por MCP
 
 O planner assistido por MCP ajuda a transformar descrição, evento, endpoints e pistas de sistemas existentes em um rascunho de workflow. Ele nao executa steps, nao cria arquivos e nao faz merge automático. O objetivo e acelerar a criação com explicabilidade.

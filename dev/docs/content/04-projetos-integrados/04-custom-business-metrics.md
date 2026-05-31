@@ -1,3 +1,8 @@
+---
+sidebar_position: 4
+sidebar_label: "Custom Business Metrics"
+---
+
 # Custom Business Metrics
 
 O `custom-business-metrics` e a camada usada para observar o processamento em tempo real com métricas de negocio, eventos de etapa e dashboards configuráveis.

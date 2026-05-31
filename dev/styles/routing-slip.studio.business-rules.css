@@ -1,0 +1,317 @@
+.workspace-rules {
+  display: grid;
+  gap: 2px;
+  padding: 1px 4px 5px 56px;
+}
+
+.workspace-rule {
+  width: 100%;
+  min-height: 27px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 7px;
+  text-align: left;
+}
+
+.workspace-rule:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.workspace-rule.active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  color: var(--accent-2);
+  font-weight: 800;
+}
+
+.workspace-rule i {
+  font-size: 9px;
+}
+
+.workspace-rule span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-rule em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.workspace-file {
+  grid-template-columns: 14px 18px minmax(0, 1fr) auto;
+}
+
+.workspace-file-toggle {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.timeline--business-rule {
+  padding: 0;
+  overflow-y: auto !important;
+  background: var(--surface);
+}
+
+.business-rule-viewer {
+  width: min(920px, calc(100% - 32px));
+  display: block;
+  min-height: auto;
+  margin: 18px auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-3);
+  box-shadow: var(--shadow);
+}
+
+.business-rule-form-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.business-rule-title-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.business-rule-title-row h3 {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--accent-2);
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.business-rule-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.business-rule-actions .danger {
+  border-color: color-mix(in srgb, var(--error) 32%, var(--border));
+  color: var(--error);
+}
+
+.business-rule-edit-toggle {
+  flex: 0 0 auto;
+}
+
+.business-rule-edit-toggle span {
+  color: var(--muted) !important;
+}
+
+.business-rule-edit-toggle.micro span:first-of-type,
+.business-rule-edit-toggle:not(.micro) span:nth-of-type(2) {
+  color: var(--muted) !important;
+}
+
+.business-rule-edit-toggle:not(.micro) span:first-of-type,
+.business-rule-edit-toggle.micro span:nth-of-type(2) {
+  color: #fff !important;
+}
+
+.business-rule-delete {
+  width: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.business-rule-status {
+  flex: 0 0 auto;
+  max-width: 150px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 16%, var(--surface-2));
+  color: var(--ok);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.business-rule-status--edit {
+  width: 132px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.business-rule-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.business-rule-field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.business-rule-field--full {
+  grid-column: 1 / -1;
+}
+
+.business-rule-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.business-rule-field input,
+.business-rule-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+  outline: none;
+}
+
+.business-rule-field textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.business-rule-field input[readonly],
+.business-rule-field textarea[readonly] {
+  background: color-mix(in srgb, var(--surface) 78%, var(--surface-2));
+}
+
+.business-rule-section-title {
+  margin: 22px 0 12px;
+  padding-left: 10px;
+  border-left: 3px solid var(--warn);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.business-rule-dependencies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.business-rule-dependency {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent-2);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-rule-dependency.disabled {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 78%, var(--surface-2));
+  color: var(--muted);
+}
+
+.business-rule-dependency em {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.business-rule-empty {
+  margin-bottom: 20px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 12px;
+  font-size: 13px;
+}
+
+.business-rule-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.business-rule-navigation span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-rule-navigation button {
+  min-width: 112px;
+}
+
+@media (max-width: 900px) {
+  .business-rule-viewer {
+    width: calc(100% - 18px);
+    padding: 16px;
+  }
+
+  .business-rule-form-head,
+  .business-rule-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .business-rule-title-row,
+  .business-rule-navigation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .business-rule-status,
+  .business-rule-status--edit,
+  .business-rule-edit-toggle {
+    width: 100%;
+    max-width: none;
+  }
+
+  .business-rule-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

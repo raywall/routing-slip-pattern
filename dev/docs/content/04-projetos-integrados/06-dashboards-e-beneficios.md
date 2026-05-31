@@ -1,3 +1,8 @@
+---
+sidebar_position: 6
+sidebar_label: "Dashboards e benefícios"
+---
+
 # Dashboards e benefícios
 
 O dashboard permite acompanhar processos em tempo real sem abrir logs da aplicação.

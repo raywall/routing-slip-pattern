@@ -8,11 +8,45 @@
 }
 
 .timeline {
+  position: relative;
   min-height: 0;
   flex: 1;
   overflow: hidden;
   padding: 14px;
   background: var(--surface-3);
+}
+
+.scroll-log-top {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 15;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--accent-2);
+  box-shadow: 0 12px 30px color-mix(in srgb, #020617 20%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity .18s ease, transform .18s ease, background .18s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.scroll-log-top.visible {
+  opacity: .88;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.scroll-log-top:hover {
+  opacity: 1;
+  background: var(--surface);
 }
 
 .execution-log-tabs {

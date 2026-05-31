@@ -52,7 +52,7 @@ async function collectWorkflowVisualization(workflow, source, seen = new Set()) 
       const ref = workflowRefFile(step);
       const resolved = resolveWorkspaceWorkflow(ref, source);
       const text = await WorkspaceFS.readFile(resolved.handle);
-      const child = window.jsyaml.load(text);
+      const child = workflowScriptFromProjectText(text, resolved.serviceName, resolved.fileName);
       const childSource = { handle: resolved.handle, serviceName: resolved.serviceName, fileName: resolved.fileName };
       item.refs.push({
         step,

@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "Interface"
+---
+
 # Interface
 
 ![Visão geral da interface do Studio](docs/images/studio-interface.jpg)

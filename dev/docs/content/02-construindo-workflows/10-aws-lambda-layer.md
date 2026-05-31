@@ -1,3 +1,8 @@
+---
+sidebar_position: 10
+sidebar_label: "AWS Lambda Layer"
+---
+
 # AWS Lambda Layer
 
 O `routing-slip-pattern` pode ser usado em Lambdas Go. A proposta inicial e publicar uma Lambda Layer com configuracoes, workflows e assets compartilhados em `/opt/routing-slip`, deixando o codigo da Lambda focado em receber o evento, carregar o workflow e acionar o router.

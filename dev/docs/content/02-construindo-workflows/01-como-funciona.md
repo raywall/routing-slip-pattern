@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "Como funciona um workflow?"
+---
+
 # Como funciona funciona o Routing Slip?
 
 Um workflow e um contrato declarativo. Ele descreve a sequencia de handlers que processa um payload, quais campos identificam a mensagem, qual politica de erro deve ser usada e quais etapas podem enriquecer, validar, transformar, auditar ou chamar integrações.

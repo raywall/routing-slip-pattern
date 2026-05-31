@@ -1,5 +1,5 @@
 function clearLogs() {
-  els.timeline.classList.remove("timeline--docs");
+  els.timeline.classList.remove("timeline--docs", "timeline--business-rule");
   els.timeline.innerHTML = "";
   document.querySelector("#workspace-mode-label").textContent = "Execucao";
   document.querySelector("#result-panel-title").textContent = "Logs da execucao";
@@ -86,6 +86,7 @@ function ensureLogSource(sourceKey, sourceLabel = sourceKey) {
   const panel = document.createElement("div");
   panel.className = "execution-log-panel";
   panel.dataset.sourceKey = sourceKey;
+  panel.addEventListener("scroll", updateScrollLogTopButton);
 
   tabs.appendChild(tab);
   panels.appendChild(panel);
@@ -102,6 +103,13 @@ function setActiveLogSource(sourceKey) {
     source.tab.classList.toggle("active", active);
     source.panel.classList.toggle("active", active);
   });
+  updateScrollLogTopButton();
+}
+
+function updateScrollLogTopButton() {
+  if (!els.scrollLogTop) return;
+  const panel = document.querySelector(".execution-log-panel.active") || els.timeline;
+  els.scrollLogTop.classList.toggle("visible", (panel?.scrollTop || 0) > 180);
 }
 
 function recordIntegration(state, integration) {
@@ -238,19 +246,30 @@ function findStepRange(stepIndex) {
     }
     if (inSteps && indent <= stepsIndent && !trimmed.startsWith("- ")) break;
     if (inSteps && /^-\s+(?:id|name)\s*:/.test(trimmed)) {
-      blocks.push({ line: i, start: positions[i] });
+      const commentStart = precedingStepCommentStart(lines, i);
+      blocks.push({ line: i, startLine: commentStart, start: positions[commentStart] });
     }
   }
 
   const block = blocks[stepIndex];
   if (!block) return null;
   const next = blocks[stepIndex + 1];
-  const end = next ? Math.max(block.start, next.start - 1) : text.length;
+  let endLine = next ? next.startLine - 1 : lines.length - 1;
+  while (endLine >= block.line && lines[endLine].trim() === "") endLine -= 1;
+  const end = endLine >= block.line ? positions[endLine] + lines[endLine].length : block.start;
   return {
     start: block.start,
     end,
-    startLine: block.line,
+    startLine: block.startLine,
   };
+}
+
+function precedingStepCommentStart(lines, stepLine) {
+  let cursor = stepLine - 1;
+  while (cursor >= 0 && lines[cursor].trim() === "") cursor -= 1;
+  if (cursor < 0 || !lines[cursor].trim().startsWith("#")) return stepLine;
+  while (cursor >= 0 && lines[cursor].trim().startsWith("#")) cursor -= 1;
+  return cursor + 1;
 }
 
 function lineStartPositions(lines) {

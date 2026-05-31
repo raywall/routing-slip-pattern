@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Configuração do conector"
+---
+
 # Configurações de um conector
 
 O conector usa tres configurações principais:

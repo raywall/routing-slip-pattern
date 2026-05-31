@@ -1,3 +1,8 @@
+---
+sidebar_position: 9
+sidebar_label: "Array transform"
+---
+
 # Array transform
 
 Use `array_transform` quando o workflow precisa tratar listas com mais de uma ação: filtrar itens, alterar campos em cada item e repetir a mesma lógica em arrays internos.

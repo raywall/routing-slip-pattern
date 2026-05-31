@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Testes de caos"
+---
+
 # Testes de caos
 
 Os testes de caos validam se o workflow continua explicável e recuperável quando dependências falham, ficam lentas ou retornam dados inesperados.

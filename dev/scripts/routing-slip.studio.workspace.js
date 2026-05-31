@@ -27,7 +27,7 @@ const WorkspaceFS = {
       const files = [];
       for await (const [fileName, fileHandle] of handle.entries()) {
         if (fileHandle.kind === "file" && /\.(ya?ml)$/i.test(fileName)) {
-          files.push({ name: fileName, handle: fileHandle });
+          files.push({ name: fileName, handle: fileHandle, project: await readWorkspaceProjectSummary(fileHandle) });
         }
       }
       files.sort((a, b) => a.name.localeCompare(b.name));
@@ -121,7 +121,8 @@ function renderWorkspace() {
     button.disabled = !enabled;
   });
   els.newWorkflow.disabled = !enabled || workspaceState.services.length === 0;
-  els.saveWorkflowFile.disabled = !currentWorkspaceFile.handle || !workflowDirty;
+  els.newBusinessRule.disabled = !currentWorkspaceFile.handle;
+  els.saveWorkflowFile.disabled = !currentWorkspaceFile.handle || (!workflowDirty && !projectDirty);
   els.exportWorkflowFile.disabled = !currentWorkspaceFile.handle;
 
   if (!enabled) {
@@ -173,12 +174,16 @@ function renderServiceNode(service) {
 function renderWorkflowFile(serviceName, file) {
   const active = currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === file.name;
   const label = file.name.replace(/\.(ya?ml)$/i, "");
+  const expanded = active || file.project?.expanded;
+  const rules = expanded ? renderBusinessRulesForWorkflow(serviceName, file) : "";
   return `
     <button class="workspace-file ${active ? "active" : ""}" type="button" data-service="${escapeHtml(serviceName)}" data-file="${escapeHtml(file.name)}">
+      <span class="workspace-file-toggle">${(file.project?.rules || []).length ? (expanded ? "▾" : "▸") : ""}</span>
       <i class="workspace-icon" data-lucide="file"></i>
       <span class="workspace-file-name">${escapeHtml(label)}</span>
-      <span class="workspace-dirty">${active && workflowDirty ? "●" : ""}</span>
-    </button>`;
+      <span class="workspace-dirty">${active && (workflowDirty || projectDirty) ? "●" : ""}</span>
+    </button>
+    ${rules}`;
 }
 
 function bindWorkspaceTree() {
@@ -201,9 +206,22 @@ function bindWorkspaceTree() {
       showContextMenu(event.clientX, event.clientY, [
         { label: "Abrir", action: () => openWorkflowFile(button.dataset.service, button.dataset.file) },
         { label: "Salvar", action: () => saveCurrentWorkflowFile() },
+        { label: "Nova regra de negocio", action: () => createBusinessRule(button.dataset.service, button.dataset.file) },
         { label: "Renomear workflow", action: () => renameWorkflow(button.dataset.service, button.dataset.file) },
         { separator: true },
         { label: "Excluir workflow", action: () => deleteWorkflow(button.dataset.service, button.dataset.file), danger: true },
+      ]);
+    });
+  });
+  els.workspaceTree.querySelectorAll(".workspace-rule").forEach((button) => {
+    button.addEventListener("click", () => openBusinessRule(button.dataset.service, button.dataset.file, button.dataset.ruleId));
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, [
+        { label: "Visualizar regra", action: () => openBusinessRule(button.dataset.service, button.dataset.file, button.dataset.ruleId) },
+        { label: "Editar regra", action: () => openBusinessRule(button.dataset.service, button.dataset.file, button.dataset.ruleId, { edit: true }) },
+        { separator: true },
+        { label: "Excluir regra", action: () => deleteBusinessRule(button.dataset.service, button.dataset.file, button.dataset.ruleId), danger: true },
       ]);
     });
   });
@@ -227,9 +245,13 @@ async function openWorkflowFile(serviceName, fileName, options = {}) {
   if (!file) return;
   try {
     if (!options.preserveLogs) invalidateExecutionSnapshot();
-    els.workflow.value = await WorkspaceFS.readFile(file.handle);
+    const raw = await WorkspaceFS.readFile(file.handle);
+    const project = parseWorkflowProject(raw, serviceName, fileName);
+    applyWorkflowProject(project);
     currentWorkspaceFile = { handle: file.handle, serviceName, fileName };
     workflowDirty = false;
+    projectDirty = false;
+    activeBusinessRuleID = "";
     service.expanded = true;
     await StudioDB.set(STUDIO_DB.currentFileKey, { serviceName, fileName });
     renderWorkspace();
@@ -247,8 +269,12 @@ async function saveCurrentWorkflowFile() {
     return;
   }
   try {
-    await WorkspaceFS.writeFile(currentWorkspaceFile.handle, els.workflow.value);
+    await WorkspaceFS.writeFile(currentWorkspaceFile.handle, serializeCurrentWorkflowProject());
     workflowDirty = false;
+    projectDirty = false;
+    const service = findService(currentWorkspaceFile.serviceName);
+    const file = service?.files.find((item) => item.name === currentWorkspaceFile.fileName);
+    if (file) file.project = summarizeCurrentProject();
     renderWorkspace();
     scheduleStudioSave();
   } catch (err) {
@@ -414,7 +440,7 @@ async function renameWorkflow(serviceName, fileName) {
   }
   try {
     const content = currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName
-      ? els.workflow.value
+      ? serializeCurrentWorkflowProject()
       : await WorkspaceFS.readFile(file.handle);
     const newHandle = await WorkspaceFS.createFile(service.handle, newName, content);
     await service.handle.removeEntry(fileName);
@@ -423,6 +449,7 @@ async function renameWorkflow(serviceName, fileName) {
     if (currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName) {
       currentWorkspaceFile = { handle: newHandle, serviceName, fileName: newName };
       workflowDirty = false;
+      projectDirty = false;
       await StudioDB.set(STUDIO_DB.currentFileKey, { serviceName, fileName: newName });
     }
     service.files.sort((a, b) => a.name.localeCompare(b.name));
@@ -440,6 +467,7 @@ async function deleteService(serviceName) {
     if (currentWorkspaceFile.serviceName === serviceName) {
       currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
       workflowDirty = false;
+      projectDirty = false;
       await StudioDB.set(STUDIO_DB.currentFileKey, null);
     }
     await refreshWorkspace();
@@ -458,6 +486,7 @@ async function deleteWorkflow(serviceName, fileName) {
     if (currentWorkspaceFile.serviceName === serviceName && currentWorkspaceFile.fileName === fileName) {
       currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
       workflowDirty = false;
+      projectDirty = false;
       await StudioDB.set(STUDIO_DB.currentFileKey, null);
     }
     renderWorkspace();
@@ -580,7 +609,7 @@ async function expandWorkflowRefsForStudio(workflow, seen = new Set(), source = 
     if (seen.has(key)) throw new Error(`workflow_ref ciclo detectado em ${key}`);
     seen.add(key);
     const text = await WorkspaceFS.readFile(resolved.handle);
-    const child = window.jsyaml.load(text);
+    const child = workflowScriptFromProjectText(text, resolved.serviceName, resolved.fileName);
     if (!child || !Array.isArray(child.steps)) {
       throw new Error(`workflow_ref ${key} nao possui steps validos.`);
     }

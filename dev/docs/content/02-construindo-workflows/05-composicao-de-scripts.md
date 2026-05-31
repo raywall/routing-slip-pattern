@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Composição de scripts"
+---
+
 # Composição de scripts
 
 Workflows longos podem ficar difíceis de analisar em um único arquivo. A composição permite dividir um processo em arquivos menores e depois conecta-los como se fossem um fluxo único.
@@ -36,6 +41,8 @@ steps:
 ```
 
 Ao carregar o workflow, o runtime expande as referencias. Os IDs dos steps filhos recebem prefixo, evitando conflito.
+
+O workflow chamado não cria uma nova execução isolada. Ele herda a mesma mensagem do workflow principal, com `message_id`, `correlation_id`, `trace_id`, headers e payload atual. Essa decisão mantém uma trilha e2e única: logs, métricas, chamadas externas e state store continuam ligados ao mesmo processamento, mesmo quando o fluxo foi dividido em vários arquivos.
 
 ## Path baseado no workspace
 

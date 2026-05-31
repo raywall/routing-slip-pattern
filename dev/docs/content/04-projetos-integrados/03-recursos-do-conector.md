@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Recursos do conector"
+---
+
 # Recursos de um conector
 
 O `go-graphql-connector` permite compor uma fachada de dados sem espalhar logica de integração dentro do workflow.

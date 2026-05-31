@@ -1,3 +1,8 @@
+---
+sidebar_position: 6
+sidebar_label: "Compute"
+---
+
 # Compute
 
 Use `compute` para calcular e gravar um valor no payload.

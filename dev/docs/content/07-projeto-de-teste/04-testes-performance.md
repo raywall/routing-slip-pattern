@@ -1,3 +1,8 @@
+---
+sidebar_position: 4
+sidebar_label: "Testes de performance"
+---
+
 # Testes de performance
 
 Os testes de performance medem como o ecossistema se comporta quando o volume de eventos aumenta. O foco não é apenas medir tempo total, mas entender gargalos por etapa, integração, handler e dependência externa.

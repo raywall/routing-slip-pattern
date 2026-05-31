@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Eventos e consultas"
+---
+
 # Eventos e consultas
 
 Um evento de métrica representa algo que aconteceu no processo.

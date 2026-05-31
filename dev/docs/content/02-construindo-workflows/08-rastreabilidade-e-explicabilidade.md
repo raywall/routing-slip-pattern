@@ -1,3 +1,8 @@
+---
+sidebar_position: 8
+sidebar_label: "Rastreabilidade e explicabilidade"
+---
+
 # Rastreabilidade e explicabilidade
 
 Rastreabilidade mostra onde uma execução passou. Explicabilidade mostra por que ela tomou determinado caminho.

@@ -1,3 +1,8 @@
+---
+sidebar_position: 4
+sidebar_label: "CEL Expressions"
+---
+
 # CEL Expression
 
 O handler `cel` avalia uma [expressão CEL](https://cel.dev/) e espera resultado booleano. Ele pode falhar o workflow, continuar, parar sem erro ou saltar para outra etapa quando a expressao for falsa.

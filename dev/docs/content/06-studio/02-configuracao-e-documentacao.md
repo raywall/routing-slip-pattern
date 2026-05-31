@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Configuração e documentação"
+---
+
 # Configuração e documentação
 
 ![Configurações](docs/images/studio-config.jpg)

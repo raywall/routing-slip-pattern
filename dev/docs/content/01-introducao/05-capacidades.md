@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Capacidades e benefícios"
+---
+
 # Capacidades e benefícios
 
 O Routing Slip Pattern foi pensado para workflows que precisam ser robustos, reutilizáveis, observáveis e fáceis de evoluir. Ele e especialmente util quando o processo possui varias etapas, depende de dados externos ou precisa ser reprocessado com segurança.

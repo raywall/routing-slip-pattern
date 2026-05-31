@@ -18,7 +18,11 @@ function loadExample(key, options = {}) {
   els.workflow.value = example.workflow;
   els.payload.value = JSON.stringify(payload, null, 2);
   currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
+  currentProjectEnvelope = null;
+  currentBusinessRules = [];
+  activeBusinessRuleID = "";
   workflowDirty = false;
+  projectDirty = false;
   renderWorkspace();
   clearLogs();
   lintWorkflow();
@@ -37,6 +41,7 @@ function currentStudioState() {
     mcpApiKey: els.mcpApiKey.value,
     externalApiUrl: els.externalApiUrl.value,
     executeIntegrations: els.integrations.checked,
+    businessRules: currentBusinessRules,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -53,6 +58,7 @@ async function restoreStudioState() {
   if (state.mcpApiKey) els.mcpApiKey.value = state.mcpApiKey;
   if (state.externalApiUrl) els.externalApiUrl.value = state.externalApiUrl;
   els.integrations.checked = Boolean(state.executeIntegrations);
+  currentBusinessRules = Array.isArray(state.businessRules) ? state.businessRules : [];
   return els.workflow.value.trim() !== "";
 }
 
