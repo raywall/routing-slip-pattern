@@ -666,11 +666,67 @@ function mockGraphQLValue(params) {
       itens: [{ produto_id: "SKU-1", quantidade: 1 }],
     };
   }
+  const mockedDataSources = {
+    custodias: [
+      {
+        operacaoId: "2699999999",
+        situacaoOperacao: "ATIVA",
+        codigoSituacaoOperacao: 1,
+        siglaCustodia: "SF",
+        codigoEmpresaContabil: "0341",
+        saldoDevedor: 48000,
+        meioRecebimentoOperacaoCredito: "CONTA_CORRENTE",
+        codigoMeioRecebimentoOperacaoCredito: 1,
+        convenio: { codigoConvenio: "133341" },
+        cliente: { numeroBeneficio: "1234567890" },
+        produto: {
+          codigoProdutoOperacional: 1234,
+          codigoProdutoFinanceiro: 5678,
+          codigoProdutoCreditoLimite: 0,
+        },
+        parcelas: [
+          {
+            numeroParcela: 5,
+            situacaoParcela: "aberta",
+            codigoSituacaoParcela: 1,
+            dataVencimento: "2026-05-15",
+            numeroPlanoAmortizacao: 1,
+            valorParcelaPrincipal: 1200.5,
+            valorJuroParcelaPrincipal: 300.25,
+            valorParcelaOriginal: 1500.75,
+            valorSaldoPrincipal: 45000,
+            valorSaldoPrincipalTotal: 48000,
+          },
+        ],
+      },
+    ],
+    saldos: [
+      {
+        saldo: {
+          saldo_liquido_operacao: 47500,
+          quantidade_dia_atraso: 0,
+          saldo_devedor_operacao_sem_desconto: 48000,
+          saldo_parcelas: [
+            {
+              numero_plano_amortizacao_contratacao: 1,
+              numero_parcela_amortizacao: 5,
+              valor_parcela_amortizacao: 1500.75,
+              valor_liquidacao_antecipada: 1450.75,
+              valor_desconto_abatimento: 50.75,
+            },
+          ],
+        },
+      },
+    ],
+  };
+  if (path === "dataSources.custodias") {
+    return mockedDataSources.custodias;
+  }
+  if (path === "dataSources.saldos") {
+    return mockedDataSources.saldos;
+  }
   if (path.includes("dataSources")) {
-    return {
-      custodias: [{ operacaoId: "2699999999", situacaoOperacao: "ATIVA", siglaCustodia: "SF", saldoDevedor: 48000 }],
-      saldos: [{ saldo: { saldo_liquido_operacao: 47500 } }],
-    };
+    return mockedDataSources;
   }
   return { simulated: true };
 }

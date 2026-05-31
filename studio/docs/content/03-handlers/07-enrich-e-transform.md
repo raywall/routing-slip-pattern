@@ -1,3 +1,8 @@
+---
+sidebar_position: 7
+sidebar_label: "Enrich e transform"
+---
+
 # Enrich
 
 Use `enrich` para adicionar dados ao payload.

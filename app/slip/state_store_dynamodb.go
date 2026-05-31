@@ -3,6 +3,7 @@ package slip
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 )
 
 const dynamoStateSK = "state"
+const dynamoProcessingLockSK = "processing_lock"
 
 // DynamoDBStateStore persists routing slip snapshots in DynamoDB.
 //
@@ -29,6 +31,12 @@ type DynamoDBStateStore struct {
 	ttlDays int
 }
 
+type dynamoProcessingLease struct {
+	store     *DynamoDBStateStore
+	messageID string
+	owner     string
+}
+
 // NewDynamoDBStateStore creates a DynamoDB-backed state store.
 func NewDynamoDBStateStore(client *dynamodb.Client, table string, ttlDays int) (*DynamoDBStateStore, error) {
 	table = strings.TrimSpace(table)
@@ -39,6 +47,75 @@ func NewDynamoDBStateStore(client *dynamodb.Client, table string, ttlDays int) (
 		return nil, fmt.Errorf("dynamodb client is required")
 	}
 	return &DynamoDBStateStore{client: client, table: table, ttlDays: ttlDays}, nil
+}
+
+// TryAcquireProcessing claims a message_id with a conditional DynamoDB write.
+// Expired claims can be replaced by another worker.
+func (s *DynamoDBStateStore) TryAcquireProcessing(ctx context.Context, messageID, owner string, ttl time.Duration) (ProcessingLease, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return nil, false, fmt.Errorf("message_id is required for processing lock")
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	if owner == "" {
+		owner = "dynamodb"
+	}
+	now := time.Now()
+	expiresAt := now.Add(ttl).Unix()
+	_, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.table),
+		Item: map[string]types.AttributeValue{
+			"pk":              &types.AttributeValueMemberS{Value: messageID},
+			"sk":              &types.AttributeValueMemberS{Value: dynamoProcessingLockSK},
+			"message_id":      &types.AttributeValueMemberS{Value: messageID},
+			"owner":           &types.AttributeValueMemberS{Value: owner},
+			"acquired_at":     &types.AttributeValueMemberS{Value: now.UTC().Format(time.RFC3339Nano)},
+			"expires_at":      &types.AttributeValueMemberN{Value: strconv.FormatInt(expiresAt, 10)},
+			"updated_at":      &types.AttributeValueMemberS{Value: now.UTC().Format(time.RFC3339Nano)},
+			"updated_at_unix": &types.AttributeValueMemberN{Value: strconv.FormatInt(now.Unix(), 10)},
+		},
+		ConditionExpression: aws.String("attribute_not_exists(pk) OR expires_at < :now"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":now": &types.AttributeValueMemberN{Value: strconv.FormatInt(now.Unix(), 10)},
+		},
+	})
+	if err != nil {
+		var conditional *types.ConditionalCheckFailedException
+		if errors.As(err, &conditional) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return dynamoProcessingLease{store: s, messageID: messageID, owner: owner}, true, nil
+}
+
+func (l dynamoProcessingLease) Release(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := l.store.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(l.store.table),
+		Key: map[string]types.AttributeValue{
+			"pk": &types.AttributeValueMemberS{Value: l.messageID},
+			"sk": &types.AttributeValueMemberS{Value: dynamoProcessingLockSK},
+		},
+		ConditionExpression: aws.String("owner = :owner"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":owner": &types.AttributeValueMemberS{Value: l.owner},
+		},
+	})
+	if err != nil {
+		var conditional *types.ConditionalCheckFailedException
+		if errors.As(err, &conditional) {
+			return nil
+		}
+	}
+	return err
 }
 
 // Save writes or replaces the current snapshot.

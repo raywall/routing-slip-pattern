@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Estratégia com Routing Slip"
+---
+
 # Estratégia com Routing Slip
 
 A estratégia adotada foi dividir o processo em workflows menores, cada um com uma responsabilidade clara. O workflow principal funciona como a trilha de orquestração, enquanto os subfluxos tratam contexto, entrega e operações.

@@ -120,6 +120,9 @@ state_store:
   idempotency:
     enabled: true
     key_template: "{workflow}:{message_id}:{step_index}:{step}"
+  processing_lock:
+    enabled: true
+    ttl_seconds: 300
 
 mcp:
   enabled: false
@@ -425,7 +428,23 @@ state_store:
   idempotency:
     enabled: true
     key_template: "{workflow}:{message_id}:{step_index}:{step}"
+  processing_lock:
+    enabled: true
+    ttl_seconds: 300
 ```
+
+O `processing_lock` protege a entrada do workflow por `message_id`. Quando duas instancias recebem o mesmo item ao mesmo tempo, apenas uma adquire o processamento; a outra recebe conflito no conector REST ou mantém o evento para nova tentativa no conector de fila. Isso evita duplicidade antes mesmo de existir um snapshot salvo.
+
+Quando o mesmo `message_id` já possui snapshot `completed`, o runtime retorna o snapshot persistido sem executar as etapas novamente. Assim, retries tardios, redeliveries de fila e chamadas REST duplicadas não repetem integrações externas nem ações de negócio.
+
+| Campo | Uso |
+| --- | --- |
+| `idempotency.enabled` | Evita repetir etapas ja concluídas em reprocessamentos. |
+| `idempotency.key_template` | Define a chave durável da etapa. |
+| `processing_lock.enabled` | Evita processamento simultâneo do mesmo `message_id`. |
+| `processing_lock.ttl_seconds` | Tempo máximo do lock antes de ser considerado expirado. |
+
+Use `message_id_path` para um identificador funcional estável do item, como `event_id`, `order_id` ou outro ID de negócio. Esse campo é a base para retomada, idempotência e proteção contra duplicidade. O `correlation_id` identifica a jornada ponta a ponta.
 
 ## Resiliencia
 
@@ -481,7 +500,7 @@ No Studio, o path recomendado parte da raiz do workspace: `microservico/workflow
 
 O Studio valida se o workflow referenciado existe no workspace aberto. O runtime tambem aceita esse formato quando o workflow principal esta dentro de uma pasta de contexto. Caminhos relativos com `./` ou `../` continuam aceitos por compatibilidade, mas devem ser usados apenas quando fizerem sentido fora do workspace.
 
-O runtime expande o arquivo referenciado e prefixa IDs para evitar conflito.
+O runtime expande o arquivo referenciado e prefixa IDs para evitar conflito. O workflow referenciado herda a mesma mensagem do workflow principal, incluindo `message_id`, `correlation_id`, `trace_id`, headers e payload atual. Com isso, a rastreabilidade e2e permanece contínua mesmo quando o processo é dividido em vários arquivos.
 
 ## Handlers disponiveis
 
@@ -702,6 +721,7 @@ curl -s http://localhost:9091/mcp \
 O Studio oferece:
 
 - workspace local por pastas e arquivos YAML;
+- arquivo de projeto do Studio com configuracao, payload, workflow e regras de negocio;
 - editor com lint, linhas, comentarios, indentacao e atalhos;
 - payload de entrada em JSON;
 - configuracao de endpoints REST, GraphQL e MCP;
@@ -710,6 +730,7 @@ O Studio oferece:
 - logs agrupados por etapa, separados por arquivo quando o workflow usa `workflow_ref`, com abas de navegacao por script executado;
 - camada de loading bloqueante sobre os logs durante o processamento para evitar interacao enquanto a execucao ainda esta em andamento;
 - foco automatico no arquivo e na etapa de origem ao clicar em um log;
+- visualizacao e edicao de regras de negocio associadas a cada usecase;
 - resumo por arquivo executado, com tempo total, integracoes, erros e identificadores (`trace_id`, `correlation_id`) em campos dedicados;
 - reprocessamento local;
 - validacao e explicacao de workflow via MCP;
@@ -718,7 +739,101 @@ O Studio oferece:
 - tema claro/escuro;
 - modo mobile focado em leitura.
 
+A documentacao do Studio e montada a partir de arquivos Markdown em `studio/docs/content`. Cada pasta possui um `index.md` com `sidebar_position` e `sidebar_label`, e cada arquivo de conteudo possui o mesmo front matter para ordenar e nomear os subitens. O arquivo `studio/docs/manifest.json` lista os arquivos publicados; a interface lê os headers e monta a navegacao sem depender de uma estrutura JavaScript fixa.
+
 No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
+
+### Arquivo de projeto do Studio
+
+O Studio aceita workflows YAML puros, mas ao salvar um usecase pode registrar um projeto mais completo. Esse arquivo guarda tudo que o usuario precisa para retomar a construcao e os testes sem reconfigurar o ambiente:
+
+```yaml
+service: exemplos
+usecase: recebe-evento-sqs
+
+project_settings:
+  use_real_integrations: true
+  integrations:
+    graphql_endpoint: http://localhost:8090/graphql
+    rest_workflow_endpoint: http://localhost:8088/process
+    external_api_url: https://mock.example.test
+  mcp_server:
+    mcp_endpoint: http://localhost:9091/mcp
+    mcp_api_key: ""
+
+payload_data: |
+  {
+    "request_id": "REQ-1001",
+    "product_id": "SKU-200",
+    "correlation_id": "7331809a-1b6a-4636-9b76-c5b4f483136b"
+  }
+
+workflow_script:
+  name: recebe-evento-sqs
+  error_policy: stop
+  message_id_path: request_id
+  correlation_id_path: correlation_id
+  steps:
+    - name: validate
+      params:
+        required:
+          - request_id
+          - product_id
+
+business_rules: []
+```
+
+Ao exportar, o Studio gera apenas o `workflow_script`, removendo metadados de projeto.
+
+### Business rules
+
+As regras de negocio documentam as decisoes que o workflow representa. Cada regra possui quatro visoes:
+
+| Visao | Objetivo |
+| --- | --- |
+| `human_context` | Explicar a regra para pessoas de produto, operacao e negocio. |
+| `engineering_context` | Registrar aplicacao, tipo, repositorio e ponto de entrada técnico. |
+| `ai_logic` | Orientar modelos LLM/MCP sobre como interpretar, investigar ou validar a regra. |
+| `technical_metadata` | Registrar dependencias, monitores, metricas e marcadores de log. |
+
+Exemplo neutro:
+
+```yaml
+rule_id: validacao_entrega_expressa_01
+domain: ecommerce
+context: checkout
+execution_order: 1
+status: ACTIVE
+human_context:
+  name: Elegibilidade para entrega expressa
+  description: >
+    A entrega expressa so pode ser oferecida quando o produto esta disponivel
+    no centro de distribuicao da regiao e o pedido foi confirmado ate 14h.
+  business_owner: Squad Experiencia de Entrega
+engineering_context:
+  application_name: order-fulfillment
+  application_type: workflow
+  repository_url: https://github.com/example/order-fulfillment
+  entrypoint: workflows/delivery/express-eligibility.yaml
+ai_logic: >
+  Ao investigar atraso em entrega expressa, valide disponibilidade regional,
+  horario de confirmacao do pedido e resultado da regra de elegibilidade.
+technical_metadata:
+  dependencies:
+    - system: estoque_regional_disponivel_01
+      action: business-rule
+  observability:
+    datadog_monitor_id:
+      - "123456"
+    custom_metric:
+      - delivery.express.eligible
+    log_markers:
+      - order_id
+```
+
+No workspace, as regras aparecem como subitens do usecase. Ao clicar em uma regra, ela e exibida no painel de resultado em formato de formulario, com campos separados para visao humana, engenharia, IA, observabilidade e dependencias. A tela evita editar YAML cru e reduz o risco de quebrar a estrutura esperada pelo Studio.
+
+Quando o usecase possui mais de uma regra, os botoes **Anterior** e **Proxima** permitem navegar entre elas. Dependencias declaradas com `action: business-rule` viram links para a regra relacionada; ao abrir uma dependencia, o botao **Voltar** retorna para a regra que originou a navegacao. Ao excluir uma regra, o Studio avisa quando outra regra do mesmo usecase declara dependencia dela.
 
 ## Case ecommerce distribuido
 

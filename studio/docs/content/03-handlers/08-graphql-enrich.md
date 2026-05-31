@@ -1,3 +1,8 @@
+---
+sidebar_position: 10
+sidebar_label: "GraphQL enrich"
+---
+
 # GraphQL enrich
 
 Use `graphql_enrich` para buscar dados no go-graphql-connector.

@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Audit e notify"
+---
+
 # Audit e Notify
 
 Use `audit` para registrar evidencia funcional.

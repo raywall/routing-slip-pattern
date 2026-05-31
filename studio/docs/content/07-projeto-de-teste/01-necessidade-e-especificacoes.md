@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "Necessidade e especificações"
+---
+
 # Necessidade e especificações
 
 O projeto de teste existe para validar o ecossistema em um cenário distribuído, observável e reprocessável, sem depender de um domínio regulado ou sensível. O cenário escolhido é o atendimento e entrega de um pedido confirmado em e-commerce.

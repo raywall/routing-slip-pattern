@@ -96,18 +96,24 @@ type MetricsConfig struct {
 }
 
 type StateStoreConfig struct {
-	Type        string                 `yaml:"type"`
-	Path        string                 `yaml:"path"`
-	Table       string                 `yaml:"table"`
-	Endpoint    string                 `yaml:"endpoint"`
-	Region      string                 `yaml:"region"`
-	TTLDays     int                    `yaml:"ttl_days"`
-	Idempotency StateIdempotencyConfig `yaml:"idempotency"`
+	Type           string                    `yaml:"type"`
+	Path           string                    `yaml:"path"`
+	Table          string                    `yaml:"table"`
+	Endpoint       string                    `yaml:"endpoint"`
+	Region         string                    `yaml:"region"`
+	TTLDays        int                       `yaml:"ttl_days"`
+	Idempotency    StateIdempotencyConfig    `yaml:"idempotency"`
+	ProcessingLock StateProcessingLockConfig `yaml:"processing_lock"`
 }
 
 type StateIdempotencyConfig struct {
 	Enabled     bool   `yaml:"enabled"`
 	KeyTemplate string `yaml:"key_template"`
+}
+
+type StateProcessingLockConfig struct {
+	Enabled    *bool `yaml:"enabled"`
+	TTLSeconds int   `yaml:"ttl_seconds"`
 }
 
 type MCPConfig struct {
@@ -195,7 +201,15 @@ func loadWorkflowConfigWithStack(path string, stack map[string]bool) (*WorkflowC
 
 	expanded := expandEnvDefaults(string(data))
 	var workflow WorkflowConfig
-	if err := yaml.Unmarshal([]byte(expanded), &workflow); err != nil {
+	var project struct {
+		WorkflowScript *WorkflowConfig `yaml:"workflow_script"`
+	}
+	if err := yaml.Unmarshal([]byte(expanded), &project); err != nil {
+		return nil, fmt.Errorf("invalid workflow %q: %w", path, err)
+	}
+	if project.WorkflowScript != nil {
+		workflow = *project.WorkflowScript
+	} else if err := yaml.Unmarshal([]byte(expanded), &workflow); err != nil {
 		return nil, fmt.Errorf("invalid workflow %q: %w", path, err)
 	}
 	applyWorkflowDefaults(&workflow)
@@ -568,6 +582,13 @@ func applyConfigDefaults(cfg *AppConfig) {
 	}
 	if strings.TrimSpace(cfg.StateStore.Idempotency.KeyTemplate) == "" {
 		cfg.StateStore.Idempotency.KeyTemplate = "{workflow}:{message_id}:{step_index}:{step}"
+	}
+	if cfg.StateStore.ProcessingLock.Enabled == nil {
+		enabled := true
+		cfg.StateStore.ProcessingLock.Enabled = &enabled
+	}
+	if cfg.StateStore.ProcessingLock.TTLSeconds <= 0 {
+		cfg.StateStore.ProcessingLock.TTLSeconds = 300
 	}
 	if cfg.Features.MCPEnabled {
 		cfg.MCP.Enabled = true

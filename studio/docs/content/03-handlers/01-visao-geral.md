@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "O que é um handler?"
+---
+
 # Visão geral
 
 Handlers sao unidades pequenas e combináveis. Cada handler recebe o payload atual, seus `params` e decide se altera o payload, interrompe o fluxo, registra informações ou chama uma integração.

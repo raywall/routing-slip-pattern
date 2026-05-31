@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+sidebar_label: "Visão Geral"
+---
+
 # Visão geral do projeto
 
 O `routing-slip-pattern` e um framework para construir workflows modulares, rastreáveis e reprocessáveis. Ele permite descrever o fluxo em YAML, executar cada etapa com handlers reutilizáveis, enriquecer o payload com dados externos, registrar métricas e retomar o processamento do ponto correto quando algo falha.

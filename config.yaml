@@ -47,6 +47,9 @@ state_store:
   idempotency:
     enabled: ${STATE_STORE_IDEMPOTENCY_ENABLED:-true}
     key_template: "{workflow}:{message_id}:{step_index}:{step}"
+  processing_lock:
+    enabled: ${STATE_STORE_PROCESSING_LOCK_ENABLED:-true}
+    ttl_seconds: ${STATE_STORE_PROCESSING_LOCK_TTL_SECONDS:-300}
 
 mcp:
   enabled: ${ROUTING_SLIP_MCP_ENABLED:-false}

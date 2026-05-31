@@ -1,3 +1,8 @@
+---
+sidebar_position: 7
+sidebar_label: "MCP e planner assistido"
+---
+
 # MCP e planner assistido
 
 O MCP Gateway expõe capacidades internas do ecossistema como ferramentas consultáveis por Studio, agentes e automações de suporte. A ideia nao e substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.

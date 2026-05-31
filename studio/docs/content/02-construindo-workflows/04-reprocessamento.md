@@ -1,3 +1,8 @@
+---
+sidebar_position: 4
+sidebar_label: "Reprocessamento"
+---
+
 # Reprocessamento
 
 Reprocessar nao significa executar tudo novamente. No Routing Slip, reprocessar significa carregar o snapshot salvo, recuperar o cursor e continuar da etapa correta.

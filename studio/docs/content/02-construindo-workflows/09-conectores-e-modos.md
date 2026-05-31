@@ -1,3 +1,8 @@
+---
+sidebar_position: 9
+sidebar_label: "Conectores e modos de execução"
+---
+
 # Conectores e modos de execucao
 
 O workflow pode ser iniciado por diferentes origens sem alterar o desenho das etapas. Essa separacao ajuda a reaproveitar o mesmo processo em uma API REST, em um topico Kafka, em uma fila SQS ou em uma inscricao SNS.

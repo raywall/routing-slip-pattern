@@ -1,3 +1,8 @@
+---
+sidebar_position: 6
+sidebar_label: "Resiliência e escalabilidade"
+---
+
 # Resiliência e escalabilidade
 
 Workflows reais dependem de rede, APIs, bancos, filas e serviços externos. Esses componentes podem falhar temporariamente. A resiliência por etapa permite declarar como o runtime deve reagir sem duplicar logica em cada handler.

@@ -26,6 +26,7 @@ const els = {
   title: document.querySelector("#workflow-title"),
   lineCount: document.querySelector("#line-count"),
   timeline: document.querySelector("#timeline"),
+  scrollLogTop: document.querySelector("#scroll-log-top"),
   processingOverlay: document.querySelector("#execution-loading"),
   processingTitle: document.querySelector("#execution-loading-title"),
   processingCopy: document.querySelector("#execution-loading-copy"),
@@ -47,6 +48,7 @@ const els = {
   openWorkspace: document.querySelector("#open-workspace"),
   newService: document.querySelector("#new-service"),
   newWorkflow: document.querySelector("#new-workflow"),
+  newBusinessRule: document.querySelector("#new-business-rule"),
   saveWorkflowFile: document.querySelector("#save-workflow-file"),
   exportWorkflowFile: document.querySelector("#export-workflow-file"),
   refreshWorkspace: document.querySelector("#refresh-workspace"),
@@ -93,6 +95,11 @@ let currentWorkspaceFile = {
   fileName: "",
 };
 let workflowDirty = false;
+let projectDirty = false;
+let currentProjectEnvelope = null;
+let currentBusinessRules = [];
+let activeBusinessRuleID = "";
+let businessRuleBackStack = [];
 let activeRuntimeWorkflow = null;
 let lastExecutionSnapshot = null;
 
@@ -122,12 +129,14 @@ function bindEvents() {
   els.payload.addEventListener("input", () => {
     invalidateExecutionSnapshot();
     validatePayload();
+    markProjectDirty();
     scheduleStudioSave();
   });
   els.payload.addEventListener("keydown", handlePayloadKeydown);
   [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.mcpEndpoint, els.mcpApiKey, els.externalApiUrl, els.integrations].forEach((input) => {
     input.addEventListener("change", () => {
       invalidateExecutionSnapshot();
+      markProjectDirty();
       scheduleStudioSave();
     });
   });
@@ -160,9 +169,11 @@ function bindEvents() {
   els.openWorkspace.addEventListener("click", openWorkspace);
   els.newService.addEventListener("click", createService);
   els.newWorkflow.addEventListener("click", createWorkflowInActiveService);
+  els.newBusinessRule.addEventListener("click", createBusinessRuleForCurrentWorkflow);
   els.saveWorkflowFile.addEventListener("click", saveCurrentWorkflowFile);
   els.exportWorkflowFile.addEventListener("click", exportComposedWorkflow);
   els.refreshWorkspace.addEventListener("click", refreshWorkspace);
+  els.scrollLogTop?.addEventListener("click", scrollActiveLogPanelToTop);
   document.addEventListener("click", dismissContextMenu);
   document.addEventListener("keydown", (event) => {
     if (event.defaultPrevented) return;

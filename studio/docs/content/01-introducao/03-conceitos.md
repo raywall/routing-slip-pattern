@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Conceitos fundamentais"
+---
+
 # Conceitos fundamentais
 
 Antes de escrever workflows, vale alinhar alguns conceitos. Eles aparecem no Studio, nos arquivos YAML e nas métricas geradas durante a execução.

@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="./styles/routing-slip.studio.editor.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.lint.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.workspace.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.business-rules.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.documentation.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.execution.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.summary.css" />
@@ -52,6 +53,7 @@
               <button id="open-workspace" class="icon-button" type="button" title="Abrir workspace" aria-label="Abrir workspace"><i data-lucide="folder-open"></i></button>
               <button id="new-service" class="icon-button" type="button" title="Novo microservico" aria-label="Novo microservico" disabled><i data-lucide="folder-plus"></i></button>
               <button id="new-workflow" class="icon-button" type="button" title="Novo workflow" aria-label="Novo workflow" disabled><i data-lucide="file-plus"></i></button>
+              <button id="new-business-rule" class="icon-button" type="button" title="Nova regra de negócio" aria-label="Nova regra de negócio" disabled><i data-lucide="list-plus"></i></button>
               <button id="save-workflow-file" class="icon-button" type="button" title="Salvar workflow" aria-label="Salvar workflow" disabled><i data-lucide="save"></i></button>
               <button id="export-workflow-file" class="icon-button" type="button" title="Exportar workflow composto" aria-label="Exportar workflow composto" disabled><i data-lucide="download"></i></button>
               <button id="refresh-workspace" class="icon-button" type="button" title="Atualizar workspace" aria-label="Atualizar workspace" disabled><i data-lucide="refresh-cw"></i></button>
@@ -167,6 +169,9 @@
           <span id="result-panel-meta">Timeline</span>
         </div>
         <div id="timeline" class="timeline"></div>
+        <button id="scroll-log-top" class="scroll-log-top" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">
+          <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+        </button>
         <div id="execution-loading" class="execution-loading" aria-hidden="true">
           <div class="loading-card" role="status" aria-live="polite">
             <div class="loading-orbit" aria-hidden="true">
@@ -220,7 +225,6 @@
     
     <script>
       window.RoutingSlipStudioAssetVersion = String(Date.now());
-      document.write(`<script src="./docs/documentation.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
       document.write(`<script src="./docs/viewer.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
     </script>
 
@@ -230,6 +234,7 @@
     <script src="./scripts/routing-slip.studio.editor.js"></script>
     <script src="./scripts/routing-slip.studio.sidebar.js"></script>
     <script src="./scripts/routing-slip.studio.workspace.js"></script>
+    <script src="./scripts/routing-slip.studio.business-rules.js"></script>
     <script src="./scripts/routing-slip.studio.lint.js"></script>
     <script src="./scripts/routing-slip.studio.payload.js"></script>
     <script src="./scripts/routing-slip.studio.runtime.js"></script>

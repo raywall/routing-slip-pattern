@@ -64,8 +64,9 @@ o conteudo navegavel da documentacao. Ao clicar em um subitem, o conteudo e
 exibido na area principal onde normalmente aparecem os logs da execucao.
 
 Sempre que `DOCUMENTATION.md` for atualizado por causa de uma funcionalidade,
-atualize tambem `studio/docs/documentation.js` para manter a experiencia do
-Studio alinhada com a documentacao principal.
+atualize tambem os arquivos Markdown em `studio/docs/content`. Cada arquivo usa
+front matter com `sidebar_position` e `sidebar_label`; o Studio monta a arvore
+de navegacao a partir de `studio/docs/manifest.json` e desses headers.
 
 ## Organizacao dos assets
 

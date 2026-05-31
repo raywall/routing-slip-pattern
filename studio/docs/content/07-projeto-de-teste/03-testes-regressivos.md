@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Testes regressivos"
+---
+
 # Testes regressivos
 
 Os testes regressivos garantem que mudanças no runtime, nos handlers, no conector GraphQL, no Studio ou nos mocks não quebrem o comportamento esperado do cenário.

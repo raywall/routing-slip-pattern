@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Condition"
+---
+
 # Condition
 
 Use `condition` para interromper o fluxo de forma graciosa, sem tratar como erro técnico.

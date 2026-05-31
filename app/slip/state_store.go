@@ -15,15 +15,37 @@ import (
 // ErrStateNotFound indicates that no snapshot exists for a message.
 var ErrStateNotFound = errors.New("routing-slip state not found")
 
+// ErrProcessingLocked indicates that another worker is already processing the
+// same message_id.
+var ErrProcessingLocked = errors.New("routing-slip message is already being processed")
+
 // IsStateNotFound reports whether err means no snapshot exists.
 func IsStateNotFound(err error) bool {
 	return errors.Is(err, ErrStateNotFound)
+}
+
+// IsProcessingLocked reports whether err means the message is currently claimed
+// by another worker.
+func IsProcessingLocked(err error) bool {
+	return errors.Is(err, ErrProcessingLocked)
 }
 
 // StateStore persists routing slip execution state by message ID.
 type StateStore interface {
 	Save(ctx context.Context, snapshot MessageSnapshot) error
 	Load(ctx context.Context, messageID string) (MessageSnapshot, error)
+}
+
+// ProcessingLease represents an acquired processing claim. Releasing the lease
+// allows another worker to process the same message_id later.
+type ProcessingLease interface {
+	Release(ctx context.Context) error
+}
+
+// ProcessingLocker is implemented by stores that can prevent concurrent
+// processing of the same message_id across workers.
+type ProcessingLocker interface {
+	TryAcquireProcessing(ctx context.Context, messageID, owner string, ttl time.Duration) (ProcessingLease, bool, error)
 }
 
 // SnapshotFilter filters stored snapshots for diagnostic tools.
@@ -48,12 +70,37 @@ type StateSnapshotLister interface {
 type MemoryStateStore struct {
 	mu        sync.RWMutex
 	snapshots map[string]MessageSnapshot
+	locks     map[string]memoryProcessingLock
+}
+
+type memoryProcessingLock struct {
+	owner     string
+	expiresAt time.Time
+}
+
+type memoryProcessingLease struct {
+	store     *MemoryStateStore
+	messageID string
+	owner     string
+}
+
+func (l memoryProcessingLease) Release(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	l.store.mu.Lock()
+	defer l.store.mu.Unlock()
+	if lock, ok := l.store.locks[l.messageID]; ok && lock.owner == l.owner {
+		delete(l.store.locks, l.messageID)
+	}
+	return nil
 }
 
 // NewMemoryStateStore creates an in-memory state store.
 func NewMemoryStateStore() *MemoryStateStore {
 	return &MemoryStateStore{
 		snapshots: make(map[string]MessageSnapshot),
+		locks:     make(map[string]memoryProcessingLock),
 	}
 }
 
@@ -82,6 +129,31 @@ func (s *MemoryStateStore) Load(ctx context.Context, messageID string) (MessageS
 	return snapshot, nil
 }
 
+// TryAcquireProcessing claims a message_id for one worker at a time.
+func (s *MemoryStateStore) TryAcquireProcessing(ctx context.Context, messageID, owner string, ttl time.Duration) (ProcessingLease, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return nil, false, fmt.Errorf("message_id is required for processing lock")
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	if owner == "" {
+		owner = "memory"
+	}
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if lock, ok := s.locks[messageID]; ok && lock.expiresAt.After(now) {
+		return nil, false, nil
+	}
+	s.locks[messageID] = memoryProcessingLock{owner: owner, expiresAt: now.Add(ttl)}
+	return memoryProcessingLease{store: s, messageID: messageID, owner: owner}, true, nil
+}
+
 // List returns snapshots matching the filter.
 func (s *MemoryStateStore) List(ctx context.Context, filter SnapshotFilter) ([]MessageSnapshot, error) {
 	if err := ctx.Err(); err != nil {
@@ -107,6 +179,40 @@ func (s *MemoryStateStore) List(ctx context.Context, filter SnapshotFilter) ([]M
 type FileStateStore struct {
 	dir string
 	mu  sync.Mutex
+}
+
+type fileProcessingLock struct {
+	MessageID  string    `json:"message_id"`
+	Owner      string    `json:"owner"`
+	AcquiredAt time.Time `json:"acquired_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+type fileProcessingLease struct {
+	store     *FileStateStore
+	messageID string
+	owner     string
+}
+
+func (l fileProcessingLease) Release(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	l.store.mu.Lock()
+	defer l.store.mu.Unlock()
+	path := l.store.lockPath(l.messageID)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var lock fileProcessingLock
+	if json.Unmarshal(data, &lock) == nil && lock.Owner != l.owner {
+		return nil
+	}
+	return os.Remove(path)
 }
 
 // NewFileStateStore creates a file-backed state store under dir.
@@ -194,6 +300,71 @@ func (s *FileStateStore) List(ctx context.Context, filter SnapshotFilter) ([]Mes
 
 func (s *FileStateStore) path(messageID string) string {
 	return filepath.Join(s.dir, safeStateFileName(messageID)+".json")
+}
+
+func (s *FileStateStore) lockPath(messageID string) string {
+	return filepath.Join(s.dir, safeStateFileName(messageID)+".lock")
+}
+
+// TryAcquireProcessing claims a message_id using an atomic lock file. Stale
+// locks are replaced after ttl.
+func (s *FileStateStore) TryAcquireProcessing(ctx context.Context, messageID, owner string, ttl time.Duration) (ProcessingLease, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return nil, false, fmt.Errorf("message_id is required for processing lock")
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	if owner == "" {
+		owner = "file"
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path := s.lockPath(messageID)
+	now := time.Now()
+	if data, err := os.ReadFile(path); err == nil {
+		var lock fileProcessingLock
+		if json.Unmarshal(data, &lock) == nil && lock.ExpiresAt.After(now) {
+			return nil, false, nil
+		}
+		_ = os.Remove(path)
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, false, err
+	}
+
+	lock := fileProcessingLock{
+		MessageID:  messageID,
+		Owner:      owner,
+		AcquiredAt: now,
+		ExpiresAt:  now.Add(ttl),
+	}
+	data, err := json.Marshal(lock)
+	if err != nil {
+		return nil, false, err
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return nil, false, err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return nil, false, err
+	}
+	return fileProcessingLease{store: s, messageID: messageID, owner: owner}, true, nil
 }
 
 func safeStateFileName(value string) string {

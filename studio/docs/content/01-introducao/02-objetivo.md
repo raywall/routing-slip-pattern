@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Objetivo"
+---
+
 # Objetivo do projeto
 
 O objetivo do projeto e oferecer uma base para workflows resilientes, robustos, escaláveis, reutilizáveis, observáveis, seguros e modulares.

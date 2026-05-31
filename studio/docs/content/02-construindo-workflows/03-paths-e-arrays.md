@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Paths e arrays"
+---
+
 # Paths e arrays
 
 Paths sao caminhos em notação de ponto usados para ler valores dentro do payload. Eles aparecem em validações, asserts, computações, integrações, auditoria e filtros.

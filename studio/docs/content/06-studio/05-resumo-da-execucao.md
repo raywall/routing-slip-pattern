@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+sidebar_label: "Resumo detalhado da execução"
+---
+
 # Logs e resumo de uma execução
 
 ![Logs de execução das etapas](docs/images/studio-result.jpg#right-table)

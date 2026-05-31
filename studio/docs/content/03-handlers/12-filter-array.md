@@ -1,3 +1,8 @@
+---
+sidebar_position: 8
+sidebar_label: "Filter array"
+---
+
 Use `filter_array` para remover itens de um array antes das próximas etapas.
 
 O handler pode sobrescrever o array original ou gravar a lista filtrada em outro campo.

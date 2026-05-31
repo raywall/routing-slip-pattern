@@ -121,6 +121,24 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 		messageID = correlationID
 	}
 
+	lease, acquired, err := r.acquireProcessingLease(ctx, messageID)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, fmt.Errorf("%w: %s", slip.ErrProcessingLocked, messageID)
+	}
+	if lease != nil {
+		defer func() {
+			if err := lease.Release(context.Background()); err != nil {
+				r.logger.Warn("processing lease release failed",
+					slog.String("message_id", messageID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}()
+	}
+
 	msg := slip.NewMessage(messageID, payload)
 	if snapshot, err := r.store.Load(ctx, messageID); err == nil {
 		msg = slip.MessageFromSnapshot(snapshot)
@@ -145,6 +163,13 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 	} else {
 		msg.Headers["correlation_id"] = msg.CorrelationID
 	}
+	if msg.Status == "completed" && msg.RemainingSteps() == 0 {
+		r.logger.Info("message already completed; returning persisted snapshot",
+			slog.String("message_id", msg.ID),
+			slog.String("correlation_id", msg.CorrelationID),
+		)
+		return msg, nil
+	}
 	if trace, ok := slip.ParseTraceparent(msg.Headers["traceparent"]); ok {
 		msg.TraceID = trace.TraceID
 		msg.SpanID = trace.SpanID
@@ -152,8 +177,21 @@ func (r *AppRuntime) processPayload(ctx context.Context, payload map[string]any,
 		msg.TraceID = traceID
 	}
 
-	err := r.router.Process(ctx, msg)
+	err = r.router.Process(ctx, msg)
 	return msg, err
+}
+
+func (r *AppRuntime) acquireProcessingLease(ctx context.Context, messageID string) (slip.ProcessingLease, bool, error) {
+	if r.config.StateStore.ProcessingLock.Enabled != nil && !*r.config.StateStore.ProcessingLock.Enabled {
+		return nil, true, nil
+	}
+	locker, ok := r.store.(slip.ProcessingLocker)
+	if !ok || locker == nil {
+		return nil, true, nil
+	}
+	ttl := time.Duration(r.config.StateStore.ProcessingLock.TTLSeconds) * time.Second
+	owner := fmt.Sprintf("%s:%s:%d", r.config.Service.Name, r.config.Service.RunID, os.Getpid())
+	return locker.TryAcquireProcessing(ctx, messageID, owner, ttl)
 }
 
 func newCorrelationUUID() string {
@@ -244,6 +282,15 @@ func (r *AppRuntime) runREST(ctx context.Context) error {
 
 		msg, err := r.processPayload(req.Context(), payload, headers)
 		if msg == nil {
+			if slip.IsProcessingLocked(err) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "processing",
+					"error":  err.Error(),
+				})
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

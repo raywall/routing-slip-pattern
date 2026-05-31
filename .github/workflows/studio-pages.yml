@@ -52,19 +52,14 @@ jobs:
 
           node <<'NODE'
           const fs = require('fs');
-          const vm = require('vm');
           const path = require('path');
-          const source = fs.readFileSync('studio/docs/documentation.js', 'utf8');
-          const sandbox = { window: {} };
-          vm.runInNewContext(source, sandbox);
+          const manifest = JSON.parse(fs.readFileSync('studio/docs/manifest.json', 'utf8'));
           let count = 0;
-          for (const section of sandbox.window.RoutingSlipDocs || []) {
-            for (const item of section.items || []) {
-              count++;
-              const file = path.join('studio/docs', item.file || '');
-              if (!item.file || !fs.existsSync(file)) {
-                throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
-              }
+          for (const item of manifest.files || []) {
+            count++;
+            const file = path.join('studio/docs', item || '');
+            if (!item || !fs.existsSync(file)) {
+              throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
             }
           }
           if (count === 0) throw new Error('Manifesto de documentacao sem itens');

@@ -1,3 +1,8 @@
+---
+sidebar_position: 6
+sidebar_label: "Testes do MCP Server"
+---
+
 # Testes do MCP Server
 
 Os testes do MCP Server validam se o runtime consegue expor informações úteis para consulta, validação e investigação sem executar o workflow nem alterar estado operacional.

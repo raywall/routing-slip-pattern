@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+sidebar_label: "Editor de script e atalhos"
+---
+
 # Editor de scripts e atalhos
 
 ![Editor de script e atalhos](docs/images/studio-editor.jpg#right)

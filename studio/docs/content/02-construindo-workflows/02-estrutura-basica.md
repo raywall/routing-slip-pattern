@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+sidebar_label: "Estrutura básica"
+---
+
 # Estrutura básica de um workflow
 
 Todo workflow possui metadados e uma lista de etapas. O exemplo abaixo valida um evento, adiciona metadados, chama uma API e registra auditoria.

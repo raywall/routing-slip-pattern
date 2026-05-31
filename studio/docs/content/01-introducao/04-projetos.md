@@ -1,3 +1,8 @@
+---
+sidebar_position: 4
+sidebar_label: "Projetos do ecossistema"
+---
+
 # Projetos do ecossistema
 
 O framework e formado por projetos independentes, mas pensados para funcionar juntos. Essa separação permite usar apenas o que for necessário em cada contexto.
