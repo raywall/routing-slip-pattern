@@ -1,0 +1,17 @@
+name: routing-slip-lambda-example
+description: Workflow exemplo para uso inicial em Lambda.
+error_policy: stop
+message_id_path: message_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: validate
+    name: validate
+    params:
+      required:
+        - message_id
+
+  - id: audit
+    name: audit
+    params:
+      event: workflow.completed

@@ -103,7 +103,8 @@ service:
   run_id: local-config
 
 trigger:
-  type: rest
+  connector: rest
+  mode: sync
   rest:
     addr: ":8088"
     path: /process
@@ -127,6 +128,194 @@ mcp:
   auth:
     type: none
 ```
+
+### Conectores de entrada e modo de execucao
+
+O bloco `trigger` separa duas decisoes: **como** o workflow inicia e **como** a chamada deve ser respondida.
+
+| Campo | Valores | Uso |
+| --- | --- | --- |
+| `trigger.connector` | `rest`, `kafka`, `sqs`, `sns` | Define a origem que aciona o workflow. |
+| `trigger.mode` | `sync`, `async` | Define se a chamada espera o resultado ou apenas registra a solicitacao. |
+| `trigger.type` | `rest`, `kafka`, `sqs` | Campo legado mantido por compatibilidade. Em novas configuracoes, prefira `connector`. |
+
+No modo `sync`, a chamada REST aguarda a execucao e retorna cursor, historico, payload e erro quando houver. E indicado para integracoes em que o chamador precisa tomar uma decisao imediatamente.
+
+No modo `async`, a chamada REST retorna `202 Accepted` com `message_id` e `correlation_id`, enquanto o processamento segue em segundo plano. Esse modo e mais adequado para batch, eventos e fluxos em que o acompanhamento ocorre por metricas, state store, logs ou MCP.
+
+Exemplo REST sincrono:
+
+```yaml
+trigger:
+  connector: rest
+  mode: sync
+  rest:
+    addr: ":8088"
+    path: /process
+```
+
+Exemplo REST assincrono:
+
+```yaml
+trigger:
+  connector: rest
+  mode: async
+  rest:
+    addr: ":8088"
+    path: /process
+```
+
+Exemplo Kafka:
+
+```yaml
+trigger:
+  connector: kafka
+  mode: async
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: order-events
+    group_id: routing-slip-pattern
+```
+
+Exemplo SQS em lote:
+
+```yaml
+trigger:
+  connector: sqs
+  mode: async
+  sqs:
+    endpoint: http://localhost:4566
+    region: us-east-1
+    queue_url: http://localhost:4566/000000000000/order-events
+    wait_time_seconds: 10
+    max_messages: 10
+    visibility_timeout: 30
+```
+
+Exemplo SNS via fila de inscricao:
+
+```yaml
+trigger:
+  connector: sns
+  mode: async
+  sns:
+    endpoint: http://localhost:4566
+    region: us-east-1
+    queue_url: http://localhost:4566/000000000000/order-events-sns
+    wait_time_seconds: 10
+    max_messages: 10
+```
+
+Para SNS, o runtime consome a fila SQS inscrita no topico. Se a mensagem vier no envelope padrao do SNS, o campo `Message` e extraido e tratado como payload JSON do workflow.
+
+## Uso em AWS Lambda
+
+O projeto possui um Terraform base em `infra/lambda-layer` para publicar uma **Lambda Layer** do `routing-slip-pattern`. A layer disponibiliza configuracoes, workflows e assets em `/opt/routing-slip`, permitindo construir Lambdas mais simples: o codigo Go importa o framework no build e carrega os arquivos da layer em runtime.
+
+> Em Go, uma Lambda e compilada como binario. A layer nao injeta pacotes Go no build automaticamente; ela funciona como pacote operacional para arquivos compartilhados, workflows, configuracoes, certificados ou extensoes.
+
+Publicar a layer:
+
+```bash
+cd infra/lambda-layer
+terraform init
+terraform apply \
+  -var='aws_region=us-east-1' \
+  -var='layer_name=routing-slip-pattern-framework'
+```
+
+Depois de criada, preencha as referencias de ARN onde precisar anexar a layer:
+
+```hcl
+routing_slip_layer_version_arn = "arn:aws:lambda:REGION:ACCOUNT:layer:routing-slip-pattern-framework:1"
+extra_layer_arns = [
+  "arn:aws:lambda:REGION:ACCOUNT:layer:certificados-internos:1"
+]
+```
+
+Criar uma Lambda exemplo anexando a layer:
+
+```bash
+terraform apply \
+  -var='create_example_lambda=true' \
+  -var='example_lambda_package_file=./function.zip' \
+  -var='extra_layer_arns=["arn:aws:lambda:REGION:ACCOUNT:layer:certificados-internos:1"]'
+```
+
+No ambiente Docker do laboratorio, o serviço `routing-slip-app` simula esse desenho: o binario fica em `/var/task/bootstrap`, a layer e montada em `/opt/routing-slip` e a chamada REST continua exposta em `http://localhost:8088/process`.
+
+Exemplo de Lambda Go usando workflow da layer:
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/raywall/routing-slip-pattern/handlers"
+	"github.com/raywall/routing-slip-pattern/slip"
+	"gopkg.in/yaml.v3"
+)
+
+type workflowFile struct {
+	Name              string         `yaml:"name"`
+	MessageIDPath     string         `yaml:"message_id_path"`
+	CorrelationIDPath string         `yaml:"correlation_id_path"`
+	Steps             []slip.StepDef `yaml:"steps"`
+}
+
+func main() {
+	workflowPath := env("ROUTING_SLIP_WORKFLOW_PATH", "/opt/routing-slip/workflows/workflow.yaml")
+	data, err := os.ReadFile(workflowPath)
+	if err != nil {
+		panic(err)
+	}
+
+	var workflow workflowFile
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		panic(err)
+	}
+
+	router := slip.NewRouter(slip.WithErrorPolicy(slip.StopOnError))
+	router.MustRegister(handlers.ValidationHandler{})
+	router.MustRegister(handlers.EnrichmentHandler{})
+	router.MustRegister(handlers.AuditHandler{})
+
+	lambda.Start(func(ctx context.Context, payload map[string]any) (map[string]any, error) {
+		messageID, _ := payload[workflow.MessageIDPath].(string)
+		if messageID == "" {
+			messageID = "lambda-request"
+		}
+
+		msg := slip.NewMessage(messageID, payload)
+		msg.Headers["workflow"] = workflow.Name
+		msg.AttachSlip(workflow.Steps)
+
+		err := router.Process(ctx, msg)
+		return map[string]any{
+			"message_id":      msg.ID,
+			"correlation_id":  msg.CorrelationID,
+			"cursor":          msg.Cursor(),
+			"remaining_steps": msg.RemainingSteps(),
+			"payload":         msg.Payload,
+			"errors":          msg.Errors,
+		}, err
+	})
+}
+
+func env(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+```
+
+Para usar handlers de integracao, registre tambem `GraphQLEnrichmentHandler`, `RESTCallHandler`, `NotificationHandler` e demais handlers necessarios. Em cenarios com reprocessamento duravel, configure um `StateStore` compatível, como DynamoDB, ao criar o `Router`.
 
 ## Estrutura basica de workflow
 
@@ -279,6 +468,18 @@ Use `workflow_ref` para dividir scripts longos:
     file: delivery/prepare-delivery.yaml
     prefix: delivery
 ```
+
+No Studio, o path recomendado parte da raiz do workspace: `microservico/workflow`. Assim, se o workspace possui `service-first/A.yaml` e `service-last/B.yaml`, qualquer script pode referenciar `service-last/B` sem usar `../`.
+
+```yaml
+- id: call-last-service
+  name: workflow_ref
+  params:
+    file: service-last/B
+    prefix: last
+```
+
+O Studio valida se o workflow referenciado existe no workspace aberto. O runtime tambem aceita esse formato quando o workflow principal esta dentro de uma pasta de contexto. Caminhos relativos com `./` ou `../` continuam aceitos por compatibilidade, mas devem ser usados apenas quando fizerem sentido fora do workspace.
 
 O runtime expande o arquivo referenciado e prefixa IDs para evitar conflito.
 
@@ -505,8 +706,11 @@ O Studio oferece:
 - payload de entrada em JSON;
 - configuracao de endpoints REST, GraphQL e MCP;
 - execucao simulada;
-- logs agrupados por etapa;
-- resumo com tempo total, `trace_id`, `correlation_id`, integracoes e erros;
+- visualizacao macro/micro do workflow em diagrama com zoom, movimentacao por mouse, reorganizacao manual dos vertices e download em PNG;
+- logs agrupados por etapa, separados por arquivo quando o workflow usa `workflow_ref`, com abas de navegacao por script executado;
+- camada de loading bloqueante sobre os logs durante o processamento para evitar interacao enquanto a execucao ainda esta em andamento;
+- foco automatico no arquivo e na etapa de origem ao clicar em um log;
+- resumo por arquivo executado, com tempo total, integracoes, erros e identificadores (`trace_id`, `correlation_id`) em campos dedicados;
 - reprocessamento local;
 - validacao e explicacao de workflow via MCP;
 - diagnostico de conectores GraphQL, REST e notificacao;
@@ -574,7 +778,7 @@ Atalhos:
 | `Tab` | Indentar. |
 | `Shift+Tab` | Remover indentacao. |
 | `Ctrl+/` ou `Cmd+/` | Comentar/descomentar. |
-| `Ctrl+Enter` ou `Cmd+Enter` | Executar. |
+| `Ctrl+Enter` ou `Cmd+Enter` | Processar workflow no Studio. |
 | `Ctrl+S` ou `Cmd+S` | Salvar arquivo aberto. |
 
 ## Boas praticas

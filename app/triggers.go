@@ -81,7 +81,8 @@ func runConfiguredApp(ctx context.Context, cfg *AppConfig, workflow *WorkflowCon
 	}
 
 	logger.Info("configured workflow ready",
-		slog.String("trigger", cfg.Trigger.Type),
+		slog.String("connector", cfg.Trigger.Connector),
+		slog.String("mode", cfg.Trigger.Mode),
 		slog.String("workflow", workflow.Name),
 		slog.Int("steps", len(runtime.steps)),
 	)
@@ -94,15 +95,17 @@ func runConfiguredApp(ctx context.Context, cfg *AppConfig, workflow *WorkflowCon
 		}()
 	}
 
-	switch cfg.Trigger.Type {
+	switch cfg.Trigger.Connector {
 	case "rest":
 		return runtime.runREST(ctx)
 	case "kafka":
 		return runtime.runKafka(ctx)
 	case "sqs":
 		return runtime.runSQS(ctx)
+	case "sns":
+		return runtime.runSNS(ctx)
 	default:
-		return fmt.Errorf("unsupported trigger type %q", cfg.Trigger.Type)
+		return fmt.Errorf("unsupported trigger connector %q", cfg.Trigger.Connector)
 	}
 }
 
@@ -208,7 +211,42 @@ func (r *AppRuntime) runREST(ctx context.Context) error {
 			}
 		}
 
+		if r.config.Trigger.Mode == "async" {
+			messageID, correlationID := r.prepareAsyncIdentifiers(payload)
+			go func() {
+				processingCtx := context.WithoutCancel(req.Context())
+				msg, err := r.processPayload(processingCtx, payload, headers)
+				if err != nil {
+					id := messageID
+					if msg != nil {
+						id = msg.ID
+					}
+					r.logger.Error("async rest message failed",
+						slog.String("message_id", id),
+						slog.String("error", err.Error()),
+					)
+					return
+				}
+				r.logger.Info("async rest message processed", slog.String("message_id", msg.ID))
+			}()
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status":         "accepted",
+				"mode":           "async",
+				"message_id":     messageID,
+				"workflow":       r.workflow.Name,
+				"correlation_id": correlationID,
+			})
+			return
+		}
+
 		msg, err := r.processPayload(req.Context(), payload, headers)
+		if msg == nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		status := http.StatusOK
 		if err != nil {
 			status = http.StatusAccepted
@@ -247,6 +285,7 @@ func (r *AppRuntime) runREST(ctx context.Context) error {
 	r.logger.Info("rest trigger listening",
 		slog.String("addr", r.config.Trigger.REST.Addr),
 		slog.String("path", r.config.Trigger.REST.Path),
+		slog.String("mode", r.config.Trigger.Mode),
 	)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
@@ -290,8 +329,12 @@ func (r *AppRuntime) runKafka(ctx context.Context) error {
 			headers[header.Key] = string(header.Value)
 		}
 		msg, err := r.processPayload(ctx, payload, headers)
+		messageID := ""
+		if msg != nil {
+			messageID = msg.ID
+		}
 		r.logger.Info("kafka message processed",
-			slog.String("message_id", msg.ID),
+			slog.String("message_id", messageID),
 			slog.Int64("offset", message.Offset),
 			slog.String("error", errorString(err)),
 		)
@@ -351,8 +394,12 @@ func (r *AppRuntime) runSQS(ctx context.Context) error {
 			}
 			msg, err := r.processPayload(ctx, payload, headers)
 			if err != nil {
+				messageID := ""
+				if msg != nil {
+					messageID = msg.ID
+				}
 				r.logger.Error("sqs message failed",
-					slog.String("message_id", msg.ID),
+					slog.String("message_id", messageID),
 					slog.String("error", err.Error()),
 				)
 				continue
@@ -368,6 +415,117 @@ func (r *AppRuntime) runSQS(ctx context.Context) error {
 			r.logger.Info("sqs message processed", slog.String("message_id", msg.ID))
 		}
 	}
+}
+
+func (r *AppRuntime) runSNS(ctx context.Context) error {
+	loadOptions := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(r.config.Trigger.SNS.Region),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("local", "local", "")),
+	}
+	if strings.TrimSpace(r.config.Trigger.SNS.Endpoint) != "" {
+		loadOptions = append(loadOptions, awsconfig.WithBaseEndpoint(r.config.Trigger.SNS.Endpoint))
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOptions...)
+	if err != nil {
+		return err
+	}
+	client := sqs.NewFromConfig(awsCfg)
+
+	r.logger.Info("sns trigger listening",
+		slog.String("subscription_queue_url", r.config.Trigger.SNS.QueueURL),
+		slog.String("endpoint", r.config.Trigger.SNS.Endpoint),
+	)
+
+	for {
+		output, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+			QueueUrl:              &r.config.Trigger.SNS.QueueURL,
+			MaxNumberOfMessages:   r.config.Trigger.SNS.MaxMessages,
+			WaitTimeSeconds:       r.config.Trigger.SNS.WaitTimeSeconds,
+			VisibilityTimeout:     r.config.Trigger.SNS.VisibilityTimeout,
+			MessageAttributeNames: []string{"All"},
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+
+		for _, message := range output.Messages {
+			if message.Body == nil {
+				continue
+			}
+			payload, headers, err := decodeSNSPayload(*message.Body)
+			if err != nil {
+				r.logger.Error("sns payload rejected", slog.String("error", err.Error()))
+				continue
+			}
+			for key, value := range message.MessageAttributes {
+				if value.StringValue != nil {
+					headers[key] = *value.StringValue
+				}
+			}
+			msg, err := r.processPayload(ctx, payload, headers)
+			if err != nil {
+				messageID := ""
+				if msg != nil {
+					messageID = msg.ID
+				}
+				r.logger.Error("sns message failed",
+					slog.String("message_id", messageID),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+
+			_, err = client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+				QueueUrl:      &r.config.Trigger.SNS.QueueURL,
+				ReceiptHandle: message.ReceiptHandle,
+			})
+			if err != nil {
+				return err
+			}
+			r.logger.Info("sns message processed", slog.String("message_id", msg.ID))
+		}
+	}
+}
+
+func (r *AppRuntime) prepareAsyncIdentifiers(payload map[string]any) (string, string) {
+	correlationID, hasCorrelation := stringFromPath(payload, r.workflow.CorrelationIDPath)
+	if !hasCorrelation {
+		correlationID = newCorrelationUUID()
+		setPayloadPath(payload, r.workflow.CorrelationIDPath, correlationID)
+	}
+	messageID, hasMessage := stringFromPath(payload, r.workflow.MessageIDPath)
+	if !hasMessage {
+		messageID = correlationID
+		setPayloadPath(payload, r.workflow.MessageIDPath, messageID)
+	}
+	return messageID, correlationID
+}
+
+func decodeSNSPayload(body string) (map[string]any, map[string]string, error) {
+	headers := map[string]string{"trigger": "sns"}
+	var envelope struct {
+		Type      string `json:"Type"`
+		MessageID string `json:"MessageId"`
+		TopicArn  string `json:"TopicArn"`
+		Message   string `json:"Message"`
+	}
+	if err := json.Unmarshal([]byte(body), &envelope); err == nil && strings.TrimSpace(envelope.Message) != "" {
+		payload, err := decodePayload(strings.NewReader(envelope.Message))
+		if err != nil {
+			return nil, nil, err
+		}
+		headers["sns_message_id"] = envelope.MessageID
+		headers["sns_topic_arn"] = envelope.TopicArn
+		headers["sns_type"] = envelope.Type
+		return payload, headers, nil
+	}
+
+	payload, err := decodePayload(strings.NewReader(body))
+	return payload, headers, err
 }
 
 func decodePayload(reader io.Reader) (map[string]any, error) {

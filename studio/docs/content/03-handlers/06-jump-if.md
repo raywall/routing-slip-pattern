@@ -38,4 +38,23 @@ O destino em `to` pode ser o `id` de um step. Prefira `id`, pois handlers podem 
     event: pedido.promocional
 ```
 
+Também é possível saltar pela existência de um campo:
+
+```yaml
+- name: jump_if
+  params:
+    exists: pagamento.autorizacao.codigo
+    to: capturar_pagamento
+```
+
+Para compatibilidade, `field` com `exists: true` também é aceito:
+
+```yaml
+- name: jump_if
+  params:
+    field: pagamento.autorizacao.codigo
+    exists: true
+    to: capturar_pagamento
+```
+
 O salto deve apontar para uma etapa posterior para evitar loops acidentais.

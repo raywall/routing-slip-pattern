@@ -1,144 +1,166 @@
 async function runLocalSimulation(options = {}) {
-  clearLogs();
+  if (studioExecutionRunning) return;
   const isReprocess = Boolean(options.reprocess);
-  if (isReprocess && !lastExecutionSnapshot) {
-    addLog("error", "Reprocessamento indisponivel", "Execute o workflow antes de reprocessar.");
-    return;
-  }
-  const issues = lintWorkflow();
-  if (issues.some((item) => item.level === "error")) {
-    addLog("error", "Lint bloqueou a execucao", "Corrija os erros do workflow antes de executar.");
-    return;
-  }
-
-  let payload;
+  setStudioProcessing(true, isReprocess ? "Reprocessando workflow" : "Processando workflow", isReprocess ? "Retomando o snapshot e executando etapas pendentes." : "Executando etapas e consolidando logs.");
   try {
-    payload = isReprocess ? structuredClone(lastExecutionSnapshot.payload) : JSON.parse(els.payload.value);
-  } catch (err) {
-    addLog("error", "Payload JSON invalido", err.message);
-    return;
-  }
+    clearLogs();
+    if (isReprocess && !lastExecutionSnapshot) {
+      addLog("error", "Reprocessamento indisponivel", "Execute o workflow antes de reprocessar.");
+      return;
+    }
+    const issues = lintWorkflow();
+    if (issues.some((item) => item.level === "error")) {
+      addLog("error", "Lint bloqueou a execucao", "Corrija os erros do workflow antes de executar.");
+      return;
+    }
 
-  let workflow;
-  try {
-    workflow = isReprocess ? structuredClone(lastExecutionSnapshot.workflow) : await expandWorkflowRefsForStudio(lastWorkflow);
-  } catch (err) {
-    addLog("error", "Falha ao compor workflows", err.message);
-    return;
-  }
-  activeRuntimeWorkflow = workflow;
-  if (!isReprocess) {
-    ensureCorrelationID(payload, workflow.correlation_id_path);
-    els.payload.value = JSON.stringify(payload, null, 2);
-    scheduleStudioSave();
-  }
-  const startCursor = isReprocess ? Math.min(lastExecutionSnapshot.resumeCursor || 0, workflow.steps.length) : 0;
-  const state = {
-    payload: structuredClone(payload),
-    history: [],
-    cursor: startCursor,
-    stopped: false,
-    errors: [],
-    trace_id: payload.trace_id || generateTraceID(),
-    correlation_id: getPath(payload, workflow.correlation_id_path),
-    message_id: getPath(payload, workflow.message_id_path),
-    reprocess: isReprocess ? {
-      previousDurationMs: lastExecutionSnapshot.durationMs,
-      previousCursor: lastExecutionSnapshot.resumeCursor,
-      previousStatus: lastExecutionSnapshot.status,
-    } : null,
-    metrics: {
-      startedAt: performance.now(),
-      integrations: [],
-    },
-  };
-  state.payload.trace_id = state.payload.trace_id || state.trace_id;
-  addLog("info", isReprocess ? "Reprocessamento iniciado" : "Workflow iniciado", `${workflow.name || "workflow"} com ${workflow.steps.length} etapa(s).`, {
-    message_id: state.message_id,
-    correlation_id: state.correlation_id,
-    trace_id: state.trace_id,
-    cursor_inicial: startCursor,
-    execucao_anterior_ms: state.reprocess?.previousDurationMs,
-  });
-
-  if (isReprocess && startCursor > 0) {
-    addLog("info", "Etapas anteriores preservadas", `${startCursor} etapa(s) ja processada(s) antes do reprocessamento.`, {
-      cursor_retomada: startCursor,
-      etapas_preservadas: workflow.steps.slice(0, startCursor).map((step, index) => ({ index, id: step.id, name: step.name })),
-    });
-  }
-
-  for (let i = startCursor; i < workflow.steps.length; i += 1) {
-    state.cursor = i;
-    activeExecutionStepIndex = i;
-    const step = workflow.steps[i];
-    startStepGroup(i, step, workflow.steps.length);
-    const started = performance.now();
+    let payload;
     try {
-      addLog("info", `Executando ${step.name}`, `Etapa ${i + 1} de ${workflow.steps.length}.`, step.params || {});
-      const proceed = await executeStepWithResilience(step, state);
-      const duration = Math.round(performance.now() - started);
-      state.history.push({ step: step.name, duration_ms: duration, skipped: !proceed, attempt: state.__lastStepAttempt || 1 });
-      addLog("ok", `Etapa ${step.name} concluida`, `${duration} ms`, snapshot(state));
-      if (Number.isInteger(state.__jumpToIndex)) {
-        const jumpTo = state.__jumpToIndex;
-        delete state.__jumpToIndex;
-        addLog("warn", "Salto aplicado", `Proxima etapa: ${jumpTo + 1}.`, { cursor: jumpTo });
-        i = jumpTo - 1;
-        continue;
-      }
-      if (!proceed) {
-        state.stopped = true;
-        addLog("warn", "Workflow interrompido por gate", `Cursor parado apos a etapa ${i}.`);
-        break;
-      }
+      payload = isReprocess ? structuredClone(lastExecutionSnapshot.payload) : JSON.parse(els.payload.value);
     } catch (err) {
-      state.errors.push({ step: step.name, error: err.message, cursor: i });
-      addLog("error", `Falha em ${step.name}`, err.message, snapshot(state));
-      const action = String(step.resilience?.on_failure?.action || "").toLowerCase();
-      if (action === "continue" || action === "skip") {
+      addLog("error", "Payload JSON invalido", err.message);
+      return;
+    }
+
+    let workflow;
+    try {
+      workflow = isReprocess ? structuredClone(lastExecutionSnapshot.workflow) : await expandWorkflowRefsForStudio(lastWorkflow);
+    } catch (err) {
+      addLog("error", "Falha ao compor workflows", err.message);
+      return;
+    }
+    activeRuntimeWorkflow = workflow;
+    setupExecutionLogTabs(workflow);
+    if (!isReprocess) {
+      ensureCorrelationID(payload, workflow.correlation_id_path);
+      els.payload.value = JSON.stringify(payload, null, 2);
+      scheduleStudioSave();
+    }
+    const startCursor = isReprocess ? Math.min(lastExecutionSnapshot.resumeCursor || 0, workflow.steps.length) : 0;
+    const state = {
+      payload: structuredClone(payload),
+      history: [],
+      cursor: startCursor,
+      stopped: false,
+      errors: [],
+      trace_id: payload.trace_id || generateTraceID(),
+      correlation_id: getPath(payload, workflow.correlation_id_path),
+      message_id: getPath(payload, workflow.message_id_path),
+      reprocess: isReprocess ? {
+        previousDurationMs: lastExecutionSnapshot.durationMs,
+        previousCursor: lastExecutionSnapshot.resumeCursor,
+        previousStatus: lastExecutionSnapshot.status,
+      } : null,
+      metrics: {
+        startedAt: performance.now(),
+        integrations: [],
+      },
+    };
+    state.payload.trace_id = state.payload.trace_id || state.trace_id;
+    addLog("info", isReprocess ? "Reprocessamento iniciado" : "Workflow iniciado", `${workflow.name || "workflow"} com ${workflow.steps.length} etapa(s).`, {
+      message_id: state.message_id,
+      correlation_id: state.correlation_id,
+      trace_id: state.trace_id,
+      cursor_inicial: startCursor,
+      execucao_anterior_ms: state.reprocess?.previousDurationMs,
+    });
+
+    if (isReprocess && startCursor > 0) {
+      addLog("info", "Etapas anteriores preservadas", `${startCursor} etapa(s) ja processada(s) antes do reprocessamento.`, {
+        cursor_retomada: startCursor,
+        etapas_preservadas: workflow.steps.slice(0, startCursor).map((step, index) => ({ index, id: step.id, name: step.name })),
+      });
+    }
+
+    for (let i = startCursor; i < workflow.steps.length; i += 1) {
+      state.cursor = i;
+      activeExecutionStepIndex = i;
+      const step = workflow.steps[i];
+      startStepGroup(i, step, workflow.steps.length);
+      const started = performance.now();
+      try {
+        addLog("info", `Executando ${step.name}`, `Etapa ${i + 1} de ${workflow.steps.length}.`, step.params || {});
+        const proceed = await executeStepWithResilience(step, state);
         const duration = Math.round(performance.now() - started);
-        state.history.push({ step: step.name, duration_ms: duration, skipped: action === "skip", status: action === "skip" ? "skipped" : "failed", attempt: state.__lastStepAttempt || 1 });
-        continue;
-      }
-      if (action === "jump") {
-        const target = step.resilience?.on_failure?.to;
-        const jumpTo = findWorkflowStepIndex(target);
-        if (jumpTo >= 0) {
-          const duration = Math.round(performance.now() - started);
-          state.history.push({ step: step.name, duration_ms: duration, skipped: true, status: "jumped", attempt: state.__lastStepAttempt || 1 });
-          addLog("warn", "Fallback por resiliencia", `Falha redirecionada para ${target}.`, { cursor: jumpTo });
+        state.history.push(stepHistoryItem(step, duration, !proceed, state.__lastStepAttempt || 1, i));
+        addLog("ok", `Etapa ${step.name} concluida`, `${duration} ms`, snapshot(state));
+        if (Number.isInteger(state.__jumpToIndex)) {
+          const jumpTo = state.__jumpToIndex;
+          delete state.__jumpToIndex;
+          addLog("warn", "Salto aplicado", `Proxima etapa: ${jumpTo + 1}.`, { cursor: jumpTo });
           i = jumpTo - 1;
           continue;
         }
+        if (!proceed) {
+          state.stopped = true;
+          addLog("warn", "Workflow interrompido por gate", `Cursor parado apos a etapa ${i}.`);
+          break;
+        }
+      } catch (err) {
+        state.errors.push({ step: step.name, error: err.message, cursor: i, sourceKey: step.__sourceWorkflow || runtimeRootSourceKey });
+        addLog("error", `Falha em ${step.name}`, err.message, snapshot(state));
+        const action = String(step.resilience?.on_failure?.action || "").toLowerCase();
+        if (action === "continue" || action === "skip") {
+          const duration = Math.round(performance.now() - started);
+          state.history.push(stepHistoryItem(step, duration, action === "skip", state.__lastStepAttempt || 1, i, action === "skip" ? "skipped" : "failed"));
+          continue;
+        }
+        if (action === "jump") {
+          const target = step.resilience?.on_failure?.to;
+          const jumpTo = findWorkflowStepIndex(target);
+          if (jumpTo >= 0) {
+            const duration = Math.round(performance.now() - started);
+            state.history.push(stepHistoryItem(step, duration, true, state.__lastStepAttempt || 1, i, "jumped"));
+            addLog("warn", "Fallback por resiliencia", `Falha redirecionada para ${target}.`, { cursor: jumpTo });
+            i = jumpTo - 1;
+            continue;
+          }
+        }
+        if (String(workflow.error_policy || "stop").toLowerCase() === "stop") {
+          state.cursor = i;
+          addLog("warn", "Snapshot pronto para reprocessamento", `Reprocessamento deve retomar do cursor ${i}.`);
+          break;
+        }
+      } finally {
+        activeExecutionStepIndex = null;
       }
-      if (String(workflow.error_policy || "stop").toLowerCase() === "stop") {
-        state.cursor = i;
-        addLog("warn", "Snapshot pronto para reprocessamento", `Reprocessamento deve retomar do cursor ${i}.`);
-        break;
-      }
-    } finally {
-      activeExecutionStepIndex = null;
     }
-  }
 
-  const status = state.errors.length ? "com falha" : state.stopped ? "interrompido" : "concluido";
-  const totalDuration = Math.round(performance.now() - state.metrics.startedAt);
-  state.metrics.total_duration_ms = totalDuration;
-  const resumeCursor = resolveResumeCursor(state, workflow);
-  els.summary.textContent = `${workflow.name || "Workflow"} ${status}: ${state.history.length} etapa(s), ${state.errors.length} erro(s), ${formatDuration(totalDuration)}`;
-  addLog(state.errors.length ? "error" : "ok", `Workflow ${status}`, "Payload final da simulacao.", snapshot(state));
-  renderExecutionSummary(workflow, state, status);
-  lastExecutionSnapshot = {
-    workflow: structuredClone(workflow),
-    payload: structuredClone(state.payload),
-    resumeCursor,
-    durationMs: totalDuration,
+    const status = state.errors.length ? "com falha" : state.stopped ? "interrompido" : "concluido";
+    const totalDuration = Math.round(performance.now() - state.metrics.startedAt);
+    state.metrics.total_duration_ms = totalDuration;
+    const resumeCursor = resolveResumeCursor(state, workflow);
+    els.summary.textContent = `${status}: ${state.history.length} etapa(s), ${state.errors.length} erro(s), ${formatDuration(totalDuration)}`;
+    addLog(state.errors.length ? "error" : "ok", `Workflow ${status}`, "Payload final da simulacao.", snapshot(state));
+    renderExecutionSummary(workflow, state, status);
+    lastExecutionSnapshot = {
+      workflow: structuredClone(workflow),
+      payload: structuredClone(state.payload),
+      resumeCursor,
+      durationMs: totalDuration,
+      status,
+      executedAt: new Date().toISOString(),
+    };
+  } finally {
+    activeExecutionStepIndex = null;
+    activeRuntimeWorkflow = null;
+    setStudioProcessing(false);
+  }
+}
+
+function stepHistoryItem(step, duration, skipped, attempt, runtimeIndex, status = "") {
+  return {
+    step: step.name,
+    id: step.id || "",
+    duration_ms: duration,
+    skipped,
     status,
-    executedAt: new Date().toISOString(),
+    attempt,
+    runtimeIndex,
+    sourceKey: step.__sourceWorkflow || runtimeRootSourceKey || "workflow",
+    sourceLabel: step.__sourceLabel || step.__sourceWorkflow || "Workflow",
+    sourceStepIndex: Number.isInteger(step.__sourceStepIndex) ? step.__sourceStepIndex : runtimeIndex,
   };
-  els.reprocess.disabled = false;
-  activeRuntimeWorkflow = null;
 }
 
 async function executeStepWithResilience(step, state) {
@@ -612,6 +634,8 @@ async function runRestCall(params, state) {
 }
 
 async function sendToRestEndpoint() {
+  if (studioExecutionRunning) return;
+  setStudioProcessing(true, "Enviando para REST", "Aguardando resposta do endpoint configurado.");
   clearLogs();
   try {
     const payload = JSON.parse(els.payload.value);
@@ -625,6 +649,8 @@ async function sendToRestEndpoint() {
     addLog(response.ok ? "ok" : "error", `REST retornou ${response.status}`, response.statusText, body);
   } catch (err) {
     addLog("error", "Falha ao enviar REST", err.message);
+  } finally {
+    setStudioProcessing(false);
   }
 }
 

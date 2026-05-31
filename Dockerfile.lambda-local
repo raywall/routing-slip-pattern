@@ -1,0 +1,31 @@
+FROM golang:1.25-alpine AS build
+
+RUN apk add --no-cache ca-certificates git && update-ca-certificates
+
+WORKDIR /src
+COPY app/go.mod app/go.sum ./
+RUN go mod download
+COPY app ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/bootstrap .
+
+FROM alpine:3.22
+
+# Corporate CA notes:
+# - Alpine trusts certificates installed under /usr/local/share/ca-certificates.
+# - To enable an internal CA, copy a .crt file to that directory and run
+#   update-ca-certificates.
+# - For AWS SDK/CLI calls that need a custom bundle, set:
+#   ENV AWS_CA_BUNDLE=/usr/local/share/ca-certificates/internal-ca.crt
+# - Example:
+#   COPY certs/internal-ca.crt /usr/local/share/ca-certificates/internal-ca.crt
+#   RUN update-ca-certificates
+RUN apk add --no-cache ca-certificates curl && update-ca-certificates
+
+ENV ROUTING_SLIP_CONFIG_PATH=/opt/routing-slip/config/config.yaml
+ENV ROUTING_SLIP_WORKFLOW_PATH=/opt/routing-slip/workflows/workflow.yaml
+
+WORKDIR /var/task
+COPY --from=build /out/bootstrap /var/task/bootstrap
+
+EXPOSE 8088 9091
+CMD ["/bin/sh", "-c", "/var/task/bootstrap --config \"${ROUTING_SLIP_CONFIG_PATH}\" --workflow \"${ROUTING_SLIP_WORKFLOW_PATH}\""]

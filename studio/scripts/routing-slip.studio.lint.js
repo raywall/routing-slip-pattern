@@ -113,10 +113,10 @@ function validateStep(step, index, issues) {
     }
   }
   if (step.name === "jump_if") {
-    if (!stringValue(params.field)) issues.push(error(`${label} jump_if precisa de field.`));
+    if (!stringValue(params.field) && !stringValue(params.exists)) issues.push(error(`${label} jump_if precisa de field ou exists.`));
     if (!stringValue(params.to)) issues.push(error(`${label} jump_if precisa de to com id ou name do step destino.`));
-    if (!("equals" in params) && !("not_equals" in params)) {
-      issues.push(error(`${label} jump_if precisa de equals ou not_equals.`));
+    if (!("equals" in params) && !("not_equals" in params) && !("exists" in params) && !("min_items" in params) && !("max_items" in params) && !("less_than" in params) && !("less_than_or_equal" in params) && !("greater_than" in params) && !("greater_than_or_equal" in params)) {
+      issues.push(error(`${label} jump_if precisa de um operador de comparação.`));
     }
   }
   if (step.name === "graphql_enrich") {
@@ -135,8 +135,18 @@ function validateStep(step, index, issues) {
     if (!stringValue(params.file) && !stringValue(params.path) && !stringValue(params.workflow)) {
       issues.push(error(`${label} workflow_ref precisa de params.file, params.path ou params.workflow.`));
     }
+    const ref = params.file || params.path || params.workflow || "";
+    if (String(ref).startsWith("../") || String(ref).startsWith("./")) {
+      issues.push(warn(`${label} workflow_ref deve preferir path baseado no workspace, como service-first/A.`));
+    }
     if (!currentWorkspaceFile.handle) {
       issues.push(warn(`${label} workflow_ref e melhor testado com um arquivo aberto no workspace.`));
+    } else if (workspaceState?.rootHandle && stringValue(ref)) {
+      try {
+        resolveWorkspaceWorkflow(String(ref), currentWorkspaceFile);
+      } catch (err) {
+        issues.push(error(`${label} ${err.message}`));
+      }
     }
   }
 }

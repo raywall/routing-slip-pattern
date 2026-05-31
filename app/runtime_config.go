@@ -30,10 +30,13 @@ type ServiceConfig struct {
 }
 
 type TriggerConfig struct {
-	Type  string             `yaml:"type"`
-	REST  RESTTriggerConfig  `yaml:"rest"`
-	Kafka KafkaTriggerConfig `yaml:"kafka"`
-	SQS   SQSTriggerConfig   `yaml:"sqs"`
+	Type      string             `yaml:"type"` // legado: use connector em novas configuracoes.
+	Connector string             `yaml:"connector"`
+	Mode      string             `yaml:"mode"`
+	REST      RESTTriggerConfig  `yaml:"rest"`
+	Kafka     KafkaTriggerConfig `yaml:"kafka"`
+	SQS       SQSTriggerConfig   `yaml:"sqs"`
+	SNS       SNSTriggerConfig   `yaml:"sns"`
 }
 
 type RESTTriggerConfig struct {
@@ -50,6 +53,15 @@ type KafkaTriggerConfig struct {
 }
 
 type SQSTriggerConfig struct {
+	QueueURL          string `yaml:"queue_url"`
+	Endpoint          string `yaml:"endpoint"`
+	Region            string `yaml:"region"`
+	WaitTimeSeconds   int32  `yaml:"wait_time_seconds"`
+	MaxMessages       int32  `yaml:"max_messages"`
+	VisibilityTimeout int32  `yaml:"visibility_timeout"`
+}
+
+type SNSTriggerConfig struct {
 	QueueURL          string `yaml:"queue_url"`
 	Endpoint          string `yaml:"endpoint"`
 	Region            string `yaml:"region"`
@@ -211,8 +223,13 @@ func expandWorkflowReferences(workflow *WorkflowConfig, sourcePath string, stack
 		if err != nil {
 			return err
 		}
-		if !filepath.IsAbs(refPath) {
-			refPath = filepath.Join(filepath.Dir(sourcePath), refPath)
+		refPath = resolveWorkflowRefPath(sourcePath, refPath)
+		if filepath.Ext(refPath) == "" {
+			if _, err := os.Stat(refPath + ".yaml"); err == nil {
+				refPath += ".yaml"
+			} else {
+				refPath += ".yml"
+			}
 		}
 		child, err := loadWorkflowConfigWithStack(refPath, stack)
 		if err != nil {
@@ -233,6 +250,39 @@ func expandWorkflowReferences(workflow *WorkflowConfig, sourcePath string, stack
 	}
 	workflow.Steps = expanded
 	return nil
+}
+
+func resolveWorkflowRefPath(sourcePath, refPath string) string {
+	if filepath.IsAbs(refPath) {
+		return refPath
+	}
+	cleaned := filepath.Clean(refPath)
+	if strings.HasPrefix(cleaned, "."+string(filepath.Separator)) || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) || cleaned == "." || cleaned == ".." {
+		return filepath.Join(filepath.Dir(sourcePath), cleaned)
+	}
+	parts := strings.Split(cleaned, string(filepath.Separator))
+	if len(parts) > 1 {
+		workspaceCandidate := filepath.Join(filepath.Dir(filepath.Dir(sourcePath)), cleaned)
+		if workflowPathExists(workspaceCandidate) {
+			return workspaceCandidate
+		}
+	}
+	return filepath.Join(filepath.Dir(sourcePath), cleaned)
+}
+
+func workflowPathExists(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	if filepath.Ext(path) == "" {
+		if _, err := os.Stat(path + ".yaml"); err == nil {
+			return true
+		}
+		if _, err := os.Stat(path + ".yml"); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func workflowRefPath(step StepConfig) (string, error) {
@@ -402,10 +452,25 @@ func applyConfigDefaults(cfg *AppConfig) {
 	if strings.TrimSpace(cfg.Service.RunID) == "" {
 		cfg.Service.RunID = time.Now().Format("20060102150405")
 	}
-	if strings.TrimSpace(cfg.Trigger.Type) == "" {
-		cfg.Trigger.Type = "rest"
-	}
 	cfg.Trigger.Type = strings.ToLower(strings.TrimSpace(cfg.Trigger.Type))
+	cfg.Trigger.Connector = strings.ToLower(strings.TrimSpace(cfg.Trigger.Connector))
+	if cfg.Trigger.Connector == "" {
+		cfg.Trigger.Connector = cfg.Trigger.Type
+	}
+	if cfg.Trigger.Connector == "" {
+		cfg.Trigger.Connector = "rest"
+	}
+	if cfg.Trigger.Type == "" {
+		cfg.Trigger.Type = cfg.Trigger.Connector
+	}
+	cfg.Trigger.Mode = strings.ToLower(strings.TrimSpace(cfg.Trigger.Mode))
+	if cfg.Trigger.Mode == "" {
+		if cfg.Trigger.Connector == "rest" {
+			cfg.Trigger.Mode = "sync"
+		} else {
+			cfg.Trigger.Mode = "async"
+		}
+	}
 	if strings.TrimSpace(cfg.Trigger.REST.Addr) == "" {
 		cfg.Trigger.REST.Addr = ":8088"
 	}
@@ -447,6 +512,24 @@ func applyConfigDefaults(cfg *AppConfig) {
 	}
 	if cfg.Trigger.SQS.VisibilityTimeout <= 0 {
 		cfg.Trigger.SQS.VisibilityTimeout = 30
+	}
+	if strings.TrimSpace(cfg.Trigger.SNS.Region) == "" {
+		cfg.Trigger.SNS.Region = cfg.Trigger.SQS.Region
+	}
+	if strings.TrimSpace(cfg.Trigger.SNS.Endpoint) == "" {
+		cfg.Trigger.SNS.Endpoint = cfg.Trigger.SQS.Endpoint
+	}
+	if strings.TrimSpace(cfg.Trigger.SNS.QueueURL) == "" {
+		cfg.Trigger.SNS.QueueURL = "http://localhost:4566/000000000000/payment-events-sns"
+	}
+	if cfg.Trigger.SNS.WaitTimeSeconds <= 0 {
+		cfg.Trigger.SNS.WaitTimeSeconds = cfg.Trigger.SQS.WaitTimeSeconds
+	}
+	if cfg.Trigger.SNS.MaxMessages <= 0 {
+		cfg.Trigger.SNS.MaxMessages = cfg.Trigger.SQS.MaxMessages
+	}
+	if cfg.Trigger.SNS.VisibilityTimeout <= 0 {
+		cfg.Trigger.SNS.VisibilityTimeout = cfg.Trigger.SQS.VisibilityTimeout
 	}
 	if strings.TrimSpace(cfg.Metrics.Endpoint) == "" {
 		cfg.Metrics.Endpoint = env("METRICS_ENDPOINT", "http://localhost:8080/v1/metrics")
@@ -543,10 +626,15 @@ func applyWorkflowDefaults(workflow *WorkflowConfig) {
 }
 
 func validateAppConfig(cfg *AppConfig) error {
-	switch cfg.Trigger.Type {
-	case "rest", "kafka", "sqs":
+	switch cfg.Trigger.Connector {
+	case "rest", "kafka", "sqs", "sns":
 	default:
-		return fmt.Errorf("unsupported trigger type %q: use rest, kafka or sqs", cfg.Trigger.Type)
+		return fmt.Errorf("unsupported trigger connector %q: use rest, kafka, sqs or sns", cfg.Trigger.Connector)
+	}
+	switch cfg.Trigger.Mode {
+	case "sync", "async":
+	default:
+		return fmt.Errorf("unsupported trigger mode %q: use sync or async", cfg.Trigger.Mode)
 	}
 	switch cfg.StateStore.Type {
 	case "memory", "file", "dynamodb":

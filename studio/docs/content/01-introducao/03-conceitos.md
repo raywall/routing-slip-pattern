@@ -7,6 +7,8 @@ Antes de escrever workflows, vale alinhar alguns conceitos. Eles aparecem no Stu
 | Workflow | Sequencia declarativa de etapas que processa um payload. |
 | Routing slip | Lista de passos que acompanha a mensagem e define o caminho de processamento. |
 | Handler | Unidade de execução. Cada handler sabe fazer uma coisa: validar, enriquecer, chamar API, auditar, saltar, filtrar. |
+| Connector | Origem que inicia o workflow: REST, Kafka, SQS ou SNS. |
+| Modo de execução | Define se a chamada responde de forma sincrona (`sync`) ou aceita o processamento para acompanhamento posterior (`async`). |
 | Payload | Documento JSON que entra no workflow e vai sendo enriquecido ou transformado. |
 | Cursor | Posição da proxima etapa a executar. E o que permite retomar do ponto correto. |
 | State store | Persistência do snapshot de execução: cursor, payload, histórico, erros, trace e estado das etapas. |
@@ -35,4 +37,3 @@ flowchart LR
 ```
 
 O ponto central e simples: o workflow descreve o que precisa acontecer; o runtime executa; o state store permite retomar; as métricas e traces tornam tudo observável; o Studio e o MCP ajudam a criar, validar e investigar.
-

@@ -59,6 +59,9 @@ function evaluateAssertConfig(config, state) {
 
 function evaluateConditionConfig(config, state) {
   if (typeof config.exists === "string") return getPath(state.payload, config.exists) !== undefined;
+  if (typeof config.exists === "boolean" && config.field) {
+    return (getPath(state.payload, config.field) !== undefined) === config.exists;
+  }
   const value = getPath(state.payload, config.field);
   if (value === undefined) throw new Error(`field "${config.field}" not found`);
   if ("equals" in config) return String(value) === String(config.equals);

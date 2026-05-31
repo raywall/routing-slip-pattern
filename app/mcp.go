@@ -384,7 +384,7 @@ func registeredHandlerSpecs() []map[string]any {
 		{"name": "notify", "params": []string{"channel", "recipient", "template"}},
 		{"name": "audit", "params": []string{"event", "fields"}},
 		{"name": "graphql_enrich", "params": []string{"endpoint", "query", "variables", "target", "result_path", "required"}},
-		{"name": "jump_if", "params": []string{"field", "equals", "not_equals", "to"}},
+		{"name": "jump_if", "params": []string{"field", "exists", "equals", "not_equals", "min_items", "max_items", "to"}},
 		{"name": "rest_call", "params": []string{"base_url", "endpoint", "method", "target", "required"}},
 		{"name": "workflow_ref", "params": []string{"file", "path", "workflow", "prefix"}},
 	}

@@ -68,6 +68,48 @@ steps:
 	}
 }
 
+func TestLoadWorkflowConfigExpandsWorkspaceRelativeWorkflowRef(t *testing.T) {
+	dir := t.TempDir()
+	for _, service := range []string{"service-first", "service-last"} {
+		if err := os.Mkdir(filepath.Join(dir, service), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	childPath := filepath.Join(dir, "service-last", "B.yaml")
+	if err := os.WriteFile(childPath, []byte(`name: B
+steps:
+  - id: finish
+    name: audit
+    params:
+      event: b.completed
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	parentPath := filepath.Join(dir, "service-first", "A.yaml")
+	if err := os.WriteFile(parentPath, []byte(`name: A
+steps:
+  - id: call-b
+    name: workflow_ref
+    params:
+      file: service-last/B
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	workflow, err := loadWorkflowConfig(parentPath)
+	if err != nil {
+		t.Fatalf("load workflow: %v", err)
+	}
+	if got, want := len(workflow.Steps), 1; got != want {
+		t.Fatalf("steps = %d want %d", got, want)
+	}
+	if workflow.Steps[0].ID != "call-b.finish" {
+		t.Fatalf("unexpected referenced step: %#v", workflow.Steps[0])
+	}
+}
+
 func TestLoadWorkflowConfigRejectsWorkflowRefCycle(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "self.yaml")

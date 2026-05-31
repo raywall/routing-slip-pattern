@@ -37,6 +37,36 @@ steps:
 
 Ao carregar o workflow, o runtime expande as referencias. Os IDs dos steps filhos recebem prefixo, evitando conflito.
 
+## Path baseado no workspace
+
+No Studio, a referencia deve partir da raiz do workspace, no formato:
+
+```text
+microservico/workflow
+```
+
+Se o workspace tem esta estrutura:
+
+```text
+workflows/
+  service-first/
+    A.yaml
+  service-last/
+    B.yaml
+```
+
+O workflow `A.yaml` pode chamar `B.yaml` assim:
+
+```yaml
+- id: call-service-last
+  name: workflow_ref
+  params:
+    file: service-last/B
+    prefix: service-last
+```
+
+Nao e necessario usar `../service-last/B`. O Studio resolve o caminho a partir da pasta aberta como workspace e o lint valida se o arquivo existe. Caminhos relativos com `./` ou `../` continuam aceitos por compatibilidade, mas o formato baseado no workspace deixa os scripts mais portaveis e mais faceis de revisar.
+
 ## Benefícios
 
 - melhora leitura de fluxos extensos;
@@ -48,4 +78,3 @@ Ao carregar o workflow, o runtime expande as referencias. Os IDs dos steps filho
 ## Decisão pratica
 
 Use composição quando um trecho tem responsabilidade clara e pode ser explicado sozinho. Evite dividir demais etapas pequenas, pois isso pode dificultar a navegação.
-

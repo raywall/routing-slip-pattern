@@ -188,10 +188,16 @@ func evaluateValueConfig(msg *slip.Message, config map[string]any) (any, error) 
 func evaluateConditionConfig(msg *slip.Message, config map[string]any) (bool, error) {
 	if rawExists, ok := config["exists"]; ok {
 		field, ok := rawExists.(string)
-		if !ok || strings.TrimSpace(field) == "" {
+		if !ok {
+			field, _ = config["field"].(string)
+		}
+		if strings.TrimSpace(field) == "" {
 			return false, fmt.Errorf("exists must be a field path")
 		}
 		_, exists := msg.GetPath(field)
+		if expected, ok := rawExists.(bool); ok {
+			return exists == expected, nil
+		}
 		return exists, nil
 	}
 

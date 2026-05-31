@@ -226,14 +226,14 @@ async function openWorkflowFile(serviceName, fileName, options = {}) {
   const file = service?.files.find((item) => item.name === fileName);
   if (!file) return;
   try {
-    invalidateExecutionSnapshot();
+    if (!options.preserveLogs) invalidateExecutionSnapshot();
     els.workflow.value = await WorkspaceFS.readFile(file.handle);
     currentWorkspaceFile = { handle: file.handle, serviceName, fileName };
     workflowDirty = false;
     service.expanded = true;
     await StudioDB.set(STUDIO_DB.currentFileKey, { serviceName, fileName });
     renderWorkspace();
-    clearLogs();
+    if (!options.preserveLogs) clearLogs();
     lintWorkflow();
     scheduleStudioSave();
   } catch (err) {
@@ -560,11 +560,18 @@ function dismissContextMenu() {
 
 async function expandWorkflowRefsForStudio(workflow, seen = new Set(), source = currentWorkspaceFile) {
   if (!workflow || !Array.isArray(workflow.steps)) return workflow;
-  const expanded = { ...workflow, steps: [] };
-  for (const step of workflow.steps) {
+  const sourceKey = workflowSourceKey(source, workflow);
+  const expanded = { ...workflow, steps: [], __sourceWorkflow: sourceKey, __sourceLabel: workflowSourceLabel(source, workflow) };
+  for (const [sourceIndex, step] of workflow.steps.entries()) {
     if (step.enabled === false) continue;
     if (step.name !== "workflow_ref") {
-      expanded.steps.push(step);
+      expanded.steps.push({
+        ...step,
+        __sourceWorkflow: sourceKey,
+        __sourceLabel: workflowSourceLabel(source, workflow),
+        __sourceStepIndex: sourceIndex,
+        __sourceStepId: step.id || "",
+      });
       continue;
     }
     const ref = workflowRefFile(step);
@@ -585,12 +592,26 @@ async function expandWorkflowRefsForStudio(workflow, seen = new Set(), source = 
       const cloned = structuredClone(childStep);
       cloned.id = prefixedWorkflowStepID(prefix, cloned.id, cloned.name, index);
       cloned.params = rewriteWorkflowRefTargetsForStudio(cloned.params || {}, prefix, childIDs);
-      cloned.__sourceWorkflow = key;
+      cloned.__sourceWorkflow = childStep.__sourceWorkflow || key;
+      cloned.__sourceLabel = childStep.__sourceLabel || key;
+      cloned.__sourceStepIndex = Number.isInteger(childStep.__sourceStepIndex) ? childStep.__sourceStepIndex : index;
+      cloned.__sourceStepId = childStep.__sourceStepId || childStep.id || "";
       expanded.steps.push(cloned);
     });
     seen.delete(key);
   }
   return expanded;
+}
+
+function workflowSourceKey(source, workflow = null) {
+  if (source?.serviceName && source?.fileName) return `${source.serviceName}/${source.fileName}`;
+  return workflow?.name || "workflow";
+}
+
+function workflowSourceLabel(source, workflow = null) {
+  if (workflow?.name) return workflow.name;
+  if (source?.fileName) return source.fileName.replace(/\.(ya?ml)$/i, "");
+  return "Workflow";
 }
 
 function workflowRefFile(step) {
