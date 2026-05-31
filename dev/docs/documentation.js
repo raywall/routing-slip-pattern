@@ -71,6 +71,16 @@ window.RoutingSlipDocs = [
         "id": "workflow-rastreabilidade",
         "title": "Rastreabilidade e explicabilidade",
         "file": "content/02-construindo-workflows/08-rastreabilidade-e-explicabilidade.md"
+      },
+      {
+        "id": "workflow-conectores-modos",
+        "title": "Conectores e modos de execução",
+        "file": "content/02-construindo-workflows/09-conectores-e-modos.md"
+      },
+      {
+        "id": "workflow-aws-lambda-layer",
+        "title": "AWS Lambda Layer",
+        "file": "content/02-construindo-workflows/10-aws-lambda-layer.md"
       }
     ]
   },

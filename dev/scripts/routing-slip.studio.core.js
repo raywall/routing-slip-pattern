@@ -26,6 +26,9 @@ const els = {
   title: document.querySelector("#workflow-title"),
   lineCount: document.querySelector("#line-count"),
   timeline: document.querySelector("#timeline"),
+  processingOverlay: document.querySelector("#execution-loading"),
+  processingTitle: document.querySelector("#execution-loading-title"),
+  processingCopy: document.querySelector("#execution-loading-copy"),
   summary: document.querySelector("#run-summary"),
   example: document.querySelector("#example-select"),
   graphqlEndpoint: document.querySelector("#graphql-endpoint"),
@@ -48,6 +51,15 @@ const els = {
   exportWorkflowFile: document.querySelector("#export-workflow-file"),
   refreshWorkspace: document.querySelector("#refresh-workspace"),
   collapseTabs: document.querySelector("#collapse-tabs"),
+  visualize: document.querySelector("#visualize-workflow"),
+  visualizerModal: document.querySelector("#workflow-visualizer-modal"),
+  visualizerTitle: document.querySelector("#workflow-visualizer-title"),
+  visualizerToggle: document.querySelector("#workflow-visualizer-toggle"),
+  visualizerReset: document.querySelector("#workflow-visualizer-reset"),
+  visualizerDownload: document.querySelector("#workflow-visualizer-download"),
+  visualizerClose: document.querySelector("#workflow-visualizer-close"),
+  visualizerSvg: document.querySelector("#workflow-visualizer-svg"),
+  run: document.querySelector("#run-test"),
   reprocess: document.querySelector("#reprocess-test"),
   themeToggle: document.querySelector("#theme-toggle"),
   mobileDocsToggle: document.querySelector("#mobile-docs-toggle"),
@@ -60,6 +72,15 @@ let activeExecutionStepIndex = null;
 let activeLogEntry = null;
 let activeStepGroup = null;
 let stepGroups = new Map();
+let logSources = new Map();
+let activeLogSourceKey = "";
+let runtimeRootSourceKey = "";
+let studioExecutionRunning = false;
+let workflowVisualizerMode = "macro";
+let workflowVisualizerGraph = null;
+let workflowVisualizerRenderedGraph = null;
+let workflowVisualizerViewBox = { x: 0, y: 0, width: 1200, height: 720 };
+let workflowVisualizerDrag = null;
 let saveTimer = null;
 let workspaceState = {
   rootHandle: null,
@@ -112,8 +133,16 @@ function bindEvents() {
   });
   document.querySelector("#load-example").addEventListener("click", () => loadExample(els.example.value));
   document.querySelector("#lint-now").addEventListener("click", lintWorkflow);
+  els.visualize.addEventListener("click", openWorkflowVisualizer);
   document.querySelector("#run-test").addEventListener("click", () => runLocalSimulation());
   els.reprocess.addEventListener("click", () => runLocalSimulation({ reprocess: true }));
+  els.visualizerClose.addEventListener("click", closeWorkflowVisualizer);
+  els.visualizerModal.addEventListener("click", (event) => {
+    if (event.target === els.visualizerModal) closeWorkflowVisualizer();
+  });
+  els.visualizerToggle.addEventListener("click", toggleWorkflowVisualizerMode);
+  els.visualizerReset.addEventListener("click", resetWorkflowVisualizerView);
+  els.visualizerDownload.addEventListener("click", downloadWorkflowDiagramImage);
   els.themeToggle.addEventListener("click", toggleTheme);
   els.mobileDocsToggle.addEventListener("click", toggleMobileDocs);
   els.mobileDocsBackdrop.addEventListener("click", closeMobileDocs);

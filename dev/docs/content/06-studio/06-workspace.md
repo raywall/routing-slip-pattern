@@ -39,3 +39,14 @@ workflows/
 
 Use composição com `workflow_ref` quando um fluxo principal precisar chamar workflows de outros contextos.
 
+Referencie workflows pelo path a partir da raiz do workspace:
+
+```yaml
+- id: delivery
+  name: workflow_ref
+  params:
+    file: delivery/prepare-delivery
+    prefix: delivery
+```
+
+Esse formato funciona independentemente da pasta do arquivo aberto. O lint do Studio valida se `delivery/prepare-delivery.yaml` ou `delivery/prepare-delivery.yml` existe no workspace.
