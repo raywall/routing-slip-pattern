@@ -65,8 +65,9 @@ exibido na area principal onde normalmente aparecem os logs da execucao.
 
 Sempre que `DOCUMENTATION.md` for atualizado por causa de uma funcionalidade,
 atualize tambem os arquivos Markdown em `studio/docs/content`. Cada arquivo usa
-front matter com `sidebar_position` e `sidebar_label`; o Studio monta a arvore
-de navegacao a partir de `studio/docs/manifest.json` e desses headers.
+front matter com `sidebar_position` e `sidebar_label`; o Studio descobre a
+estrutura de diretorios em `docs/content`, lê os `index.md` das subpastas e
+monta a arvore de navegacao a partir desses headers.
 
 ## Organizacao dos assets
 
