@@ -739,7 +739,7 @@ O Studio oferece:
 - tema claro/escuro;
 - modo mobile focado em leitura.
 
-A documentacao do Studio e montada a partir de arquivos Markdown em `studio/docs/content`. Cada pasta possui um `index.md` com `sidebar_position` e `sidebar_label`, e cada arquivo de conteudo possui o mesmo front matter para ordenar e nomear os subitens. O arquivo `studio/docs/manifest.json` lista os arquivos publicados; a interface lê os headers e monta a navegacao sem depender de uma estrutura JavaScript fixa.
+A documentacao do Studio e montada a partir de arquivos Markdown em `studio/docs/content`. Cada pasta possui um `index.md` com `sidebar_position` e `sidebar_label`, e cada arquivo de conteudo possui o mesmo front matter para ordenar e nomear os subitens. A interface descobre a estrutura publicada em `docs/content`, lê os headers dos arquivos e monta a navegacao sem depender de `documentation.js` ou `manifest.json`.
 
 No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
 

@@ -1,13 +1,19 @@
 ---
 sidebar_position: 1
-sidebar_label: "Visão Geral"
+sidebar_label: "Visão geral"
 ---
 
 # Visão geral do projeto
 
-O `routing-slip-pattern` e um framework para construir workflows modulares, rastreáveis e reprocessáveis. Ele permite descrever o fluxo em YAML, executar cada etapa com handlers reutilizáveis, enriquecer o payload com dados externos, registrar métricas e retomar o processamento do ponto correto quando algo falha.
+O `routing-slip-pattern` e um framework poderoso que permite a construção de workflows modulares, rastreáveis e reprocessáveis. Tornando possível:
 
-A proposta e simples: em vez de esconder o processo dentro de código imperativo, o workflow deixa o caminho visível. Cada etapa tem nome, parâmetros, entrada, saída, status e histórico.
+- descrever o fluxo de processamento em formato YAML, 
+- executar cada etapa com handlers reutilizáveis, 
+- enriquecer o payload com dados externos, 
+- registrar métricas e logs,
+- e retomar o processamento do ponto correto quando algo falha
+
+A proposta é bastante simples: `em vez de esconder o processo dentro de código imperativo, o workflow deixa o caminho visível`. Cada etapa tem nome, parâmetros, entrada, saída, status e histórico.
 
 ```mermaid
 flowchart LR
@@ -20,7 +26,7 @@ flowchart LR
   H[MCP] --> B
 ```
 
-O framework foi desenhado para qualquer domínio: pedidos, catalogo, atendimento, logística, onboarding, validação documental, notificações, sincronização de dados ou qualquer processo em etapas.
+O framework foi desenhado para atender qualquer domínio: pedidos, catalogo, atendimento, logística, onboarding, validação documental, notificações, sincronização de dados ou qualquer processo que precise ser realizado em etapas.
 
 ## O que voce encontra no ecossistema?
 
