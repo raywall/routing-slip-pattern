@@ -133,8 +133,13 @@ func TestMCPGenerateWorkflowFromBusinessRules(t *testing.T) {
 						"description": "O campo {order.total} deve existir antes da aprovacao."
 					},
 					"technical_metadata": {
+						"dependencies": [
+							{"type": "business_rule", "Rule_id": "catalog_available", "Relation": "depends_on"},
+							{"type": "system", "Name": "sqs", "Component": "order-events", "Action": "consume"}
+						],
 						"observability": {
-							"custom_metric": ["routing_slip.order.total_checked"],
+							"datadog_monitor_ids": [123, 456],
+							"custom_metrics": {"name": "routing_slip.order.total_checked", "type": "gauge", "tags": ["env:test"]},
 							"log_markers": ["total-check"]
 						}
 					}
@@ -152,6 +157,10 @@ func TestMCPGenerateWorkflowFromBusinessRules(t *testing.T) {
 	payload := content["test_payload"].(map[string]any)
 	if payload["correlation_id"] == "" {
 		t.Fatal("expected payload correlation_id")
+	}
+	rules := content["active_rules"].([]map[string]any)
+	if len(rules) != 1 || len(rules[0]["datadog_monitor_ids"].([]string)) != 2 {
+		t.Fatalf("expected datadog monitor ids in active rule, got %#v", rules)
 	}
 }
 

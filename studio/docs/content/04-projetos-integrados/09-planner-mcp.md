@@ -106,8 +106,16 @@ curl -s http://localhost:9091/mcp \
               "description": "O campo {order.total} deve existir antes da aprovacao."
             },
             "technical_metadata": {
+              "dependencies": [
+                {"type": "system", "name": "order-api", "component": "orders", "action": "read"}
+              ],
               "observability": {
-                "custom_metric": ["routing_slip.order.total_checked"],
+                "datadog_monitor_ids": ["123", "456"],
+                "custom_metrics": {
+                  "name": "routing_slip.order.total_checked",
+                  "type": "gauge",
+                  "tags": ["env:production", "team:backend"]
+                },
                 "log_markers": ["total-check"]
               }
             }
@@ -126,7 +134,7 @@ O Studio também valida se o workflow cobre as regras `ACTIVE` do projeto. O lin
 
 - uma regra ativa ainda não aparece em nenhum step;
 - campos citados em `{path}` não aparecem no workflow;
-- uma métrica declarada não possui `datadog_metric`;
+- uma métrica declarada em `custom_metrics.name` não possui `datadog_metric`;
 - um marcador de log declarado não possui `log`;
 - uma dependência de regra aponta para uma regra inexistente ou inativa.
 

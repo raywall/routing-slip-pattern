@@ -144,7 +144,7 @@ Quando há regras `ACTIVE` no projeto, o lint verifica se o script mantém vínc
 Quando uma regra ativa ainda não está coberta, o Studio mostra um aviso. Isso não bloqueia o script, porque a regra pode ser documentada antes da implementação completa. O lint também aponta:
 
 - campos citados em `{path}` na descrição ou `ai_logic` que não aparecem no workflow;
-- métricas declaradas em `technical_metadata.observability.custom_metric` sem `datadog_metric`;
+- métricas declaradas em `technical_metadata.observability.custom_metrics.name` sem `datadog_metric`;
 - marcadores em `technical_metadata.observability.log_markers` sem `log`;
 - dependências de regras que não estão ativas no usecase.
 

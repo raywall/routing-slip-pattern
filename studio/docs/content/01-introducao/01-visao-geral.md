@@ -20,7 +20,108 @@ O padrão `Routing Slip` (ou padrão de encaminhamento) é usado para criar tran
 
 Bastante comum em processos assíncronos ou microsserviços, tanto a ideia quanto a estrutura aplicada a um `routing slip` é bastante simples. `Cada serviço recebe a mensagem, executa sua tarefa, atualiza o status no documento e encaminha para o próximo destino listado`, possibilitando assim um maior controle do processo. Além de gerar rastreabilidade, explicabilidade e viabilizar a criação de `checkpoints` que garantem que um processo possa ser retomado a qualquer momento do exato ponto onde parou. 
 
-> criar [imagem](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RoutingTable.html) para demonstrar o comportamento padrão de um routing slip e adicionar aqui
+```mermaid
+flowchart LR
+  %% Entrada
+  A[API Gateway<br/>Recebe proposta]:::entry
+  B[Routing Slip Creator<br/>Monta workflow + payload]:::control
+
+  %% Canal
+  EB[(EventBridge<br/>Message Channel)]:::channel
+
+  %% Estado
+  ST[(DynamoDB<br/>Execution State<br/>currentStep, status, history)]:::state
+  LOG[(CloudWatch / Datadog<br/>Logs, Metrics, Traces)]:::obs
+  DLQ[(SQS DLQ<br/>Falhas não recuperáveis)]:::error
+
+  %% Steps
+  S1["1. ValidateCustomer Lambda"]:::step
+  S2["2. CalculateOffer ECS/Fargate"]:::step
+  S3["3. FraudCompliance Lambda"]:::step
+  S4["4. FormalizeContract ECS/Lambda"]:::step
+  S5["5. NotifyCustomer Lambda/SNS"]:::step
+  END["Workflow Finalizado"]:::success
+
+  %% Fluxo principal
+  A --> B
+  B -->|"cria executionId<br/>routingSlip[1..5]"| ST
+  B -->|publica step 1| EB
+
+  EB -->|route: ValidateCustomer| S1
+  S1 -->|next: CalculateOffer| EB
+
+  EB -->|route: CalculateOffer| S2
+  S2 -->|next: FraudCompliance| EB
+
+  EB -->|route: FraudCompliance| S3
+  S3 -->|next: FormalizeContract| EB
+
+  EB -->|route: FormalizeContract| S4
+  S4 -->|next: NotifyCustomer| EB
+
+  EB -->|route: NotifyCustomer| S5
+  S5 --> END
+
+  %% Estado e observabilidade
+  S1 -. update step 1 .-> ST
+  S2 -. update step 2 .-> ST
+  S3 -. update step 3 .-> ST
+  S4 -. update step 4 .-> ST
+  S5 -. update step 5 .-> ST
+
+  B -. log .-> LOG
+  S1 -. log/trace .-> LOG
+  S2 -. log/trace .-> LOG
+  S3 -. log/trace .-> LOG
+  S4 -. log/trace .-> LOG
+  S5 -. log/trace .-> LOG
+
+  %% Falhas
+  S1 -->|erro/retry excedido| DLQ
+  S2 -->|erro/retry excedido| DLQ
+  S3 -->|erro/retry excedido| DLQ
+  S4 -->|erro/retry excedido| DLQ
+  S5 -->|erro/retry excedido| DLQ
+
+  %% Agrupamentos visuais
+  subgraph AWS_Entry[Entrada]
+    A
+    B
+  end
+
+  subgraph AWS_Routing[Message Routing]
+    EB
+  end
+
+  subgraph AWS_Workers[Execução do Routing Slip]
+    S1
+    S2
+    S3
+    S4
+    S5
+  end
+
+  subgraph AWS_State[Estado, Timeline e Observabilidade]
+    ST
+    LOG
+  end
+
+  subgraph AWS_Failure[Tratamento de Falhas]
+    DLQ
+  end
+
+  %% Estilos
+  classDef entry fill:#FFF3B0,stroke:#D97706,stroke-width:2px,color:#111827;
+  classDef control fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#111827;
+  classDef channel fill:#E0E7FF,stroke:#4F46E5,stroke-width:2px,color:#111827;
+  classDef step fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#111827;
+  classDef state fill:#F3E8FF,stroke:#9333EA,stroke-width:2px,color:#111827;
+  classDef obs fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#111827;
+  classDef error fill:#FEE2E2,stroke:#DC2626,stroke-width:2px,color:#111827;
+  classDef success fill:#BBF7D0,stroke:#15803D,stroke-width:3px,color:#111827;
+```
+
+[ref](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RoutingTable.html)
 
 ## Qual a proposta do framework?
 

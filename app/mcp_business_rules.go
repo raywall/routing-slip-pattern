@@ -11,17 +11,18 @@ import (
 )
 
 type mcpBusinessRule struct {
-	ID              string
-	Name            string
-	Status          string
-	Description     string
-	AILogic         string
-	ExecutionOrder  int
-	RequiredFields  []string
-	CustomMetrics   []string
-	LogMarkers      []string
-	Dependencies    []string
-	SourceReference map[string]any
+	ID                string
+	Name              string
+	Status            string
+	Description       string
+	AILogic           string
+	ExecutionOrder    int
+	RequiredFields    []string
+	DatadogMonitorIDs []string
+	CustomMetrics     []string
+	LogMarkers        []string
+	Dependencies      []string
+	SourceReference   map[string]any
 }
 
 func (s *mcpServer) generateWorkflowFromBusinessRules(ctx context.Context, args map[string]any) (any, error) {
@@ -237,17 +238,18 @@ func businessRuleFromMap(values map[string]any) mcpBusinessRule {
 	metadata := mapArg(values["technical_metadata"])
 	observability := mapArg(metadata["observability"])
 	rule := mcpBusinessRule{
-		ID:              firstNonEmptyString([]string{stringMapValue(values, "rule_id"), stringMapValue(values, "id")}, ""),
-		Name:            firstNonEmptyString([]string{stringMapValue(human, "name"), stringMapValue(values, "name")}, ""),
-		Status:          strings.ToUpper(firstNonEmptyString([]string{stringMapValue(values, "status")}, "ACTIVE")),
-		Description:     firstNonEmptyString([]string{stringMapValue(human, "description"), stringMapValue(values, "description")}, ""),
-		AILogic:         firstNonEmptyString([]string{stringMapValue(values, "ai_logic"), stringMapValue(values, "logic")}, ""),
-		ExecutionOrder:  intArgFromMap(values, "execution_order"),
-		RequiredFields:  mergeStringSlices(stringSliceFromAny(values["required_inputs"]), stringSliceFromAny(values["required_fields"]), stringSliceFromAny(engineering["required_fields"])),
-		CustomMetrics:   mergeStringSlices(stringSliceFromAny(observability["custom_metric"]), stringSliceFromAny(observability["custom_metrics"])),
-		LogMarkers:      mergeStringSlices(stringSliceFromAny(observability["log_markers"]), stringSliceFromAny(observability["logs"])),
-		Dependencies:    dependencyIDs(metadata["dependencies"]),
-		SourceReference: values,
+		ID:                firstNonEmptyString([]string{stringMapValueCI(values, "rule_id"), stringMapValueCI(values, "id")}, ""),
+		Name:              firstNonEmptyString([]string{stringMapValueCI(human, "name"), stringMapValueCI(values, "name")}, ""),
+		Status:            strings.ToUpper(firstNonEmptyString([]string{stringMapValueCI(values, "status")}, "ACTIVE")),
+		Description:       firstNonEmptyString([]string{stringMapValueCI(human, "description"), stringMapValueCI(values, "description")}, ""),
+		AILogic:           firstNonEmptyString([]string{stringMapValueCI(values, "ai_logic"), stringMapValueCI(values, "logic")}, ""),
+		ExecutionOrder:    intArgFromMap(values, "execution_order"),
+		RequiredFields:    mergeStringSlices(stringSliceFromAny(values["required_inputs"]), stringSliceFromAny(values["required_fields"]), stringSliceFromAny(engineering["required_fields"])),
+		DatadogMonitorIDs: mergeStringSlices(stringSliceFromAny(observability["datadog_monitor_ids"]), stringSliceFromAny(observability["datadog_monitor_id"])),
+		CustomMetrics:     mergeStringSlices(customMetricNames(observability["custom_metric"]), customMetricNames(observability["custom_metrics"])),
+		LogMarkers:        mergeStringSlices(stringSliceFromAny(observability["log_markers"]), stringSliceFromAny(observability["logs"])),
+		Dependencies:      dependencyIDs(metadata["dependencies"]),
+		SourceReference:   values,
 	}
 	if len(rule.RequiredFields) == 0 {
 		rule.RequiredFields = inferRequiredFields(rule.Description + "\n" + rule.AILogic)
@@ -301,15 +303,16 @@ func businessRuleCoverage(workflow *WorkflowConfig, rules []mcpBusinessRule) []m
 	out := make([]map[string]any, 0, len(rules))
 	for _, rule := range rules {
 		out = append(out, map[string]any{
-			"rule_id":          rule.ID,
-			"covered":          containsAnyToken(text, businessRuleTokens(rule)),
-			"required_fields":  rule.RequiredFields,
-			"custom_metrics":   rule.CustomMetrics,
-			"log_markers":      rule.LogMarkers,
-			"covered_steps":    coveredStepsForRule(workflow, rule),
-			"dependencies":     rule.Dependencies,
-			"execution_order":  rule.ExecutionOrder,
-			"business_summary": firstNonEmptyString([]string{rule.Name, firstLine(rule.Description)}, rule.ID),
+			"rule_id":             rule.ID,
+			"covered":             containsAnyToken(text, businessRuleTokens(rule)),
+			"required_fields":     rule.RequiredFields,
+			"datadog_monitor_ids": rule.DatadogMonitorIDs,
+			"custom_metrics":      rule.CustomMetrics,
+			"log_markers":         rule.LogMarkers,
+			"covered_steps":       coveredStepsForRule(workflow, rule),
+			"dependencies":        rule.Dependencies,
+			"execution_order":     rule.ExecutionOrder,
+			"business_summary":    firstNonEmptyString([]string{rule.Name, firstLine(rule.Description)}, rule.ID),
 		})
 	}
 	return out
@@ -359,14 +362,15 @@ func businessRulesAsMaps(rules []mcpBusinessRule) []map[string]any {
 	out := make([]map[string]any, 0, len(rules))
 	for _, rule := range rules {
 		out = append(out, map[string]any{
-			"rule_id":         rule.ID,
-			"name":            rule.Name,
-			"status":          rule.Status,
-			"execution_order": rule.ExecutionOrder,
-			"required_fields": rule.RequiredFields,
-			"custom_metrics":  rule.CustomMetrics,
-			"log_markers":     rule.LogMarkers,
-			"dependencies":    rule.Dependencies,
+			"rule_id":             rule.ID,
+			"name":                rule.Name,
+			"status":              rule.Status,
+			"execution_order":     rule.ExecutionOrder,
+			"required_fields":     rule.RequiredFields,
+			"datadog_monitor_ids": rule.DatadogMonitorIDs,
+			"custom_metrics":      rule.CustomMetrics,
+			"log_markers":         rule.LogMarkers,
+			"dependencies":        rule.Dependencies,
 		})
 	}
 	return out
@@ -507,8 +511,17 @@ func mapArg(value any) map[string]any {
 	return map[string]any{}
 }
 
+func mapValueCI(values map[string]any, key string) any {
+	for candidate, value := range values {
+		if strings.EqualFold(candidate, key) {
+			return value
+		}
+	}
+	return nil
+}
+
 func intArgFromMap(values map[string]any, key string) int {
-	switch value := values[key].(type) {
+	switch value := mapValueCI(values, key).(type) {
 	case int:
 		return value
 	case int64:
@@ -518,6 +531,14 @@ func intArgFromMap(values map[string]any, key string) int {
 	default:
 		return 0
 	}
+}
+
+func stringMapValueCI(values map[string]any, key string) string {
+	value := mapValueCI(values, key)
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", value))
 }
 
 func stringSliceFromAny(value any) []string {
@@ -541,6 +562,28 @@ func stringSliceFromAny(value any) []string {
 				out = append(out, text)
 			}
 		}
+	}
+	return out
+}
+
+func customMetricNames(value any) []string {
+	out := []string{}
+	switch typed := value.(type) {
+	case []any:
+		for _, item := range typed {
+			out = append(out, customMetricNames(item)...)
+		}
+	case []map[string]any:
+		for _, item := range typed {
+			out = append(out, customMetricNames(item)...)
+		}
+	case map[string]any:
+		name := firstNonEmptyString([]string{stringMapValueCI(typed, "name"), stringMapValueCI(typed, "metric")}, "")
+		if name != "" {
+			out = append(out, name)
+		}
+	case string:
+		out = append(out, stringSliceFromAny(typed)...)
 	}
 	return out
 }
@@ -570,8 +613,9 @@ func dependencyIDs(value any) []string {
 				out = append(out, strings.TrimSpace(typed))
 			}
 		case map[string]any:
-			id := firstNonEmptyString([]string{stringMapValue(typed, "rule_id"), stringMapValue(typed, "system")}, "")
-			if id != "" {
+			dependencyType := strings.ToLower(strings.ReplaceAll(stringMapValueCI(typed, "type"), "-", "_"))
+			id := firstNonEmptyString([]string{stringMapValueCI(typed, "rule_id"), stringMapValueCI(typed, "Rule_id")}, "")
+			if (dependencyType == "" || dependencyType == "business_rule") && id != "" {
 				out = append(out, id)
 			}
 		}

@@ -940,8 +940,16 @@ curl -s http://localhost:9091/mcp \
               "description": "O campo {order.total} deve existir antes da aprovacao."
             },
             "technical_metadata": {
+              "dependencies": [
+                {"type": "system", "name": "order-api", "component": "orders", "action": "read"}
+              ],
               "observability": {
-                "custom_metric": ["routing_slip.order.total_checked"],
+                "datadog_monitor_ids": ["123", "456"],
+                "custom_metrics": {
+                  "name": "routing_slip.order.total_checked",
+                  "type": "gauge",
+                  "tags": ["env:production", "team:backend"]
+                },
                 "log_markers": ["total-check"]
               }
             }
@@ -967,7 +975,7 @@ O lint do Studio considera as regras `ACTIVE` do arquivo de projeto. Para cada r
 
 - se o `rule_id` ou nome aparece em algum step, auditoria, log ou metrica;
 - se campos inferidos em `{path}` aparecem no workflow ou no `validate`;
-- se metricas declaradas em `technical_metadata.observability.custom_metric` possuem `datadog_metric`;
+- se metricas declaradas em `technical_metadata.observability.custom_metrics` possuem `datadog_metric`;
 - se marcadores declarados em `technical_metadata.observability.log_markers` possuem `log`;
 - se dependencias entre regras apontam para regras ativas do mesmo usecase.
 
@@ -1078,20 +1086,29 @@ ai_logic: >
   horario de confirmacao do pedido e resultado da regra de elegibilidade.
 technical_metadata:
   dependencies:
-    - system: estoque_regional_disponivel_01
-      action: business-rule
+    - type: business_rule
+      rule_id: estoque_regional_disponivel_01
+      relation: depends_on
+    - type: system
+      name: inventory
+      component: regional-stock
+      action: read
   observability:
-    datadog_monitor_id:
+    datadog_monitor_ids:
       - "123456"
-    custom_metric:
-      - delivery.express.eligible
+    custom_metrics:
+      name: delivery.express.eligible
+      type: gauge
+      tags:
+        - env:production
+        - team:logistics
     log_markers:
-      - order_id
+      - express-eligibility
 ```
 
 No workspace, as regras aparecem como subitens do usecase. Ao clicar em uma regra, ela e exibida no painel de resultado em formato de formulario, com campos separados para visao humana, engenharia, IA, observabilidade e dependencias. A tela evita editar YAML cru e reduz o risco de quebrar a estrutura esperada pelo Studio.
 
-Quando o usecase possui mais de uma regra, os botoes **Anterior** e **Proxima** permitem navegar entre elas. Dependencias declaradas com `action: business-rule` viram links para a regra relacionada; ao abrir uma dependencia, o botao **Voltar** retorna para a regra que originou a navegacao. Ao excluir uma regra, o Studio avisa quando outra regra do mesmo usecase declara dependencia dela.
+Quando o usecase possui mais de uma regra, os botoes **Anterior** e **Proxima** permitem navegar entre elas. Dependencias declaradas com `type: business_rule` e `rule_id` viram links para a regra relacionada; ao abrir uma dependencia, o botao **Voltar** retorna para a regra que originou a navegacao. Ao excluir uma regra, o Studio avisa quando outra regra do mesmo usecase declara dependencia dela.
 
 ## Case ecommerce distribuido
 
