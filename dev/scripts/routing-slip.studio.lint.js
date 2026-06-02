@@ -197,7 +197,7 @@ function validateBusinessRulesCoverage(workflow, issues) {
       }
     });
     const observability = rule.technical_metadata?.observability || {};
-    businessRuleList(observability.custom_metric || observability.custom_metrics).forEach((metric) => {
+    businessRuleMetricNames(observability.custom_metrics || observability.custom_metric).forEach((metric) => {
       if (!workflowHasDatadogMetric(workflow, metric)) {
         issues.push(warn(`Regra "${rule.rule_id}" declara metrica "${metric}", mas nao ha step datadog_metric correspondente.`));
       }
@@ -207,10 +207,9 @@ function validateBusinessRulesCoverage(workflow, issues) {
         issues.push(warn(`Regra "${rule.rule_id}" declara log marker "${marker}", mas nao ha step log correspondente.`));
       }
     });
-    (rule.technical_metadata?.dependencies || []).forEach((dependency) => {
-      const dependencyID = typeof dependency === "string" ? dependency : (dependency?.rule_id || dependency?.system || "");
-      const action = typeof dependency === "string" ? "business-rule" : (dependency?.action || "business-rule");
-      if (action === "business-rule" && dependencyID && !rules.some((item) => item.rule_id === dependencyID)) {
+    businessRuleDependencies(rule.technical_metadata?.dependencies || []).forEach((dependency) => {
+      const dependencyID = dependency.rule_id || "";
+      if (dependency.type === "business_rule" && dependencyID && !rules.some((item) => item.rule_id === dependencyID)) {
         issues.push(warn(`Regra "${rule.rule_id}" depende de "${dependencyID}", que nao esta ativa neste projeto.`));
       }
     });
@@ -233,7 +232,38 @@ function inferFieldsFromRuleText(text) {
 function businessRuleList(value) {
   if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
   if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
-  return [];
+  if (value === undefined || value === null) return [];
+  return [String(value).trim()].filter(Boolean);
+}
+
+function businessRuleMetricNames(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => typeof item === "string" ? item : (item?.name || item?.Name || item?.metric || "")).map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (value && typeof value === "object") return businessRuleMetricNames([value]);
+  return businessRuleList(value);
+}
+
+function businessRuleDependencies(value) {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  return items.map((item) => {
+    if (typeof item === "string") return { type: "business_rule", rule_id: item, relation: "depends_on" };
+    if (!item || typeof item !== "object") return null;
+    const type = String(item.type || item.Type || "").toLowerCase().replace("-", "_") || (item.rule_id || item.Rule_id ? "business_rule" : "system");
+    if (type === "business_rule" || type === "business-rule") {
+      return {
+        type: "business_rule",
+        rule_id: item.rule_id || item.Rule_id || item.id || "",
+        relation: item.relation || item.Relation || "depends_on",
+      };
+    }
+    return {
+      type: "system",
+      name: item.name || item.Name || "",
+      component: item.component || item.Component || "",
+      action: item.action || item.Action || "",
+    };
+  }).filter(Boolean);
 }
 
 function workflowRequiresField(workflow, field) {

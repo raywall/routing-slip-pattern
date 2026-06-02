@@ -190,18 +190,35 @@ function summarizeCurrentProject() {
 function normalizeBusinessRules(rules) {
   return (Array.isArray(rules) ? rules : [])
     .filter((rule) => rule && typeof rule === "object")
-    .map((rule) => ({
-      rule_id: rule.rule_id || `rule_${generateUUID().slice(0, 8)}`,
-      domain: rule.domain || "",
-      context: rule.context || "",
-      execution_order: Number(rule.execution_order || 0),
-      status: rule.status || "DRAFT",
-      human_context: rule.human_context || { name: rule.rule_id || "Nova regra", description: "", business_owner: "" },
-      engineering_context: rule.engineering_context || {},
-      ai_logic: rule.ai_logic || "",
-      technical_metadata: rule.technical_metadata || { dependencies: [], observability: {} },
-    }))
+    .map((rule) => {
+      const ruleID = rule.rule_id || rule.Rule_id || rule.id || `rule_${generateUUID().slice(0, 8)}`;
+      return {
+        rule_id: ruleID,
+        domain: rule.domain || "",
+        context: rule.context || "",
+        execution_order: Number(rule.execution_order || 0),
+        status: rule.status || "DRAFT",
+        human_context: rule.human_context || { name: ruleID || "Nova regra", description: "", business_owner: "" },
+        engineering_context: rule.engineering_context || {},
+        ai_logic: rule.ai_logic || "",
+        technical_metadata: normalizeBusinessRuleTechnicalMetadata(rule.technical_metadata || {}),
+      };
+    })
     .sort((a, b) => Number(a.execution_order || 0) - Number(b.execution_order || 0) || String(a.rule_id).localeCompare(String(b.rule_id)));
+}
+
+function normalizeBusinessRuleTechnicalMetadata(metadata) {
+  const observability = metadata.observability || {};
+  return {
+    ...metadata,
+    dependencies: normalizeBusinessRuleDependencies(metadata.dependencies || []),
+    observability: {
+      ...observability,
+      datadog_monitor_ids: businessRuleList(observability.datadog_monitor_ids || observability.datadog_monitor_id),
+      custom_metrics: normalizeBusinessRuleCustomMetrics(observability.custom_metrics || observability.custom_metric),
+      log_markers: businessRuleList(observability.log_markers || observability.logs),
+    },
+  };
 }
 
 function currentBusinessRuleIndex(ruleID) {
@@ -245,24 +262,18 @@ function businessRuleArrayValue(values) {
 }
 
 function businessRuleDependenciesText(rule) {
-  const dependencies = Array.isArray(rule.technical_metadata?.dependencies) ? rule.technical_metadata.dependencies : [];
-  return dependencies.map((dep) => {
-    if (typeof dep === "string") return dep;
-    const system = dep?.system || dep?.rule_id || "";
-    const action = dep?.action || "business-rule";
-    return system ? `${system}|${action}` : "";
-  }).filter(Boolean).join("\n");
+  const dependencies = normalizeBusinessRuleDependencies(rule.technical_metadata?.dependencies || []);
+  return dependencies.length ? dumpBusinessRuleYaml(dependencies) : "";
 }
 
 function parseBusinessRuleDependencies(value) {
-  return String(value || "")
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => {
-      const [system, action] = item.split("|").map((part) => part.trim());
-      return { system, action: action || "business-rule" };
-    });
+  const text = String(value || "").trim();
+  if (!text) return [];
+  try {
+    return normalizeBusinessRuleDependencies(window.jsyaml.load(text));
+  } catch {
+    return normalizeBusinessRuleDependencies(text.split(/\n|,/).map((item) => item.trim()).filter(Boolean));
+  }
 }
 
 function parseCommaList(value) {
@@ -270,6 +281,83 @@ function parseCommaList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function businessRuleList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") return parseCommaList(value);
+  if (value === undefined || value === null) return [];
+  return [String(value).trim()].filter(Boolean);
+}
+
+function normalizeBusinessRuleDependencies(value) {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  return items.map((item) => {
+    if (typeof item === "string") {
+      const [first, second] = item.split("|").map((part) => part.trim());
+      return { type: "business_rule", rule_id: first, relation: second || "depends_on" };
+    }
+    if (!item || typeof item !== "object") return null;
+    const type = String(item.type || item.Type || item.kind || "").toLowerCase().replace("-", "_") || (item.rule_id || item.Rule_id ? "business_rule" : "system");
+    if (type === "business_rule" || type === "business-rule") {
+      return {
+        type: "business_rule",
+        rule_id: item.rule_id || item.Rule_id || item.id || "",
+        relation: item.relation || item.Relation || item.action || item.Action || "depends_on",
+      };
+    }
+    return {
+      type: "system",
+      name: item.name || item.Name || "",
+      component: item.component || item.Component || "",
+      action: item.action || item.Action || "",
+    };
+  }).filter((item) => item && (item.rule_id || item.name || item.component));
+}
+
+function normalizeBusinessRuleCustomMetrics(value) {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  return items.map((item) => {
+    if (typeof item === "string") return { name: item, type: "count", tags: [] };
+    if (!item || typeof item !== "object") return null;
+    return {
+      name: item.name || item.Name || item.metric || "",
+      type: item.type || item.Type || "count",
+      tags: businessRuleMetricTags(item.tags || item.Tags),
+    };
+  }).filter((item) => item && item.name);
+}
+
+function businessRuleMetricTags(value) {
+  if (Array.isArray(value)) return value.map((item) => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      return Object.entries(item).map(([key, val]) => `${key}:${val}`).join(",");
+    }
+    return String(item || "");
+  }).filter(Boolean);
+  if (typeof value === "string") return parseCommaList(value);
+  if (value && typeof value === "object") return Object.entries(value).map(([key, val]) => `${key}:${val}`);
+  return [];
+}
+
+function parseBusinessRuleCustomMetrics(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  try {
+    return normalizeBusinessRuleCustomMetrics(window.jsyaml.load(text));
+  } catch {
+    return normalizeBusinessRuleCustomMetrics(parseCommaList(text));
+  }
+}
+
+function businessRuleCustomMetricsText(metrics) {
+  const normalized = normalizeBusinessRuleCustomMetrics(metrics);
+  return normalized.length ? dumpBusinessRuleYaml(normalized) : "";
+}
+
+function dumpBusinessRuleYaml(value) {
+  return window.jsyaml.dump(value, { lineWidth: 140, noRefs: true, sortKeys: false }).trimEnd();
 }
 
 function setNestedValue(target, path, value) {
@@ -291,37 +379,40 @@ function collectBusinessRuleForm(ruleID) {
     let value = field.value;
     if (path === "execution_order") value = Number(value || 0);
     if (path === "technical_metadata.dependencies") value = parseBusinessRuleDependencies(value);
-    if (path === "technical_metadata.observability.datadog_monitor_id") value = parseCommaList(value);
-    if (path === "technical_metadata.observability.custom_metric") value = parseCommaList(value);
+    if (path === "technical_metadata.observability.datadog_monitor_ids") value = parseCommaList(value);
+    if (path === "technical_metadata.observability.custom_metrics") value = parseBusinessRuleCustomMetrics(value);
     if (path === "technical_metadata.observability.log_markers") value = parseCommaList(value);
     setNestedValue(updated, path, value);
   });
+  updated.technical_metadata = normalizeBusinessRuleTechnicalMetadata(updated.technical_metadata || {});
   return updated;
 }
 
 function renderBusinessRuleDependencies(rule, editing) {
   if (editing) {
     return businessRuleField("technical_metadata.dependencies", businessRuleDependenciesText(rule), {
-      label: "Dependencias (uma por linha: regra_id|business-rule)",
+      label: "Dependencias (YAML)",
       multiline: true,
-      rows: 4,
+      rows: 7,
       full: true,
       editing,
     });
   }
-  const dependencies = Array.isArray(rule.technical_metadata?.dependencies) ? rule.technical_metadata.dependencies : [];
+  const dependencies = normalizeBusinessRuleDependencies(rule.technical_metadata?.dependencies || []);
   if (!dependencies.length) {
     return `<div class="business-rule-empty">Sem dependencias cadastradas.</div>`;
   }
   return `
     <div class="business-rule-dependencies">
       ${dependencies.map((dep) => {
-        const system = typeof dep === "string" ? dep : (dep?.system || dep?.rule_id || "");
-        const action = typeof dep === "string" ? "business-rule" : (dep?.action || "business-rule");
-        const found = action === "business-rule" && currentBusinessRules.some((item) => item.rule_id === system);
+        const type = dep.type || "system";
+        const ruleID = dep.rule_id || "";
+        const name = dep.name || dep.component || ruleID || "-";
+        const relation = dep.relation || dep.action || type;
+        const found = type === "business_rule" && ruleID && currentBusinessRules.some((item) => item.rule_id === ruleID);
         return found
-          ? `<button class="business-rule-dependency" type="button" data-dependency-rule="${escapeHtml(system)}">${escapeHtml(system)}</button>`
-          : `<span class="business-rule-dependency disabled">${escapeHtml(system || "-")} <em>${escapeHtml(action)}</em></span>`;
+          ? `<button class="business-rule-dependency" type="button" data-dependency-rule="${escapeHtml(ruleID)}">${escapeHtml(ruleID)} <em>${escapeHtml(relation)}</em></button>`
+          : `<span class="business-rule-dependency disabled">${escapeHtml(name)} <em>${escapeHtml(type)}:${escapeHtml(relation)}</em></span>`;
       }).join("")}
     </div>`;
 }
@@ -401,8 +492,8 @@ async function createBusinessRule(serviceName, fileName) {
     technical_metadata: {
       dependencies: [],
       observability: {
-        datadog_monitor_id: [],
-        custom_metric: [],
+        datadog_monitor_ids: [],
+        custom_metrics: [],
         log_markers: [],
       },
     },
@@ -429,7 +520,7 @@ function renderBusinessRuleViewer(rule, options = {}) {
   const editing = Boolean(options.edit);
   const index = currentBusinessRuleIndex(rule.rule_id);
   const owner = rule.human_context?.business_owner || "";
-  const observability = rule.technical_metadata?.observability || {};
+  const observability = normalizeBusinessRuleTechnicalMetadata(rule.technical_metadata || {}).observability;
   els.timeline.classList.remove("timeline--docs");
   els.timeline.classList.add("timeline--business-rule");
   document.querySelector("#workspace-mode-label").textContent = "Business rules";
@@ -477,10 +568,10 @@ function renderBusinessRuleViewer(rule, options = {}) {
       <h3 class="business-rule-section-title">3. IA e Observabilidade</h3>
       ${businessRuleField("ai_logic", rule.ai_logic || "", { label: "Logica Deterministica / AI Logic", multiline: true, rows: 5, full: true, editing })}
       <div class="business-rule-form-grid">
-        ${businessRuleField("technical_metadata.observability.datadog_monitor_id", businessRuleArrayValue(observability.datadog_monitor_id), { label: "Datadog Monitor ID", editing })}
-        ${businessRuleField("technical_metadata.observability.custom_metric", businessRuleArrayValue(observability.custom_metric), { label: "Metrica Customizada", editing })}
+        ${businessRuleField("technical_metadata.observability.datadog_monitor_ids", businessRuleArrayValue(observability.datadog_monitor_ids), { label: "Datadog Monitor IDs", editing })}
         ${businessRuleField("technical_metadata.observability.log_markers", businessRuleArrayValue(observability.log_markers), { label: "Log Markers", full: true, editing })}
       </div>
+      ${businessRuleField("technical_metadata.observability.custom_metrics", businessRuleCustomMetricsText(observability.custom_metrics), { label: "Metricas Customizadas (YAML)", multiline: true, rows: 7, full: true, editing })}
 
       <h3 class="business-rule-section-title">4. Dependencias</h3>
       ${renderBusinessRuleDependencies(rule, editing)}
@@ -529,7 +620,7 @@ async function deleteBusinessRule(serviceName, fileName, ruleID) {
     await openWorkflowFile(serviceName, fileName, { preserveLogs: true });
   }
   const dependents = currentBusinessRules.filter((rule) =>
-    (rule.technical_metadata?.dependencies || []).some((dep) => dep?.action === "business-rule" && dep?.system === ruleID)
+    normalizeBusinessRuleDependencies(rule.technical_metadata?.dependencies || []).some((dep) => dep.type === "business_rule" && dep.rule_id === ruleID)
   );
   const warning = dependents.length
     ? `\n\nAtenção: ${dependents.length} regra(s) dependem dela: ${dependents.map((rule) => rule.rule_id).join(", ")}.`
