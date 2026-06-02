@@ -59,6 +59,8 @@ func (s *mcpServer) registerTools() {
 		{Name: "get_execution", Description: "Recupera execucao por message_id, correlation_id ou trace_id.", ReadOnly: true, Handler: s.getExecution},
 		{Name: "list_state_snapshots", Description: "Lista snapshots persistidos por filtro simples.", ReadOnly: true, Handler: s.listStateSnapshots},
 		{Name: "plan_workflow", Description: "Gera rascunho de workflow a partir de descricao, evento e integracoes.", ReadOnly: true, Handler: s.planWorkflow},
+		{Name: "generate_workflow_from_business_rules", Description: "Gera workflow YAML e payload base a partir de regras de negocio.", ReadOnly: true, Handler: s.generateWorkflowFromBusinessRules},
+		{Name: "validate_workflow_against_business_rules", Description: "Valida se o workflow cobre as regras de negocio ativas informadas.", ReadOnly: true, Handler: s.validateWorkflowAgainstBusinessRules},
 		{Name: "suggest_handlers", Description: "Sugere handlers adequados para capacidades desejadas.", ReadOnly: true, Handler: s.suggestHandlers},
 		{Name: "generate_test_payload", Description: "Gera payload de teste a partir do workflow ou descricao.", ReadOnly: true, Handler: s.generateTestPayload},
 		{Name: "generate_bruno_collection", Description: "Gera modelo textual de requisicoes Bruno para REST e MCP.", ReadOnly: true, Handler: s.generateBrunoCollection},
@@ -382,10 +384,13 @@ func registeredHandlerSpecs() []map[string]any {
 		{"name": "enrich", "params": []string{"data", "prefix"}},
 		{"name": "transform", "params": []string{"field", "operation", "target"}},
 		{"name": "notify", "params": []string{"channel", "recipient", "template"}},
+		{"name": "log", "params": []string{"level", "message", "fields", "data"}},
 		{"name": "audit", "params": []string{"event", "fields"}},
+		{"name": "datadog_metric", "params": []string{"metric", "value", "type", "tags", "api_key", "api_url"}},
 		{"name": "graphql_enrich", "params": []string{"endpoint", "query", "variables", "target", "result_path", "required"}},
 		{"name": "jump_if", "params": []string{"field", "exists", "equals", "not_equals", "min_items", "max_items", "to"}},
 		{"name": "rest_call", "params": []string{"base_url", "endpoint", "method", "target", "required"}},
+		{"name": "aws_action", "params": []string{"service", "action", "region", "endpoint", "target", "required"}},
 		{"name": "workflow_ref", "params": []string{"file", "path", "workflow", "prefix"}},
 	}
 	sort.Slice(specs, func(i, j int) bool { return specs[i]["name"].(string) < specs[j]["name"].(string) })

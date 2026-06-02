@@ -722,6 +722,31 @@ body.studio-processing .execution-log-panel {
   background: var(--surface-2);
 }
 
+.mcp-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 16px 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.mcp-result-actions button {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mcp-result-actions button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 .mcp-result-raw {
   border-top: 1px solid var(--border);
   padding: 10px 16px 16px;

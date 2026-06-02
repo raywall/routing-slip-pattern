@@ -517,7 +517,10 @@ O runtime expande o arquivo referenciado e prefixa IDs para evitar conflito. O w
 | `transform` | Normalizar texto. |
 | `graphql_enrich` | Enriquecer via GraphQL Connector. |
 | `rest_call` | Chamar API REST diretamente. |
+| `aws_action` | Executar efeitos controlados em DynamoDB, S3, SQS, SNS, Secrets Manager ou Parameter Store. |
+| `datadog_metric` | Enviar metrica customizada para o Datadog. |
 | `jump_if` | Alterar o cursor para uma etapa posterior. |
+| `log` | Registrar um log estruturado explicito. |
 | `audit` | Registrar evidencia funcional. |
 | `notify` | Disparar ou simular notificacao. |
 
@@ -582,6 +585,200 @@ Operadores: `equals`, `not_equals`, `less_than`, `less_than_or_equal`, `greater_
     method: GET
     target: order
     required: true
+```
+
+### log
+
+Use `log` quando uma etapa precisa registrar uma evidencia operacional ou funcional alem dos logs automaticos do runtime. O handler inclui `message_id`, `correlation_id` e `trace_id` quando existirem.
+
+```yaml
+- name: log
+  params:
+    level: info
+    message: "Pedido {order_id} validado para expedicao"
+    fields:
+      - order_id
+      - customer.segment
+    data:
+      source: workflow
+      stage: fulfillment
+    required: false
+```
+
+Opcoes:
+
+| Parametro | Uso |
+| --- | --- |
+| `level` | `debug`, `info`, `warn` ou `error`. Padrao: `info`. |
+| `message` | Texto do log com interpolacao por `{path}`. |
+| `fields` | Lista de paths do payload que devem entrar no log. |
+| `data` | Objeto adicional com valores fixos ou interpolados. |
+| `required` | Se `true`, falha quando um campo em `fields` nao existe. |
+
+### datadog_metric
+
+Use `datadog_metric` para emitir indicadores customizados em pontos importantes do workflow, como processamentos concluidos, reprocessamentos, erros funcionais ou integracoes acionadas.
+
+```yaml
+- name: datadog_metric
+  params:
+    metric: routing_slip.orders.completed
+    type: count
+    value: 1
+    tags:
+      workflow: order-fulfillment
+      channel: "{input.channel}"
+      status: success
+    api_key: "{secrets.datadog_api_key}"
+    api_url: https://api.datadoghq.com/api/v1/series
+    timeout_ms: 2000
+    required: false
+```
+
+Opcoes:
+
+| Parametro | Uso |
+| --- | --- |
+| `metric` | Nome da metrica no Datadog. Obrigatorio. |
+| `value` | Valor numerico. Padrao: `1`. |
+| `type` | `count`, `gauge` ou `rate`. Padrao: `count`. |
+| `tags` | Mapa ou lista de tags. O handler adiciona `correlation_id` automaticamente quando existir. |
+| `api_key` | Chave do Datadog. Se omitida, usa `DATADOG_API_KEY`. |
+| `api_url` | Endpoint da API de series. Se omitido, usa `DATADOG_API_URL` ou a API publica do Datadog. |
+| `required` | Se `false`, falhas de envio nao interrompem o workflow. |
+
+### aws_action
+
+Use `aws_action` para efeitos externos que nao devem passar pela camada GraphQL de consulta. O GraphQL Connector continua sendo a camada anticorrupcao para leitura e enriquecimento; `aws_action` fica reservado para comandos e efeitos controlados.
+
+Parametros comuns:
+
+| Parametro | Uso |
+| --- | --- |
+| `service` | `dynamodb`, `s3`, `sqs`, `sns`, `secretsmanager` ou `ssm`. |
+| `action` | Acao do servico, como `put`, `get`, `update`, `delete`, `send` ou `publish`. |
+| `region` | Regiao AWS. Padrao: `us-east-1`. |
+| `endpoint` | Endpoint alternativo, util para LocalStack. |
+| `target` | Path onde o resultado sera gravado no payload. Padrao: `aws_result`. |
+| `required` | Se `true`, falhas interrompem o workflow. Se `false`, marca `<target>_partial`. |
+
+#### DynamoDB
+
+```yaml
+- name: aws_action
+  params:
+    service: dynamodb
+    action: put
+    region: us-east-1
+    endpoint: http://localstack:4566
+    table: workflow-items
+    item:
+      pk: "ORDER#{order_id}"
+      sk: "STATUS"
+      status: "{order.status}"
+      updated_at: "{received_at}"
+    target: dynamodb_result
+```
+
+Leitura:
+
+```yaml
+- name: aws_action
+  params:
+    service: dynamodb
+    action: get
+    table: workflow-items
+    key:
+      pk: "ORDER#{order_id}"
+      sk: "STATUS"
+    target: stored_status
+```
+
+Atualizacao:
+
+```yaml
+- name: aws_action
+  params:
+    service: dynamodb
+    action: update
+    table: workflow-items
+    key:
+      pk: "ORDER#{order_id}"
+      sk: "STATUS"
+    update_expression: "SET #status = :status"
+    expression_attribute_names:
+      "#status": status
+    expression_attribute_values:
+      ":status": SHIPPED
+    target: update_result
+```
+
+#### S3
+
+```yaml
+- name: aws_action
+  params:
+    service: s3
+    action: put
+    endpoint: http://localstack:4566
+    bucket: workflow-artifacts
+    key: "orders/{order_id}/payload.json"
+    body:
+      order_id: "{order_id}"
+      status: "{order.status}"
+    target: s3_result
+```
+
+Use `action: get` para ler o arquivo para `target.body` e `action: delete` para remove-lo.
+
+#### SQS e SNS
+
+```yaml
+- name: aws_action
+  params:
+    service: sqs
+    action: send
+    queue_url: http://localstack:4566/000000000000/order-events
+    message:
+      type: ORDER_READY
+      order_id: "{order_id}"
+    target: sqs_result
+```
+
+```yaml
+- name: aws_action
+  params:
+    service: sns
+    action: publish
+    topic_arn: arn:aws:sns:us-east-1:000000000000:order-events
+    subject: ORDER_READY
+    message:
+      order_id: "{order_id}"
+      status: "{order.status}"
+    target: sns_result
+```
+
+#### Secrets Manager e Parameter Store
+
+```yaml
+- name: aws_action
+  params:
+    service: secretsmanager
+    action: get
+    secret_id: /routing-slip/datadog
+    target: datadog_secret
+```
+
+```yaml
+- name: aws_action
+  params:
+    service: ssm
+    action: put
+    name: /routing-slip/orders/max-retries
+    value: "3"
+    type: String
+    overwrite: true
+    target: parameter_result
 ```
 
 ### filter_array
@@ -672,6 +869,8 @@ Tools principais:
 | `get_execution` | Recupera snapshot. |
 | `list_state_snapshots` | Lista snapshots. |
 | `plan_workflow` | Gera rascunho assistido. |
+| `generate_workflow_from_business_rules` | Gera YAML e payload base a partir de regras de negocio. |
+| `validate_workflow_against_business_rules` | Valida se o workflow cobre regras ativas. |
 | `suggest_handlers` | Sugere handlers. |
 | `generate_test_payload` | Gera payload de teste. |
 | `assess_idempotency` | Aponta riscos de idempotencia. |
@@ -716,6 +915,64 @@ curl -s http://localhost:9091/mcp \
   }'
 ```
 
+### Geracao por regras de negocio
+
+Quando o usecase possui regras de negocio cadastradas, o MCP pode gerar o primeiro rascunho do workflow e um payload base. A tool usa apenas regras `ACTIVE`; se nenhuma regra ativa existir, usa as regras informadas como rascunho.
+
+```bash
+curl -s http://localhost:9091/mcp \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 11,
+    "method": "tools/call",
+    "params": {
+      "name": "generate_workflow_from_business_rules",
+      "arguments": {
+        "workflow_name": "order-review",
+        "business_rules": [
+          {
+            "rule_id": "order_total_positive",
+            "status": "ACTIVE",
+            "execution_order": 1,
+            "human_context": {
+              "name": "Total positivo",
+              "description": "O campo {order.total} deve existir antes da aprovacao."
+            },
+            "technical_metadata": {
+              "observability": {
+                "custom_metric": ["routing_slip.order.total_checked"],
+                "log_markers": ["total-check"]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }'
+```
+
+A resposta inclui:
+
+- `yaml`: workflow inicial com `validate`, `log`, `cel`, `audit` e metricas quando declaradas;
+- `test_payload`: payload de entrada com `correlation_id` unico e campos inferidos;
+- `coverage`: relacao entre regras e steps sugeridos;
+- `decision_notes`: observacoes para revisao humana.
+
+O Studio expõe essa tool no painel de configuracao pelo botao **Gerar por regras**. O resultado aparece como preview no painel principal e pode ser aplicado ao editor com confirmacao.
+
+### Lint orientado por regras
+
+O lint do Studio considera as regras `ACTIVE` do arquivo de projeto. Para cada regra ativa, ele verifica:
+
+- se o `rule_id` ou nome aparece em algum step, auditoria, log ou metrica;
+- se campos inferidos em `{path}` aparecem no workflow ou no `validate`;
+- se metricas declaradas em `technical_metadata.observability.custom_metric` possuem `datadog_metric`;
+- se marcadores declarados em `technical_metadata.observability.log_markers` possuem `log`;
+- se dependencias entre regras apontam para regras ativas do mesmo usecase.
+
+Essa validacao nao substitui revisao funcional. Ela funciona como guarda-corpo para evitar que uma regra ativa exista no projeto sem representacao no script.
+
 ## Routing Slip Studio
 
 O Studio oferece:
@@ -731,6 +988,7 @@ O Studio oferece:
 - camada de loading bloqueante sobre os logs durante o processamento para evitar interacao enquanto a execucao ainda esta em andamento;
 - foco automatico no arquivo e na etapa de origem ao clicar em um log;
 - visualizacao e edicao de regras de negocio associadas a cada usecase;
+- geracao assistida de workflow e payload a partir das regras de negocio;
 - resumo por arquivo executado, com tempo total, integracoes, erros e identificadores (`trace_id`, `correlation_id`) em campos dedicados;
 - reprocessamento local;
 - validacao e explicacao de workflow via MCP;
@@ -741,7 +999,7 @@ O Studio oferece:
 
 A documentacao do Studio e montada a partir de arquivos Markdown em `studio/docs/content`. Cada pasta possui um `index.md` com `sidebar_position` e `sidebar_label`, e cada arquivo de conteudo possui o mesmo front matter para ordenar e nomear os subitens. A interface descobre a estrutura publicada em `docs/content`, lê os headers dos arquivos e monta a navegacao sem depender de `documentation.js` ou `manifest.json`.
 
-No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
+No painel de configuracao, os botoes **Validar MCP** e **Explicar MCP** usam o YAML aberto no editor como entrada. O botao **Gerar por regras** usa as regras de negocio do usecase para produzir um rascunho de workflow e payload. O botao **Diagnosticar conectores** faz uma leitura local do workflow e destaca integracoes, endpoints, tentativas e circuit breaker declarado.
 
 ### Arquivo de projeto do Studio
 

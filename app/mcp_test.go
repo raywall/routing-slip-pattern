@@ -117,6 +117,72 @@ func TestMCPPlanWorkflow(t *testing.T) {
 	}
 }
 
+func TestMCPGenerateWorkflowFromBusinessRules(t *testing.T) {
+	server := testMCPServer()
+	result, err := server.callTool(context.Background(), []byte(`{
+		"name": "generate_workflow_from_business_rules",
+		"arguments": {
+			"workflow_name": "Order Review",
+			"business_rules": [
+				{
+					"rule_id": "order_total_positive",
+					"status": "ACTIVE",
+					"execution_order": 1,
+					"human_context": {
+						"name": "Total positivo",
+						"description": "O campo {order.total} deve existir antes da aprovacao."
+					},
+					"technical_metadata": {
+						"observability": {
+							"custom_metric": ["routing_slip.order.total_checked"],
+							"log_markers": ["total-check"]
+						}
+					}
+				}
+			]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("generate from rules: %v", err)
+	}
+	content := result["structuredContent"].(map[string]any)
+	if content["yaml"] == "" {
+		t.Fatal("expected generated yaml")
+	}
+	payload := content["test_payload"].(map[string]any)
+	if payload["correlation_id"] == "" {
+		t.Fatal("expected payload correlation_id")
+	}
+}
+
+func TestMCPValidateWorkflowAgainstBusinessRules(t *testing.T) {
+	server := testMCPServer()
+	result, err := server.callTool(context.Background(), []byte(`{
+		"name": "validate_workflow_against_business_rules",
+		"arguments": {
+			"yaml": "name: test\nsteps:\n  - name: validate\n    params:\n      required:\n        - correlation_id\n",
+			"business_rules": [
+				{
+					"rule_id": "must_audit_order",
+					"status": "ACTIVE",
+					"human_context": {"name": "Auditar pedido", "description": "Auditar o pedido."}
+				}
+			]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("validate against rules: %v", err)
+	}
+	content := result["structuredContent"].(map[string]any)
+	if content["valid"] == true {
+		t.Fatal("expected invalid coverage")
+	}
+	issues := content["issues"].([]map[string]string)
+	if len(issues) == 0 {
+		t.Fatal("expected rule coverage issue")
+	}
+}
+
 func testMCPServer() *mcpServer {
 	cfg := &AppConfig{}
 	applyConfigDefaults(cfg)

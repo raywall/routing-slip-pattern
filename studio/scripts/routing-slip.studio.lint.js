@@ -45,6 +45,7 @@ function validateWorkflowShape(workflow, issues) {
   }
 
   workflow.steps.forEach((step, index) => validateStep(step, index, issues));
+  validateBusinessRulesCoverage(workflow, issues);
 }
 
 function validateStep(step, index, issues) {
@@ -173,6 +174,86 @@ function validateResilience(step, label, issues) {
   if (action === "jump" && !stringValue(onFailure.to)) {
     issues.push(error(`${label}.resilience.on_failure.to e obrigatorio quando action for jump.`));
   }
+}
+
+function validateBusinessRulesCoverage(workflow, issues) {
+  const rules = normalizeBusinessRules(currentBusinessRules || [])
+    .filter((rule) => String(rule.status || "ACTIVE").toUpperCase() === "ACTIVE");
+  if (!rules.length) return;
+  const workflowText = JSON.stringify(workflow).toLowerCase();
+  rules.forEach((rule) => {
+    const tokens = [
+      rule.rule_id,
+      normalizeName(rule.rule_id || ""),
+      rule.human_context?.name || "",
+    ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
+    if (!tokens.some((token) => workflowText.includes(token))) {
+      issues.push(error(`Regra ativa "${rule.rule_id}" nao esta coberta pelo workflow. Inclua o rule_id/nome em um step, audit, log ou metrica.`));
+    }
+    const requiredFields = businessRuleRequiredFields(rule);
+    requiredFields.forEach((field) => {
+      if (!workflowRequiresField(workflow, field) && !workflowText.includes(String(field).toLowerCase())) {
+        issues.push(warn(`Regra "${rule.rule_id}" espera o campo "${field}", mas ele nao aparece no workflow.`));
+      }
+    });
+    const observability = rule.technical_metadata?.observability || {};
+    businessRuleList(observability.custom_metric || observability.custom_metrics).forEach((metric) => {
+      if (!workflowHasDatadogMetric(workflow, metric)) {
+        issues.push(warn(`Regra "${rule.rule_id}" declara metrica "${metric}", mas nao ha step datadog_metric correspondente.`));
+      }
+    });
+    businessRuleList(observability.log_markers || observability.logs).forEach((marker) => {
+      if (!workflowHasLogMarker(workflow, marker)) {
+        issues.push(warn(`Regra "${rule.rule_id}" declara log marker "${marker}", mas nao ha step log correspondente.`));
+      }
+    });
+    (rule.technical_metadata?.dependencies || []).forEach((dependency) => {
+      const dependencyID = typeof dependency === "string" ? dependency : (dependency?.rule_id || dependency?.system || "");
+      const action = typeof dependency === "string" ? "business-rule" : (dependency?.action || "business-rule");
+      if (action === "business-rule" && dependencyID && !rules.some((item) => item.rule_id === dependencyID)) {
+        issues.push(warn(`Regra "${rule.rule_id}" depende de "${dependencyID}", que nao esta ativa neste projeto.`));
+      }
+    });
+  });
+}
+
+function businessRuleRequiredFields(rule) {
+  return [
+    ...businessRuleList(rule.required_inputs),
+    ...businessRuleList(rule.required_fields),
+    ...businessRuleList(rule.engineering_context?.required_fields),
+    ...inferFieldsFromRuleText(`${rule.human_context?.description || ""}\n${rule.ai_logic || ""}`),
+  ].filter((field, index, list) => field && list.indexOf(field) === index);
+}
+
+function inferFieldsFromRuleText(text) {
+  return [...String(text || "").matchAll(/\{([a-zA-Z0-9_.-]+)\}/g)].map((match) => match[1]);
+}
+
+function businessRuleList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function workflowRequiresField(workflow, field) {
+  return (workflow.steps || []).some((step) =>
+    step.name === "validate" && Array.isArray(step.params?.required) && step.params.required.includes(field)
+  );
+}
+
+function workflowHasDatadogMetric(workflow, metric) {
+  const expected = String(metric || "").toLowerCase();
+  return (workflow.steps || []).some((step) =>
+    step.name === "datadog_metric" && String(step.params?.metric || "").toLowerCase() === expected
+  );
+}
+
+function workflowHasLogMarker(workflow, marker) {
+  const expected = String(marker || "").toLowerCase();
+  return (workflow.steps || []).some((step) =>
+    step.name === "log" && String(step.params?.message || "").toLowerCase().includes(expected)
+  );
 }
 
 function renderLint(issues) {

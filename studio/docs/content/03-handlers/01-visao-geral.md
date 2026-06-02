@@ -21,6 +21,9 @@ Handlers sao unidades pequenas e combináveis. Cada handler recebe o payload atu
 | `transform` | Normaliza texto. |
 | `graphql_enrich` | Enriquece via GraphQL Connector. |
 | `rest_call` | Chama uma API REST e salva a resposta. |
+| `aws_action` | Executa comandos controlados em serviços AWS. |
+| `datadog_metric` | Envia metricas customizadas ao Datadog. |
+| `log` | Registra logs estruturados sob demanda. |
 | `audit` | Registra evidencia funcional. |
 | `notify` | Simula envio de notificação. |
 

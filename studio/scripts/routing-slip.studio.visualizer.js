@@ -65,7 +65,7 @@ async function collectWorkflowVisualization(workflow, source, seen = new Set()) 
         item.__children.push(childItem);
       });
     }
-    if (["graphql_enrich", "rest_call", "notify"].includes(step.name)) {
+    if (["graphql_enrich", "rest_call", "notify", "aws_action", "datadog_metric"].includes(step.name)) {
       item.integrations.push({ step, type: workflowIntegrationType(step), label: workflowIntegrationLabel(step) });
     }
   }
@@ -76,6 +76,8 @@ function workflowIntegrationType(step) {
   if (step.name === "graphql_enrich") return "graphql";
   if (step.name === "rest_call") return "rest";
   if (step.name === "notify") return "notify";
+  if (step.name === "aws_action") return "aws";
+  if (step.name === "datadog_metric") return "metrics";
   return "service";
 }
 
@@ -84,6 +86,8 @@ function workflowIntegrationLabel(step) {
   if (step.name === "graphql_enrich") return params.target || "GraphQL";
   if (step.name === "rest_call") return params.target || params.endpoint || "REST API";
   if (step.name === "notify") return params.channel || params.target || "Notificacao";
+  if (step.name === "aws_action") return `${params.service || "AWS"}:${params.action || "action"}`;
+  if (step.name === "datadog_metric") return params.metric || "Datadog metric";
   return step.name;
 }
 
@@ -167,9 +171,11 @@ function visualStepKind(step) {
   if (["condition", "assert", "jump_if", "cel"].includes(step.name)) return "decision";
   if (step.name === "graphql_enrich") return "graphql";
   if (step.name === "rest_call") return "rest";
+  if (step.name === "aws_action") return "aws";
+  if (step.name === "datadog_metric") return "metrics";
   if (step.name === "workflow_ref") return "workflow";
   if (step.name === "notify") return "notify";
-  if (step.name === "audit") return "audit";
+  if (["audit", "log"].includes(step.name)) return "audit";
   return "step";
 }
 
@@ -468,7 +474,7 @@ function workflowDiagramExportStyle() {
     .visual-node-start rect{fill:#dcfce7}
     .visual-node-connector rect{fill:#dbeafe}
     .visual-node-workflow rect{fill:#ccfbf1}
-    .visual-node-graphql rect,.visual-node-rest rect,.visual-node-notify rect{fill:#fef3c7}
+    .visual-node-graphql rect,.visual-node-rest rect,.visual-node-notify rect,.visual-node-aws rect,.visual-node-metrics rect{fill:#fef3c7}
     .visual-node-decision polygon{fill:#fee2e2}
     .visual-node-return rect,.visual-node-audit rect{fill:${surface2}}
   `;

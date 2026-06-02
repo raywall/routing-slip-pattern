@@ -50,9 +50,12 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 	r.MustRegister(handlers.ConditionGate{})
 	r.MustRegister(handlers.JumpIfHandler{})
 	r.MustRegister(&handlers.NotificationHandler{}) // pointer because Send field may be set
+	r.MustRegister(handlers.LogHandler{})
 	r.MustRegister(handlers.AuditHandler{})
+	r.MustRegister(handlers.DatadogMetricHandler{})
 	r.MustRegister(handlers.GraphQLEnrichmentHandler{DefaultEndpoint: env("GRAPHQL_ENDPOINT", "http://localhost:8090/graphql")})
 	r.MustRegister(handlers.RESTCallHandler{})
+	r.MustRegister(handlers.AWSActionHandler{})
 
 	return r
 }

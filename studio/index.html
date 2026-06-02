@@ -101,15 +101,24 @@
             <input id="external-api-url" type="url" value="https://mock.raysouz.studio" />
           </label>
           <div class="button-row">
-            <button id="load-example" type="button">Carregar</button>
-            <button id="send-rest" type="button">Enviar REST</button>
-          </div>
-          <div class="button-row">
-            <button id="mcp-validate" type="button">Validar MCP</button>
-            <button id="mcp-explain" type="button">Explicar MCP</button>
-          </div>
-          <div class="button-row">
-            <button id="mcp-diagnostics" type="button">Diagnosticar conectores</button>
+            <button id="load-example" type="button" class="theme-toggle" title="Carregar">
+              <i class="fa-solid fa-display"></i>
+            </button>
+            <button id="send-rest" type="button" class="theme-toggle" title="Enviar REST">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+            <button id="mcp-validate" type="button" class="theme-toggle" title="Validar MCP">
+              <i class="fa-solid fa-check"></i>
+            </button>
+            <button id="mcp-explain" type="button" class="theme-toggle" title="Explicar MCP">
+              <i class="fa-solid fa-chalkboard-user"></i>
+            </button>
+            <button id="mcp-generate-rules" type="button" class="theme-toggle" title="Gerar por regras">
+              <i class="fa-solid fa-compass-drafting"></i>
+            </button>
+            <button id="mcp-diagnostics" type="button" class="theme-toggle" title="Diagnosticar conectores">
+              <i class="fa-solid fa-stethoscope"></i>
+            </button>
           </div>
         </div>
 

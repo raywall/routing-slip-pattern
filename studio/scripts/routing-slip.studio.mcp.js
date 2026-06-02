@@ -49,6 +49,64 @@ async function explainWorkflowViaMCP() {
   }
 }
 
+async function generateWorkflowFromBusinessRulesViaMCP() {
+  clearLogs();
+  try {
+    const rules = normalizeBusinessRules(currentBusinessRules || []);
+    let rulesText = "";
+    if (!rules.length) {
+      rulesText = prompt("Descreva as regras de negocio que devem originar o workflow:");
+      if (!rulesText?.trim()) return;
+    }
+    const workflowName = currentWorkspaceFile.fileName
+      ? currentWorkspaceFile.fileName.replace(/\.(ya?ml)$/i, "")
+      : (lastWorkflow?.name || "business-rules-workflow");
+    const result = await callMCPTool("generate_workflow_from_business_rules", {
+      workflow_name: workflowName,
+      description: `Workflow gerado a partir das regras de negocio de ${workflowName}.`,
+      business_rules: rules,
+      rules_text: rulesText,
+    });
+    addLog("ok", "Workflow gerado por regras", `${(result.active_rules || []).length} regra(s) usada(s).`, result);
+    renderGeneratedWorkflowDraft(result);
+  } catch (err) {
+    addLog("error", "Falha ao gerar workflow por regras", err.message);
+  }
+}
+
+function renderGeneratedWorkflowDraft(result) {
+  const markdown = generatedWorkflowDraftToMarkdown(result);
+  renderMCPResult("Workflow gerado por regras", result, markdown);
+  const article = els.timeline.querySelector(".mcp-result:last-child");
+  if (!article) return;
+  const actions = document.createElement("div");
+  actions.className = "mcp-result-actions";
+  actions.innerHTML = `
+    <button id="apply-generated-workflow" class="primary" type="button">Aplicar workflow e payload</button>
+    <button id="apply-generated-payload" type="button">Aplicar apenas payload</button>
+  `;
+  article.insertBefore(actions, article.querySelector(".mcp-result-raw"));
+  article.querySelector("#apply-generated-workflow")?.addEventListener("click", () => applyGeneratedWorkflowDraft(result, { workflow: true, payload: true }));
+  article.querySelector("#apply-generated-payload")?.addEventListener("click", () => applyGeneratedWorkflowDraft(result, { workflow: false, payload: true }));
+}
+
+function applyGeneratedWorkflowDraft(result, options = {}) {
+  if (options.workflow && els.workflow.value.trim() && !confirm("Substituir o workflow atual pelo rascunho gerado?")) return;
+  if (options.workflow && result.yaml) {
+    els.workflow.value = formatWorkflowYamlForEditor(result.yaml);
+    markWorkflowDirty();
+  }
+  if (options.payload && result.test_payload) {
+    els.payload.value = JSON.stringify(withFreshCorrelationID(structuredClone(result.test_payload)), null, 2);
+    markProjectDirty();
+    validatePayload();
+  }
+  invalidateExecutionSnapshot();
+  lintWorkflow();
+  syncLineNumbers();
+  scheduleStudioSave();
+}
+
 function showConnectorDiagnostics() {
   clearLogs();
   let workflow;
@@ -163,6 +221,45 @@ function mcpExplanationToMarkdown(result) {
       const role = step.integration ? "Integracao" : step.control ? "Controle" : "Processamento";
       return `| ${Number(step.index) + 1} | ${step.handler || "-"} | ${role} | ${step.target || "-"} |`;
     }),
+  ].join("\n");
+}
+
+function generatedWorkflowDraftToMarkdown(result) {
+  const rules = Array.isArray(result.active_rules) ? result.active_rules : [];
+  const coverage = Array.isArray(result.coverage) ? result.coverage : [];
+  const notes = Array.isArray(result.decision_notes) ? result.decision_notes : [];
+  return [
+    `## ${result.workflow?.name || "Workflow gerado"}`,
+    "",
+    "Rascunho criado a partir das regras de negocio ativas. Revise expressoes, paths e integracoes antes de executar em ambiente real.",
+    "",
+    "### Regras consideradas",
+    "",
+    "| Ordem | Regra | Status | Campos inferidos |",
+    "|---:|---|---|---|",
+    ...(rules.length ? rules.map((rule) => `| ${rule.execution_order || 0} | ${rule.rule_id || "-"} | ${rule.status || "-"} | ${(rule.required_fields || []).join(", ") || "-"} |`) : ["| - | - | - | - |"]),
+    "",
+    "### Cobertura sugerida",
+    "",
+    "| Regra | Steps gerados | Observacao |",
+    "|---|---|---|",
+    ...(coverage.length ? coverage.map((item) => `| ${item.rule_id || "-"} | ${(item.covered_by || []).join(", ") || "-"} | ${String(item.note || "").replace(/\|/g, "\\|")} |`) : ["| - | - | - |"]),
+    "",
+    "### Notas",
+    "",
+    ...(notes.length ? notes.map((note) => `- ${note}`) : ["- Revise o rascunho antes de salvar."]),
+    "",
+    "### YAML gerado",
+    "",
+    "```yaml",
+    result.yaml || "",
+    "```",
+    "",
+    "### Payload base",
+    "",
+    "```json",
+    JSON.stringify(result.test_payload || {}, null, 2),
+    "```",
   ].join("\n");
 }
 

@@ -124,3 +124,28 @@ No workspace, as regras aparecem abaixo do usecase. Clique na regra para abrir u
 Use **Editar** para liberar os campos do formulário. Quando existir mais de uma regra no usecase, os botões **Anterior** e **Próxima** permitem navegar sem voltar para a árvore do workspace. Se a regra depender de outra regra do mesmo usecase, a dependência aparece como link; ao abrir a regra dependida, o botão **Voltar** retorna para a regra de origem.
 
 Ao excluir uma regra, o Studio alerta quando outra regra do mesmo usecase declara dependência dela.
+
+## Geração assistida por regras
+
+Com regras cadastradas, o Studio consegue pedir ao MCP um rascunho inicial de workflow. No painel de configuração, use **Gerar por regras**. O resultado aparece no painel principal com:
+
+- YAML sugerido;
+- payload base;
+- regras consideradas;
+- cobertura sugerida;
+- notas de revisão.
+
+O botão **Aplicar workflow e payload** substitui o conteúdo do editor após confirmação. O botão **Aplicar apenas payload** atualiza somente o payload de entrada. Em ambos os casos, o lint roda novamente para indicar pendências.
+
+## Lint orientado por regras
+
+Quando há regras `ACTIVE` no projeto, o lint verifica se o script mantém vínculo com elas. Uma regra é considerada coberta quando o `rule_id` ou o nome aparece no workflow, normalmente em um `id`, `log`, `audit`, `cel` ou `datadog_metric`.
+
+O lint também aponta:
+
+- campos citados em `{path}` na descrição ou `ai_logic` que não aparecem no workflow;
+- métricas declaradas em `technical_metadata.observability.custom_metric` sem `datadog_metric`;
+- marcadores em `technical_metadata.observability.log_markers` sem `log`;
+- dependências de regras que não estão ativas no usecase.
+
+Esse recurso não tenta provar a regra de negócio sozinho. Ele serve para reduzir esquecimento e manter o script conectado ao contexto documentado.
