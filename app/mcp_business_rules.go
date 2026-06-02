@@ -270,7 +270,7 @@ func validateBusinessRuleCoverage(workflow *WorkflowConfig, rules []mcpBusinessR
 	for _, rule := range rules {
 		tokens := businessRuleTokens(rule)
 		if !containsAnyToken(text, tokens) {
-			issues = append(issue(issues, "error", fmt.Sprintf("regra ativa %q nao esta referenciada no workflow", rule.ID)))
+			issues = append(issue(issues, "warn", fmt.Sprintf("regra ativa %q ainda nao esta referenciada no workflow", rule.ID)))
 		}
 		for _, field := range rule.RequiredFields {
 			if !workflowRequiresField(workflow, field) && !strings.Contains(text, strings.ToLower(field)) {

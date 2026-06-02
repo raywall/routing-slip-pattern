@@ -141,7 +141,7 @@ O botão **Aplicar workflow e payload** substitui o conteúdo do editor após co
 
 Quando há regras `ACTIVE` no projeto, o lint verifica se o script mantém vínculo com elas. Uma regra é considerada coberta quando o `rule_id` ou o nome aparece no workflow, normalmente em um `id`, `log`, `audit`, `cel` ou `datadog_metric`.
 
-O lint também aponta:
+Quando uma regra ativa ainda não está coberta, o Studio mostra um aviso. Isso não bloqueia o script, porque a regra pode ser documentada antes da implementação completa. O lint também aponta:
 
 - campos citados em `{path}` na descrição ou `ai_logic` que não aparecem no workflow;
 - métricas declaradas em `technical_metadata.observability.custom_metric` sem `datadog_metric`;

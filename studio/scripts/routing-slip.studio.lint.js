@@ -188,7 +188,7 @@ function validateBusinessRulesCoverage(workflow, issues) {
       rule.human_context?.name || "",
     ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
     if (!tokens.some((token) => workflowText.includes(token))) {
-      issues.push(error(`Regra ativa "${rule.rule_id}" nao esta coberta pelo workflow. Inclua o rule_id/nome em um step, audit, log ou metrica.`));
+      issues.push(warn(`Regra ativa "${rule.rule_id}" ainda nao esta coberta pelo workflow. Inclua o rule_id/nome em um step, audit, log ou metrica quando iniciar a implementacao.`));
     }
     const requiredFields = businessRuleRequiredFields(rule);
     requiredFields.forEach((field) => {

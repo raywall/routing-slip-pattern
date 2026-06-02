@@ -971,7 +971,7 @@ O lint do Studio considera as regras `ACTIVE` do arquivo de projeto. Para cada r
 - se marcadores declarados em `technical_metadata.observability.log_markers` possuem `log`;
 - se dependencias entre regras apontam para regras ativas do mesmo usecase.
 
-Essa validacao nao substitui revisao funcional. Ela funciona como guarda-corpo para evitar que uma regra ativa exista no projeto sem representacao no script.
+Quando uma regra ativa ainda nao esta coberta pelo script, o lint emite `warn`, nao `error`. Isso permite documentar regras antes da implementacao completa e evoluir o workflow por etapas. A validacao nao substitui revisao funcional; ela funciona como guarda-corpo para evitar que uma regra ativa permaneca esquecida.
 
 ## Routing Slip Studio
 

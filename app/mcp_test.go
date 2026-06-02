@@ -174,12 +174,15 @@ func TestMCPValidateWorkflowAgainstBusinessRules(t *testing.T) {
 		t.Fatalf("validate against rules: %v", err)
 	}
 	content := result["structuredContent"].(map[string]any)
-	if content["valid"] == true {
-		t.Fatal("expected invalid coverage")
+	if content["valid"] != true {
+		t.Fatal("expected valid response when only rule coverage warnings exist")
 	}
 	issues := content["issues"].([]map[string]string)
 	if len(issues) == 0 {
 		t.Fatal("expected rule coverage issue")
+	}
+	if issues[0]["level"] != "warn" {
+		t.Fatalf("expected warning, got %v", issues[0])
 	}
 }
 
