@@ -42,6 +42,8 @@ Por padrão, o modo recomendado e `readonly`. Ferramentas que alteram estado ou 
 | `get_execution` | readonly | Recupera snapshot por `message_id`, `correlation_id` ou `trace_id`. |
 | `list_state_snapshots` | readonly | Lista snapshots por filtros simples. |
 | `plan_workflow` | readonly | Gera rascunho assistido a partir de descrição, evento e integrações. |
+| `generate_workflow_from_business_rules` | readonly | Gera YAML e payload base a partir de regras de negócio. |
+| `validate_workflow_against_business_rules` | readonly | Verifica aderência do workflow às regras ativas informadas. |
 | `suggest_handlers` | readonly | Sugere handlers conforme capacidades desejadas. |
 | `generate_test_payload` | readonly | Gera payload de teste a partir do workflow. |
 | `generate_bruno_collection` | readonly | Gera modelo de requisições para testar REST e MCP. |

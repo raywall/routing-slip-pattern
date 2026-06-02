@@ -222,8 +222,14 @@ async function executeStep(step, state) {
       return runEnrich(params, state);
     case "transform":
       return runTransform(params, state);
+    case "log":
+      return runLog(params, state);
     case "audit":
       return runAudit(params, state);
+    case "datadog_metric":
+      return runDatadogMetric(params, state);
+    case "aws_action":
+      return runAWSAction(params, state);
     case "notify":
       return runNotify(params, state);
     case "graphql_enrich":
@@ -502,6 +508,72 @@ function runAudit(params, state) {
     fields[field] = getPath(state.payload, field);
   });
   addLog("info", `Audit ${params.event || "audit"}`, "Campos auditados.", fields);
+  return true;
+}
+
+function runLog(params, state) {
+  const fields = {};
+  (params.fields || []).forEach((field) => {
+    const value = getPath(state.payload, field);
+    if (value === undefined && params.required !== false) throw new Error(`log: field ${field} not found`);
+    fields[field] = value;
+  });
+  const data = interpolateAny(params.data || {}, state.payload);
+  addLog(params.level || "info", interpolateString(params.message || "routing-slip log", state.payload), "Log estruturado registrado.", {
+    ...fields,
+    data,
+  });
+  state.payload.last_log_message = interpolateString(params.message || "routing-slip log", state.payload);
+  state.payload.last_log_level = params.level || "info";
+  return true;
+}
+
+function runDatadogMetric(params, state) {
+  const metric = params.metric;
+  if (!metric) throw new Error("datadog_metric: metric is required");
+  const integration = recordIntegration(state, {
+    type: "datadog",
+    mode: "simulated",
+    target: metric,
+    status: "ok",
+  });
+  state.payload.last_datadog_metric = metric;
+  state.payload.last_datadog_metric_at = new Date().toISOString();
+  addLog("info", `Datadog metric ${metric}`, "Metrica registrada na simulacao local.", {
+    value: params.value ?? 1,
+    type: params.type || "count",
+    tags: interpolateAny(params.tags || {}, state.payload),
+    integration,
+  });
+  return true;
+}
+
+function runAWSAction(params, state) {
+  if (!params.service || !params.action) throw new Error("aws_action: service and action are required");
+  const target = params.target || "aws_result";
+  const result = {
+    simulated: true,
+    service: params.service,
+    action: params.action,
+    region: params.region || "us-east-1",
+    endpoint: params.endpoint,
+  };
+  if (params.table) result.table = params.table;
+  if (params.bucket) result.bucket = params.bucket;
+  if (params.key) result.key = interpolateString(String(params.key), state.payload);
+  if (params.queue_url) result.queue_url = params.queue_url;
+  if (params.topic_arn) result.topic_arn = params.topic_arn;
+  if (params.name) result.name = params.name;
+  if (params.secret_id) result.secret_id = params.secret_id;
+  setPath(state.payload, target, result);
+  state.payload[`${target}_executed_at`] = new Date().toISOString();
+  recordIntegration(state, {
+    type: "aws",
+    mode: "simulated",
+    target: `${params.service}:${params.action}`,
+    status: "ok",
+  });
+  addLog("warn", `AWS ${params.service}:${params.action} simulado`, "No Studio local, efeitos AWS sao simulados.", result);
   return true;
 }
 

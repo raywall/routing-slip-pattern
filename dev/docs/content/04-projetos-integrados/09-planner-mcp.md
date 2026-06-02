@@ -12,6 +12,8 @@ O planner assistido por MCP ajuda a transformar descrição, evento, endpoints e
 | Tool | O que entrega |
 | --- | --- |
 | `plan_workflow` | Rascunho YAML, payload de teste, requisições Bruno, métricas, auditoria e riscos. |
+| `generate_workflow_from_business_rules` | Gera workflow e payload base a partir das regras de negocio ativas. |
+| `validate_workflow_against_business_rules` | Verifica se o workflow cobre as regras ativas informadas. |
 | `suggest_handlers` | Sugere handlers com base em capacidades descritas. |
 | `generate_test_payload` | Gera payload coerente com o workflow informado. |
 | `generate_bruno_collection` | Gera modelo textual de requisições para testar REST e MCP. |
@@ -78,3 +80,54 @@ O planner sempre trabalha em modo assistivo:
 8. Teste pelo Studio ou endpoint REST.
 
 O planner e propositalmente conservador. Ele prefere criar um fluxo simples, auditável e seguro, deixando regras complexas para revisão e evolução incremental.
+
+## Gerar a partir de regras de negocio
+
+Quando o arquivo aberto no Studio possui regras de negocio, o botão **Gerar por regras** chama `generate_workflow_from_business_rules`. A resposta traz o YAML sugerido, um payload base e uma tabela de cobertura para mostrar quais regras originaram quais steps.
+
+```bash
+curl -s http://localhost:9091/mcp \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 11,
+    "method": "tools/call",
+    "params": {
+      "name": "generate_workflow_from_business_rules",
+      "arguments": {
+        "workflow_name": "order-review",
+        "business_rules": [
+          {
+            "rule_id": "order_total_positive",
+            "status": "ACTIVE",
+            "execution_order": 1,
+            "human_context": {
+              "name": "Total positivo",
+              "description": "O campo {order.total} deve existir antes da aprovacao."
+            },
+            "technical_metadata": {
+              "observability": {
+                "custom_metric": ["routing_slip.order.total_checked"],
+                "log_markers": ["total-check"]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }'
+```
+
+O rascunho usa `validate`, `log`, `cel`, `audit` e `datadog_metric` quando a regra possui métricas declaradas. As expressões CEL geradas são pontos iniciais: revise paths, operadores e efeitos externos antes de salvar como versão final.
+
+## Lint por regras ativas
+
+O Studio também valida se o workflow cobre as regras `ACTIVE` do projeto. O lint alerta quando:
+
+- uma regra ativa não aparece em nenhum step;
+- campos citados em `{path}` não aparecem no workflow;
+- uma métrica declarada não possui `datadog_metric`;
+- um marcador de log declarado não possui `log`;
+- uma dependência de regra aponta para uma regra inexistente ou inativa.
+
+Essa validação ajuda a manter rastreabilidade entre intenção de negócio, script YAML e observabilidade.

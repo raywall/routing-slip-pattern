@@ -5,9 +5,7 @@ sidebar_label: "Objetivo"
 
 # Objetivo do projeto
 
-O objetivo do projeto e oferecer uma base para workflows resilientes, robustos, escaláveis, reutilizáveis, observáveis, seguros e modulares.
-
-Na pratica, o framework ajuda a responder tres perguntas que aparecem em processos reais:
+O projeto visa oferecer uma base sólida para criar workflows resilientes, robustos, escaláveis, reutilizáveis, observáveis, seguros e modulares, que na prática, ajuda a responder três perguntas que aparecem em processos reais:
 
 1. **O que deve acontecer agora?**
    O YAML descreve a proxima etapa, os parâmetros e as regras de decisão.
@@ -15,7 +13,7 @@ Na pratica, o framework ajuda a responder tres perguntas que aparecem em process
 2. **O que aconteceu ate aqui?**
    Histórico, métricas, traces e state store mostram cada etapa executada.
 
-3. **Como continuar sem repetir o que ja foi feito?**
+3. **Como continuar sem repetir o que já foi feito?**
    O cursor salvo permite retomar do ponto correto e a idempotência reduz risco de duplicar efeitos externos.
 
 ## Problema que o projeto resolve

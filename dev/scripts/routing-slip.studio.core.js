@@ -9,10 +9,13 @@ const handlers = new Set([
   "enrich",
   "transform",
   "notify",
+  "log",
   "audit",
+  "datadog_metric",
   "graphql_enrich",
   "jump_if",
   "rest_call",
+  "aws_action",
   "workflow_ref",
 ]);
 
@@ -161,6 +164,7 @@ function bindEvents() {
   document.querySelector("#send-rest").addEventListener("click", sendToRestEndpoint);
   document.querySelector("#mcp-validate").addEventListener("click", validateWorkflowViaMCP);
   document.querySelector("#mcp-explain").addEventListener("click", explainWorkflowViaMCP);
+  document.querySelector("#mcp-generate-rules").addEventListener("click", generateWorkflowFromBusinessRulesViaMCP);
   document.querySelector("#mcp-diagnostics").addEventListener("click", showConnectorDiagnostics);
   document.querySelectorAll("[data-tab]").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
