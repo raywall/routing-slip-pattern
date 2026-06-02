@@ -122,12 +122,12 @@ O rascunho usa `validate`, `log`, `cel`, `audit` e `datadog_metric` quando a reg
 
 ## Lint por regras ativas
 
-O Studio também valida se o workflow cobre as regras `ACTIVE` do projeto. O lint alerta quando:
+O Studio também valida se o workflow cobre as regras `ACTIVE` do projeto. O lint emite avisos quando:
 
-- uma regra ativa não aparece em nenhum step;
+- uma regra ativa ainda não aparece em nenhum step;
 - campos citados em `{path}` não aparecem no workflow;
 - uma métrica declarada não possui `datadog_metric`;
 - um marcador de log declarado não possui `log`;
 - uma dependência de regra aponta para uma regra inexistente ou inativa.
 
-Essa validação ajuda a manter rastreabilidade entre intenção de negócio, script YAML e observabilidade.
+Regra ativa sem cobertura é aviso, não erro. Isso permite registrar a documentação da regra primeiro e evoluir a implementação do workflow de forma incremental. A validação ajuda a manter rastreabilidade entre intenção de negócio, script YAML e observabilidade.
