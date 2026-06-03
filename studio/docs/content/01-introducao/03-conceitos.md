@@ -3,42 +3,36 @@ sidebar_position: 3
 sidebar_label: "Conceitos fundamentais"
 ---
 
-# Conceitos fundamentais
+# Conceitos Fundamentais
 
-Antes de escrever workflows, vale alinhar alguns conceitos. Eles aparecem no Studio, nos arquivos YAML e nas métricas geradas durante a execução.
+O vocabulário abaixo é a base para o uso eficiente do Studio, estruturação dos YAMLs e compreensão da telemetria[cite: 4].
 
-| Conceito | O que significa neste projeto |
-| --- | --- |
-| Workflow | Sequencia declarativa de etapas que processa um payload. |
-| Routing slip | Lista de passos que acompanha a mensagem e define o caminho de processamento. |
-| Handler | Unidade de execução. Cada handler sabe fazer uma coisa: validar, enriquecer, chamar API, auditar, saltar, filtrar. |
-| Connector | Origem que inicia o workflow: REST, Kafka, SQS ou SNS. |
-| Modo de execução | Define se a chamada responde de forma sincrona (`sync`) ou aceita o processamento para acompanhamento posterior (`async`). |
-| Payload | Documento JSON que entra no workflow e vai sendo enriquecido ou transformado. |
-| Cursor | Posição da proxima etapa a executar. E o que permite retomar do ponto correto. |
-| State store | Persistência do snapshot de execução: cursor, payload, histórico, erros, trace e estado das etapas. |
-| Idempotência | Capacidade de evitar repetir um efeito externo quando uma etapa ja foi concluída. |
-| Resiliência | Politicas de retry, backoff, jitter e tratamento de falha por etapa. |
-| Rastreabilidade | Uso de `trace_id`, `span_id`, `correlation_id` e histórico para acompanhar uma execução ponta a ponta. |
-| Explicabilidade | Capacidade de entender por que uma etapa executou, parou, falhou, pulou ou redirecionou o fluxo. |
-| GraphQL enrich | Enriquecimento do payload usando o `go-graphql-connector` como fachada para APIs e serviços externos. |
-| Métricas | Eventos técnicos e funcionais que alimentam dashboards e analises operacionais. |
-| MCP | Interface de tools para agentes, Studio e automações consultarem, explicarem e planejarem workflows. |
+| Conceito | Definição no Ecossistema |
+| :--- | :--- |
+| **Workflow** | Sequência declarativa de etapas projetada para processar um fluxo de negócio[cite: 4]. |
+| **Routing Slip** | O "itinerário" atachado à mensagem, contendo a lista ordenada de passos a executar[cite: 4]. |
+| **Handler** | A unidade atômica de código (Go) projetada para uma responsabilidade única (ex: validar um esquema, fazer uma chamada HTTP, injetar logs estruturados)[cite: 4]. |
+| **Connector** | A interface de entrada que trigga o workflow. Pode ser síncrona (REST `sync`) ou reativa (Kafka, SQS, SNS `async`)[cite: 4]. |
+| **Payload** | O estado atual dos dados (JSON) que trafegam pelo fluxo, sendo enriquecidos ou mutados a cada etapa[cite: 4]. |
+| **Cursor** | O ponteiro lógico salvo no banco de dados que indica qual é a próxima etapa pendente. Essencial para o *resume* de falhas[cite: 4]. |
+| **State Store** | A camada de persistência (ex: DynamoDB) onde o *snapshot* contendo o payload, erros e o cursor é armazenado de forma segura[cite: 4]. |
+| **Idempotência** | Mecanismo de proteção do framework que impede que um `handler` repita um efeito colateral (como um desconto financeiro) caso a etapa já conste como concluída no State Store[cite: 4]. |
+| **Resiliência** | Políticas nativas configuráveis por step, englobando estratégias de *retry*, *exponential backoff* e *jitter*[cite: 4]. |
+| **Rastreabilidade** | Propagação rigorosa de `trace_id` e `correlation_id` em toda a cadeia, ligando os *logs* aos painéis de APM (ex: Datadog)[cite: 4]. |
+| **GraphQL Enrich** | Utilização da fachada anti-corrupção (`go-graphql-connector`) para compor o payload consultando bases de terceiros antes de decisões complexas[cite: 4]. |
 
-## Como esses conceitos se conectam
+## Anatomia da Execução
+
+A relação entre os componentes segue uma lógica determinística[cite: 4]:
 
 ```mermaid
 flowchart LR
   A[Payload de entrada] --> B[Workflow YAML]
-  B --> C[Handlers]
-  C --> D[Payload enriquecido]
-  C --> E[State store]
-  C --> F[Métricas]
-  C --> G[Trace]
-  H[Studio] --> B
-  I[MCP] --> B
-  I --> E
-  I --> F
-```
-
-O ponto central e simples: o workflow descreve o que precisa acontecer; o runtime executa; o state store permite retomar; as métricas e traces tornam tudo observável; o Studio e o MCP ajudam a criar, validar e investigar.
+  B --> C[Execução dos Handlers]
+  C --> D[Payload Enriquecido]
+  C --> E[(State Store)]
+  C --> F[Métricas para APM]
+  C --> G[Trace Propagado]
+  H[Studio Local] --> B
+  I[MCP Gateway] -. valida .-> B
+````
