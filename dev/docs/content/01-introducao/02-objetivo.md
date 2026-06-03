@@ -1,36 +1,18 @@
 ---
 sidebar_position: 2
-sidebar_label: "Objetivo"
+sidebar_label: "Objetivos e Motivações"
 ---
 
-# Objetivo do projeto
+# Objetivos do Projeto
 
-O projeto visa oferecer uma base sólida para criar workflows resilientes, robustos, escaláveis, reutilizáveis, observáveis, seguros e modulares, que na prática, ajuda a responder três perguntas que aparecem em processos reais:
+O objetivo fundamental deste projeto é fornecer uma fundação arquitetural resiliente, escalável e segura para workflows de missão crítica[cite: 3]. Na prática da operação distribuída, o framework soluciona três perguntas essenciais que frequentemente se tornam gargalos durante incidentes:
 
-1. **O que deve acontecer agora?**
-   O YAML descreve a proxima etapa, os parâmetros e as regras de decisão.
+1. **O que deve acontecer agora?** O script YAML atua como a única fonte de verdade, definindo a próxima etapa e os parâmetros de decisão de forma puramente declarativa[cite: 3].
+2. **O que já aconteceu até aqui?** O State Store aliado à injeção de trace_id em ferramentas de observabilidade revelam o histórico imutável de cada passo já consolidado[cite: 3].
+3. **Como continuar de forma segura?** Em caso de indisponibilidade de uma API terceira, o *cursor* gravado garante que o processo seja retomado sem executar chamadas financeiras ou mutações não idempotentes novamente[cite: 3].
 
-2. **O que aconteceu ate aqui?**
-   Histórico, métricas, traces e state store mostram cada etapa executada.
+## O Problema que Resolvemos
 
-3. **Como continuar sem repetir o que já foi feito?**
-   O cursor salvo permite retomar do ponto correto e a idempotência reduz risco de duplicar efeitos externos.
+Workflows de negócio tendem a crescer organicamente em complexidade[cite: 3]. Eles precisam consumir APIs REST, consultar bancos de dados, aprovar validações estritas de conformidade e emitir eventos[cite: 3]. Quando essas responsabilidades estão espalhadas em um código imperativo, acoplado e sem rastreabilidade nativa, tarefas como debugar uma falha, realizar um *retry* seguro ou explicar a regra de negócio atual se tornam custosas[cite: 3].
 
-## Problema que o projeto resolve
-
-Workflows longos costumam crescer em complexidade. Eles chamam APIs, validam regras, dependem de dados externos, tomam decisões e precisam ser monitorados. Quando tudo isso fica espalhado em código, logs e configurações, fica mais difícil testar, explicar e reprocessar.
-
-O Routing Slip organiza esse processo em uma sequencia declarativa e observável.
-
-## Resultado esperado
-
-Ao usar o framework, o usuário deve conseguir:
-
-- criar workflows sem escrever um orquestrador do zero;
-- reutilizar handlers;
-- testar cenários no Studio;
-- enriquecer payloads via GraphQL ou REST;
-- saber onde uma execução parou;
-- reprocessar com segurança;
-- explicar o fluxo para outros times;
-- evoluir o processo sem perder rastreabilidade.
+O `routing-slip-pattern` ataca esse problema isolando o **"O Quê"** (o fluxo no YAML) do **"Como"** (os *handlers* em Go), resultando em um código mais limpo e processos altamente testáveis[cite: 3].

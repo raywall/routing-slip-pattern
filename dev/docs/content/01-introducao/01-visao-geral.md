@@ -5,25 +5,20 @@ sidebar_label: "Visão geral"
 
 # Routing Slip Pattern
 
-De forma simplificada, um padrão `routing slip` (ou guia de encaminhamento) pode ser definido como um documento ou registro que acompanha um item, mensagem ou paciente através de uma série de etapas ou departamentos de processamento. Tendo como função fundamental, ditar a rota exata a ser seguida e registrar as ações concluídas em cada ponto.
+De forma simplificada, um padrão `routing slip` (ou guia de encaminhamento) funciona como um documento de controle que acompanha uma mensagem através de uma série de etapas de processamento. Sua função fundamental é ditar a rota exata a ser seguida e registrar as ações concluídas em cada ponto de verificação.
 
-Apesar de ser um termo que pode ser aplicado nos três contextos distintos abaixo, vamos focar apenas no uso do padrão voltado aplicado ao desenvolvimento de sistemas.
-
-  1. Arquitetura de Software (mensageria)
-  2. Ambientes Médicos e Clínicos
-  3. Logística, Controle de Produção e Corporativo
-
-O padrão `Routing Slip` (ou padrão de encaminhamento) é usado para criar transações distribuídas, permitindo que em vez de um controlador central ditando o caminho (orquestração), **a mensagem carrega seu próprio "itinerário"** contendo uma lista de serviços (atividades) que devem ser executados em sequência.
-
+No contexto de engenharia de software e microsserviços, o padrão `Routing Slip` é utilizado para orquestrar transações distribuídas de maneira descentralizada. Em vez de depender de um controlador central rígido ditando cada passo, **a própria mensagem carrega o seu itinerário**, contendo uma lista ordenada de serviços e regras que devem ser executados em sequência.
 
 ## Como funciona?
 
-Bastante comum em processos assíncronos ou microsserviços, tanto a ideia quanto a estrutura aplicada a um `routing slip` é bastante simples. `Cada serviço recebe a mensagem, executa sua tarefa, atualiza o status no documento e encaminha para o próximo destino listado`, possibilitando assim um maior controle do processo. Além de gerar rastreabilidade, explicabilidade e viabilizar a criação de `checkpoints` que garantem que um processo possa ser retomado a qualquer momento do exato ponto onde parou. 
+Aplicado rotineiramente em processos assíncronos, a mecânica é direta: cada serviço (ou *worker*) recebe a mensagem, executa sua tarefa de domínio isoladamente, atualiza o status no documento e encaminha o pacote para o próximo destino listado no roteiro.
+
+Esse modelo descentralizado garante alto controle sobre o fluxo, gerando rastreabilidade, explicabilidade e viabilizando a criação de `checkpoints` duráveis. Isso assegura que, em caso de falha sistêmica, o processo possa ser retomado exatamente do ponto onde parou, sem repetir processamentos já consolidados.
 
 ```mermaid
 flowchart LR
   %% Entrada
-  A[API Gateway<br/>Recebe proposta]:::entry
+  A[API Gateway<br/>Recebe requisição]:::entry
   B[Routing Slip Creator<br/>Monta workflow + payload]:::control
 
   %% Canal
@@ -31,15 +26,15 @@ flowchart LR
 
   %% Estado
   ST[(DynamoDB<br/>Execution State<br/>currentStep, status, history)]:::state
-  LOG[(CloudWatch / Datadog<br/>Logs, Metrics, Traces)]:::obs
+  LOG[(Datadog / CloudWatch<br/>Logs, Metrics, Traces)]:::obs
   DLQ[(SQS DLQ<br/>Falhas não recuperáveis)]:::error
 
   %% Steps
-  S1["1. ValidateCustomer Lambda"]:::step
-  S2["2. CalculateOffer ECS/Fargate"]:::step
-  S3["3. FraudCompliance Lambda"]:::step
-  S4["4. FormalizeContract ECS/Lambda"]:::step
-  S5["5. NotifyCustomer Lambda/SNS"]:::step
+  S1["1. ValidateRequest"]:::step
+  S2["2. ProcessBusinessLogic"]:::step
+  S3["3. ExternalIntegration"]:::step
+  S4["4. UpdateLedger/Database"]:::step
+  S5["5. NotifyStakeholders"]:::step
   END["Workflow Finalizado"]:::success
 
   %% Fluxo principal
@@ -47,19 +42,19 @@ flowchart LR
   B -->|"cria executionId<br/>routingSlip[1..5]"| ST
   B -->|publica step 1| EB
 
-  EB -->|route: ValidateCustomer| S1
-  S1 -->|next: CalculateOffer| EB
+  EB -->|route: ValidateRequest| S1
+  S1 -->|next: ProcessBusinessLogic| EB
 
-  EB -->|route: CalculateOffer| S2
-  S2 -->|next: FraudCompliance| EB
+  EB -->|route: ProcessBusinessLogic| S2
+  S2 -->|next: ExternalIntegration| EB
 
-  EB -->|route: FraudCompliance| S3
-  S3 -->|next: FormalizeContract| EB
+  EB -->|route: ExternalIntegration| S3
+  S3 -->|next: UpdateLedger| EB
 
-  EB -->|route: FormalizeContract| S4
-  S4 -->|next: NotifyCustomer| EB
+  EB -->|route: UpdateLedger| S4
+  S4 -->|next: NotifyStakeholders| EB
 
-  EB -->|route: NotifyCustomer| S5
+  EB -->|route: NotifyStakeholders| S5
   S5 --> END
 
   %% Estado e observabilidade
@@ -70,11 +65,11 @@ flowchart LR
   S5 -. update step 5 .-> ST
 
   B -. log .-> LOG
-  S1 -. log/trace .-> LOG
-  S2 -. log/trace .-> LOG
-  S3 -. log/trace .-> LOG
-  S4 -. log/trace .-> LOG
-  S5 -. log/trace .-> LOG
+  S1 -. trace/log .-> LOG
+  S2 -. trace/log .-> LOG
+  S3 -. trace/log .-> LOG
+  S4 -. trace/log .-> LOG
+  S5 -. trace/log .-> LOG
 
   %% Falhas
   S1 -->|erro/retry excedido| DLQ
@@ -119,49 +114,29 @@ flowchart LR
   classDef obs fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#111827;
   classDef error fill:#FEE2E2,stroke:#DC2626,stroke-width:2px,color:#111827;
   classDef success fill:#BBF7D0,stroke:#15803D,stroke-width:3px,color:#111827;
-```
-
-[ref](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RoutingTable.html)
+````
 
 ## Qual a proposta do framework?
 
-O `routing-slip-pattern` é um framework low-code versátil, robusto e altamente customizável para construir workflows modulares, rastreáveis e capazes de retomada. Ele trata cada processamento como uma execução única, garantindo idempotência e reduzindo riscos de duplicidade. Com ele, você pode:
+O `routing-slip-pattern` é um framework low-code projetado para construir workflows modulares, altamente observáveis e com capacidade nativa de retomada (resume). Ele encapsula a complexidade do processamento distribuído, garantindo idempotência e mitigando riscos de duplicidade.
 
-- Descrever o fluxo de processamento em formato YAML;
-- Executar cada etapa com handlers reutilizáveis;
-- Enriquece o payload com dados externos;
-- Registrar métricas e logs;
-- Retomar o processamento exatamente do ponto onde ocorreu uma falha.
+Com esta abstração, a equipe de engenharia pode:
 
-A proposta é simples: **em vez de esconder o processo dentro de código imperativo, o workflow deixa o caminho visível**. Cada etapa tem nome, parâmetros, entrada, saída, status e histórico.
+- Declarar o fluxo de negócio de forma explícita em um arquivo YAML;
+- Reutilizar _handlers_ padronizados para cada etapa;
+- Enriquecer o payload dinamicamente com dados externos antes de aplicar regras de decisão;
+- Registrar métricas estruturadas e logs distribuídos (traces) de forma transparente;
+- Retomar a execução do exato ponto em que um erro transiente ocorreu, sem perder o estado.
 
-```mermaid
-flowchart LR
-  A[Evento REST/Kafka/SQS] --> B[Workflow YAML]
-  B --> C[Handlers]
-  C --> D[Payload atualizado]
-  C --> E[State store]
-  C --> F[Métricas e traces]
-  G[Studio] --> B
-  H[MCP] --> B
-```
+A filosofia central é dar luz ao processo: **em vez de esconder a regra de negócio emaranhada em código imperativo, o workflow torna o caminho legível e auditável**.
 
-O framework foi projetado para atender qualquer domínio: pedidos, catálogo, atendimento, logística, onboarding, validação documental, notificações, sincronização de dados – ou qualquer processo que precise ser executado em etapas.
+## O Ecossistema
 
-## O que você encontra no ecossistema?
+O framework atua em conjunto com outras ferramentas para entregar uma experiência completa de desenvolvimento e operação[cite: 2]:
 
-- **Runtime**: executa os workflows.
-- **Studio**: editor para criar, validar, simular e entender scripts.
-- **GraphQL Connector**: enriquece payloads com APIs e serviços externos.
-- **Custom Business Metrics**: visualiza execuções, etapas e falhas.
-- **State store**: permite retomada robusta.
-- **MCP Gateway**: fornece ferramentas para validação, explicação, consulta de estado e planejamento assistido.
-
-## Recomendações
-
-1. Leia os [conceitos fundamentais](#).
-2. Conheça a estrutura básica de um workflow.
-3. Entenda como funcionam paths e arrays.
-4. Explore os handlers disponíveis.
-5. Utilize o Studio para editar e executar um exemplo.
-6. Integre sistemas reais somente quando o fluxo local estiver claro.
+- **Runtime**: O motor em Go que executa os workflows declarados[cite: 2].
+- **Studio**: Uma interface visual para editar, simular e validar os fluxos localmente[cite: 2].
+- **GraphQL Connector**: Uma fachada anti-corrupção para enriquecer payloads de forma padronizada[cite: 2].
+- **Custom Business Metrics**: Ingestão e exibição das métricas e steps de falha[cite: 2].
+- **State Store**: A camada de persistência que viabiliza a durabilidade do cursor e do payload[cite: 2].
+- **MCP Gateway**: Ferramental avançado para validação semântica e planejamento assistido[cite: 2].
