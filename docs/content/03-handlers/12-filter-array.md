@@ -1,4 +1,9 @@
-Use `filter_array` para remover itens de um array antes das proximas etapas.
+---
+sidebar_position: 8
+sidebar_label: "Filter array"
+---
+
+Use `filter_array` para remover itens de um array antes das próximas etapas.
 
 O handler pode sobrescrever o array original ou gravar a lista filtrada em outro campo.
 
@@ -38,17 +43,17 @@ O handler pode sobrescrever o array original ou gravar a lista filtrada em outro
     expr: "item.prazo_dias <= 3 && item.custo <= 25"
 ```
 
-Durante a avaliacao:
+Durante a avaliação:
 
-| Variavel | Uso |
+| Variável | Uso |
 |---|---|
 | `item` | Item atual do array. |
-| `index` | Posicao do item no array original. |
-| payload original | Continua disponivel para comparacoes. |
+| `index` | Posição do item no array original. |
+| payload original | Continua disponível para comparações. |
 
 Campos gerados:
 
-| Campo | Descricao |
+| Campo | Descrição |
 |---|---|
 | `<target>_filtered_count` | Quantidade de itens mantidos. |
 | `<target>_removed_count` | Quantidade de itens removidos. |

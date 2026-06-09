@@ -13,8 +13,8 @@
     targets: null,
   };
 
-  function init(options) {
-    const docs = window.RoutingSlipDocs || [];
+  async function init(options) {
+    const docs = await loadDocsFromContent();
     const tree = document.querySelector(options.treeSelector);
     const timeline = document.querySelector(options.timelineSelector);
     const title = document.querySelector(options.titleSelector);
@@ -39,6 +39,91 @@
       const item = findDocItem(state.docs, state.activeItem);
       if (item && state.targets) renderDoc(item, state.targets);
     });
+  }
+
+  async function loadDocsFromContent() {
+    const manifest = await loadDocsManifest();
+    const files = Array.isArray(manifest.files) ? manifest.files : [];
+    const loaded = await Promise.all(files.map(async (file) => {
+      const content = await fetchDocText(file);
+      const parsed = parseFrontMatter(content);
+      return { file, ...parsed };
+    }));
+    const byDir = new Map();
+    loaded.forEach((entry) => {
+      const dir = entry.file.replace(/\/[^/]+$/, "");
+      if (!byDir.has(dir)) byDir.set(dir, { dir, section: null, items: [] });
+      const group = byDir.get(dir);
+      if (entry.file.endsWith("/index.md")) group.section = entry;
+      else group.items.push(entry);
+    });
+    return [...byDir.values()]
+      .filter((group) => group.items.length)
+      .map((group) => {
+        const fallbackTitle = titleFromPath(group.dir);
+        return {
+          title: group.section?.meta.sidebar_label || fallbackTitle,
+          position: Number(group.section?.meta.sidebar_position || 999),
+          items: group.items
+            .map((entry) => ({
+              id: docIDFromFile(entry.file),
+              title: entry.meta.sidebar_label || firstMarkdownTitle(entry.content) || titleFromPath(entry.file),
+              position: Number(entry.meta.sidebar_position || 999),
+              file: entry.file,
+              content: entry.content,
+            }))
+            .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title)),
+        };
+      })
+      .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title));
+  }
+
+  async function loadDocsManifest() {
+    const response = await fetch(resolveDocUrl("manifest.json"), { cache: "no-cache" });
+    if (!response.ok) throw new Error("Manifesto de documentacao indisponivel.");
+    return response.json();
+  }
+
+  async function fetchDocText(file) {
+    const response = await fetch(resolveDocUrl(file), { cache: "no-cache" });
+    if (!response.ok) throw new Error(`Nao foi possivel carregar ${file}`);
+    return response.text();
+  }
+
+  function parseFrontMatter(markdown) {
+    const text = String(markdown || "");
+    const match = text.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (!match) return { meta: {}, content: text };
+    const meta = {};
+    match[1].split("\n").forEach((line) => {
+      const item = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+      if (!item) return;
+      const raw = item[2].trim();
+      try {
+        meta[item[1]] = JSON.parse(raw);
+      } catch {
+        meta[item[1]] = raw.replace(/^["']|["']$/g, "");
+      }
+    });
+    return { meta, content: text.slice(match[0].length) };
+  }
+
+  function firstMarkdownTitle(markdown) {
+    return String(markdown || "").split("\n").find((line) => /^#\s+/.test(line))?.replace(/^#\s+/, "").trim();
+  }
+
+  function titleFromPath(value) {
+    return String(value || "")
+      .split("/")
+      .pop()
+      .replace(/^\d+-/, "")
+      .replace(/\.md$/, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function docIDFromFile(file) {
+    return String(file).replace(/^content\//, "").replace(/\.md$/, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
   function renderTree(tree, docs, targets) {
@@ -146,6 +231,7 @@
   }
 
   async function renderDoc(item, targets) {
+    targets.timeline.classList.remove("timeline--business-rule");
     targets.timeline.classList.add("timeline--docs");
     let content = "";
     try {
@@ -167,9 +253,7 @@
     if (item.content) return item.content;
     if (!item.file) return "";
     if (item.cachedContent) return item.cachedContent;
-    const response = await fetch(resolveDocUrl(item.file), { cache: "no-cache" });
-    if (!response.ok) throw new Error(`Nao foi possivel carregar ${item.file}`);
-    item.cachedContent = await response.text();
+    item.cachedContent = parseFrontMatter(await fetchDocText(item.file)).content;
     return item.cachedContent;
   }
 

@@ -1,3 +1,10 @@
+---
+sidebar_position: 12
+sidebar_label: "Rest call"
+---
+
+# Rest call
+
 Use `rest_call` quando o workflow precisa acionar uma API REST diretamente.
 
 ```yaml

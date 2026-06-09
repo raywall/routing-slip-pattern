@@ -5,13 +5,17 @@ const handlers = new Set([
   "compute",
   "cel",
   "filter_array",
+  "array_transform",
   "enrich",
   "transform",
   "notify",
+  "log",
   "audit",
+  "datadog_metric",
   "graphql_enrich",
   "jump_if",
   "rest_call",
+  "aws_action",
   "workflow_ref",
 ]);
 
@@ -25,10 +29,16 @@ const els = {
   title: document.querySelector("#workflow-title"),
   lineCount: document.querySelector("#line-count"),
   timeline: document.querySelector("#timeline"),
+  scrollLogTop: document.querySelector("#scroll-log-top"),
+  processingOverlay: document.querySelector("#execution-loading"),
+  processingTitle: document.querySelector("#execution-loading-title"),
+  processingCopy: document.querySelector("#execution-loading-copy"),
   summary: document.querySelector("#run-summary"),
   example: document.querySelector("#example-select"),
   graphqlEndpoint: document.querySelector("#graphql-endpoint"),
   workflowEndpoint: document.querySelector("#workflow-endpoint"),
+  mcpEndpoint: document.querySelector("#mcp-endpoint"),
+  mcpApiKey: document.querySelector("#mcp-api-key"),
   externalApiUrl: document.querySelector("#external-api-url"),
   integrations: document.querySelector("#execute-integrations"),
   sidebar: document.querySelector("#sidebar"),
@@ -41,10 +51,20 @@ const els = {
   openWorkspace: document.querySelector("#open-workspace"),
   newService: document.querySelector("#new-service"),
   newWorkflow: document.querySelector("#new-workflow"),
+  newBusinessRule: document.querySelector("#new-business-rule"),
   saveWorkflowFile: document.querySelector("#save-workflow-file"),
   exportWorkflowFile: document.querySelector("#export-workflow-file"),
   refreshWorkspace: document.querySelector("#refresh-workspace"),
   collapseTabs: document.querySelector("#collapse-tabs"),
+  visualize: document.querySelector("#visualize-workflow"),
+  visualizerModal: document.querySelector("#workflow-visualizer-modal"),
+  visualizerTitle: document.querySelector("#workflow-visualizer-title"),
+  visualizerToggle: document.querySelector("#workflow-visualizer-toggle"),
+  visualizerReset: document.querySelector("#workflow-visualizer-reset"),
+  visualizerDownload: document.querySelector("#workflow-visualizer-download"),
+  visualizerClose: document.querySelector("#workflow-visualizer-close"),
+  visualizerSvg: document.querySelector("#workflow-visualizer-svg"),
+  run: document.querySelector("#run-test"),
   reprocess: document.querySelector("#reprocess-test"),
   themeToggle: document.querySelector("#theme-toggle"),
   mobileDocsToggle: document.querySelector("#mobile-docs-toggle"),
@@ -57,6 +77,15 @@ let activeExecutionStepIndex = null;
 let activeLogEntry = null;
 let activeStepGroup = null;
 let stepGroups = new Map();
+let logSources = new Map();
+let activeLogSourceKey = "";
+let runtimeRootSourceKey = "";
+let studioExecutionRunning = false;
+let workflowVisualizerMode = "macro";
+let workflowVisualizerGraph = null;
+let workflowVisualizerRenderedGraph = null;
+let workflowVisualizerViewBox = { x: 0, y: 0, width: 1200, height: 720 };
+let workflowVisualizerDrag = null;
 let saveTimer = null;
 let workspaceState = {
   rootHandle: null,
@@ -69,6 +98,11 @@ let currentWorkspaceFile = {
   fileName: "",
 };
 let workflowDirty = false;
+let projectDirty = false;
+let currentProjectEnvelope = null;
+let currentBusinessRules = [];
+let activeBusinessRuleID = "";
+let businessRuleBackStack = [];
 let activeRuntimeWorkflow = null;
 let lastExecutionSnapshot = null;
 
@@ -98,19 +132,29 @@ function bindEvents() {
   els.payload.addEventListener("input", () => {
     invalidateExecutionSnapshot();
     validatePayload();
+    markProjectDirty();
     scheduleStudioSave();
   });
   els.payload.addEventListener("keydown", handlePayloadKeydown);
-  [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.externalApiUrl, els.integrations].forEach((input) => {
+  [els.example, els.graphqlEndpoint, els.workflowEndpoint, els.mcpEndpoint, els.mcpApiKey, els.externalApiUrl, els.integrations].forEach((input) => {
     input.addEventListener("change", () => {
       invalidateExecutionSnapshot();
+      markProjectDirty();
       scheduleStudioSave();
     });
   });
   document.querySelector("#load-example").addEventListener("click", () => loadExample(els.example.value));
   document.querySelector("#lint-now").addEventListener("click", lintWorkflow);
+  els.visualize.addEventListener("click", openWorkflowVisualizer);
   document.querySelector("#run-test").addEventListener("click", () => runLocalSimulation());
   els.reprocess.addEventListener("click", () => runLocalSimulation({ reprocess: true }));
+  els.visualizerClose.addEventListener("click", closeWorkflowVisualizer);
+  els.visualizerModal.addEventListener("click", (event) => {
+    if (event.target === els.visualizerModal) closeWorkflowVisualizer();
+  });
+  els.visualizerToggle.addEventListener("click", toggleWorkflowVisualizerMode);
+  els.visualizerReset.addEventListener("click", resetWorkflowVisualizerView);
+  els.visualizerDownload.addEventListener("click", downloadWorkflowDiagramImage);
   els.themeToggle.addEventListener("click", toggleTheme);
   els.mobileDocsToggle.addEventListener("click", toggleMobileDocs);
   els.mobileDocsBackdrop.addEventListener("click", closeMobileDocs);
@@ -118,6 +162,10 @@ function bindEvents() {
   document.querySelector("#format-yaml").addEventListener("click", formatWorkflow);
   document.querySelector("#toggle-comment").addEventListener("click", () => toggleYamlComment());
   document.querySelector("#send-rest").addEventListener("click", sendToRestEndpoint);
+  document.querySelector("#mcp-validate").addEventListener("click", validateWorkflowViaMCP);
+  document.querySelector("#mcp-explain").addEventListener("click", explainWorkflowViaMCP);
+  document.querySelector("#mcp-generate-rules").addEventListener("click", generateWorkflowFromBusinessRulesViaMCP);
+  document.querySelector("#mcp-diagnostics").addEventListener("click", showConnectorDiagnostics);
   document.querySelectorAll("[data-tab]").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });
@@ -125,9 +173,11 @@ function bindEvents() {
   els.openWorkspace.addEventListener("click", openWorkspace);
   els.newService.addEventListener("click", createService);
   els.newWorkflow.addEventListener("click", createWorkflowInActiveService);
+  els.newBusinessRule.addEventListener("click", createBusinessRuleForCurrentWorkflow);
   els.saveWorkflowFile.addEventListener("click", saveCurrentWorkflowFile);
   els.exportWorkflowFile.addEventListener("click", exportComposedWorkflow);
   els.refreshWorkspace.addEventListener("click", refreshWorkspace);
+  els.scrollLogTop?.addEventListener("click", scrollActiveLogPanelToTop);
   document.addEventListener("click", dismissContextMenu);
   document.addEventListener("keydown", (event) => {
     if (event.defaultPrevented) return;
@@ -225,5 +275,10 @@ function initEnvSwitcher() {
 
   const toolbar = document.querySelector(".topbar-actions");
   if (!toolbar) return;
-  toolbar.prepend(select);
+  const themeToggle = document.querySelector("#theme-toggle");
+  if (themeToggle && themeToggle.parentElement === toolbar) {
+    toolbar.insertBefore(select, themeToggle);
+    return;
+  }
+  toolbar.appendChild(select);
 }

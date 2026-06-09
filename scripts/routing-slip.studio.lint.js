@@ -45,6 +45,7 @@ function validateWorkflowShape(workflow, issues) {
   }
 
   workflow.steps.forEach((step, index) => validateStep(step, index, issues));
+  validateBusinessRulesCoverage(workflow, issues);
 }
 
 function validateStep(step, index, issues) {
@@ -101,11 +102,22 @@ function validateStep(step, index, issues) {
       issues.push(error(`${label} filter_array where deve ser objeto ou lista.`));
     }
   }
+  if (step.name === "array_transform") {
+    if (!stringValue(params.source)) {
+      issues.push(error(`${label} array_transform precisa de source.`));
+    }
+    if (params.updates && !Array.isArray(params.updates)) {
+      issues.push(error(`${label} array_transform updates deve ser uma lista.`));
+    }
+    if (params.nested && !Array.isArray(params.nested)) {
+      issues.push(error(`${label} array_transform nested deve ser uma lista.`));
+    }
+  }
   if (step.name === "jump_if") {
-    if (!stringValue(params.field)) issues.push(error(`${label} jump_if precisa de field.`));
+    if (!stringValue(params.field) && !stringValue(params.exists)) issues.push(error(`${label} jump_if precisa de field ou exists.`));
     if (!stringValue(params.to)) issues.push(error(`${label} jump_if precisa de to com id ou name do step destino.`));
-    if (!("equals" in params) && !("not_equals" in params)) {
-      issues.push(error(`${label} jump_if precisa de equals ou not_equals.`));
+    if (!("equals" in params) && !("not_equals" in params) && !("exists" in params) && !("min_items" in params) && !("max_items" in params) && !("less_than" in params) && !("less_than_or_equal" in params) && !("greater_than" in params) && !("greater_than_or_equal" in params)) {
+      issues.push(error(`${label} jump_if precisa de um operador de comparação.`));
     }
   }
   if (step.name === "graphql_enrich") {
@@ -124,8 +136,18 @@ function validateStep(step, index, issues) {
     if (!stringValue(params.file) && !stringValue(params.path) && !stringValue(params.workflow)) {
       issues.push(error(`${label} workflow_ref precisa de params.file, params.path ou params.workflow.`));
     }
+    const ref = params.file || params.path || params.workflow || "";
+    if (String(ref).startsWith("../") || String(ref).startsWith("./")) {
+      issues.push(warn(`${label} workflow_ref deve preferir path baseado no workspace, como service-first/A.`));
+    }
     if (!currentWorkspaceFile.handle) {
       issues.push(warn(`${label} workflow_ref e melhor testado com um arquivo aberto no workspace.`));
+    } else if (workspaceState?.rootHandle && stringValue(ref)) {
+      try {
+        resolveWorkspaceWorkflow(String(ref), currentWorkspaceFile);
+      } catch (err) {
+        issues.push(error(`${label} ${err.message}`));
+      }
     }
   }
 }
@@ -152,6 +174,116 @@ function validateResilience(step, label, issues) {
   if (action === "jump" && !stringValue(onFailure.to)) {
     issues.push(error(`${label}.resilience.on_failure.to e obrigatorio quando action for jump.`));
   }
+}
+
+function validateBusinessRulesCoverage(workflow, issues) {
+  const rules = normalizeBusinessRules(currentBusinessRules || [])
+    .filter((rule) => String(rule.status || "ACTIVE").toUpperCase() === "ACTIVE");
+  if (!rules.length) return;
+  const workflowText = JSON.stringify(workflow).toLowerCase();
+  rules.forEach((rule) => {
+    const tokens = [
+      rule.rule_id,
+      normalizeName(rule.rule_id || ""),
+      rule.human_context?.name || "",
+    ].map((value) => String(value || "").toLowerCase()).filter(Boolean);
+    if (!tokens.some((token) => workflowText.includes(token))) {
+      issues.push(warn(`Regra ativa "${rule.rule_id}" ainda nao esta coberta pelo workflow. Inclua o rule_id/nome em um step, audit, log ou metrica quando iniciar a implementacao.`));
+    }
+    const requiredFields = businessRuleRequiredFields(rule);
+    requiredFields.forEach((field) => {
+      if (!workflowRequiresField(workflow, field) && !workflowText.includes(String(field).toLowerCase())) {
+        issues.push(warn(`Regra "${rule.rule_id}" espera o campo "${field}", mas ele nao aparece no workflow.`));
+      }
+    });
+    const observability = rule.technical_metadata?.observability || {};
+    businessRuleMetricNames(observability.custom_metrics || observability.custom_metric).forEach((metric) => {
+      if (!workflowHasDatadogMetric(workflow, metric)) {
+        issues.push(warn(`Regra "${rule.rule_id}" declara metrica "${metric}", mas nao ha step datadog_metric correspondente.`));
+      }
+    });
+    businessRuleList(observability.log_markers || observability.logs).forEach((marker) => {
+      if (!workflowHasLogMarker(workflow, marker)) {
+        issues.push(warn(`Regra "${rule.rule_id}" declara log marker "${marker}", mas nao ha step log correspondente.`));
+      }
+    });
+    businessRuleDependencies(rule.technical_metadata?.dependencies || []).forEach((dependency) => {
+      const dependencyID = dependency.rule_id || "";
+      if (dependency.type === "business_rule" && dependencyID && !rules.some((item) => item.rule_id === dependencyID)) {
+        issues.push(warn(`Regra "${rule.rule_id}" depende de "${dependencyID}", que nao esta ativa neste projeto.`));
+      }
+    });
+  });
+}
+
+function businessRuleRequiredFields(rule) {
+  return [
+    ...businessRuleList(rule.required_inputs),
+    ...businessRuleList(rule.required_fields),
+    ...businessRuleList(rule.engineering_context?.required_fields),
+    ...inferFieldsFromRuleText(`${rule.human_context?.description || ""}\n${rule.ai_logic || ""}`),
+  ].filter((field, index, list) => field && list.indexOf(field) === index);
+}
+
+function inferFieldsFromRuleText(text) {
+  return [...String(text || "").matchAll(/\{([a-zA-Z0-9_.-]+)\}/g)].map((match) => match[1]);
+}
+
+function businessRuleList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  if (value === undefined || value === null) return [];
+  return [String(value).trim()].filter(Boolean);
+}
+
+function businessRuleMetricNames(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => typeof item === "string" ? item : (item?.name || item?.Name || item?.metric || "")).map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (value && typeof value === "object") return businessRuleMetricNames([value]);
+  return businessRuleList(value);
+}
+
+function businessRuleDependencies(value) {
+  const items = Array.isArray(value) ? value : value ? [value] : [];
+  return items.map((item) => {
+    if (typeof item === "string") return { type: "business_rule", rule_id: item, relation: "depends_on" };
+    if (!item || typeof item !== "object") return null;
+    const type = String(item.type || item.Type || "").toLowerCase().replace("-", "_") || (item.rule_id || item.Rule_id ? "business_rule" : "system");
+    if (type === "business_rule" || type === "business-rule") {
+      return {
+        type: "business_rule",
+        rule_id: item.rule_id || item.Rule_id || item.id || "",
+        relation: item.relation || item.Relation || "depends_on",
+      };
+    }
+    return {
+      type: "system",
+      name: item.name || item.Name || "",
+      component: item.component || item.Component || "",
+      action: item.action || item.Action || "",
+    };
+  }).filter(Boolean);
+}
+
+function workflowRequiresField(workflow, field) {
+  return (workflow.steps || []).some((step) =>
+    step.name === "validate" && Array.isArray(step.params?.required) && step.params.required.includes(field)
+  );
+}
+
+function workflowHasDatadogMetric(workflow, metric) {
+  const expected = String(metric || "").toLowerCase();
+  return (workflow.steps || []).some((step) =>
+    step.name === "datadog_metric" && String(step.params?.metric || "").toLowerCase() === expected
+  );
+}
+
+function workflowHasLogMarker(workflow, marker) {
+  const expected = String(marker || "").toLowerCase();
+  return (workflow.steps || []).some((step) =>
+    step.name === "log" && String(step.params?.message || "").toLowerCase().includes(expected)
+  );
 }
 
 function renderLint(issues) {

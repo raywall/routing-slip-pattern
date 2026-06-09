@@ -59,7 +59,6 @@ steps:
         pedido_id: "PED-9988",
         valor_pago: 150,
       },
-      correlation_id: "corr-payment-fulfillment-001",
       received_at: "2026-05-21T00:00:00Z",
     },
   },
@@ -112,7 +111,6 @@ steps:
         - workflow_input_preparado.status
 `,
     payload: {
-      correlation_id: "corr-baixa-parcelas-001",
       received_at: "2026-05-21T00:00:00Z",
       data: {
         event_name: "DESCONTO_FOLHA_REALIZADO",
@@ -145,7 +143,6 @@ steps:
 `,
     payload: {
       id: "MSG-001",
-      correlation_id: "corr-001",
     },
   },
 };

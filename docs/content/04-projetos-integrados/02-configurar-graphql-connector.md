@@ -1,8 +1,15 @@
-O conector usa tres configuracoes principais:
+---
+sidebar_position: 2
+sidebar_label: "Configuração do conector"
+---
+
+# Configurações de um conector
+
+O conector usa tres configurações principais:
 
 | Arquivo | Finalidade |
 |---|---|
-| `service.json` | Define schema, connectors, mock, rota e autorizacao. |
+| `service.json` | Define schema, connectors, mock, rota e autorização. |
 | `schema.json` | Descreve tipos, campos e argumentos GraphQL. |
 | `connectors.json` | Mapeia campos GraphQL para adapters externos. |
 
@@ -20,7 +27,7 @@ Exemplo de `service.json` local:
 }
 ```
 
-## Autenticacao STS para APIs REST
+## Autenticação STS para APIs REST
 
 Quando `authorization.require_token_sts` e `true`, o `go-graphql-connector` emite um token usando `client_credentials` e injeta automaticamente `Authorization: Bearer <token>` nas chamadas dos connectors REST que nao tenham um header `Authorization` configurado manualmente.
 
@@ -52,10 +59,10 @@ Quando `authorization.require_token_sts` e `true`, o `go-graphql-connector` emit
 
 Campos suportados em `authorization`:
 
-| Campo | Obrigatorio | Descricao |
+| Campo | Obrigatório | Descrição |
 |---|---:|---|
-| `require_token_sts` | Sim | Ativa ou desativa emissao de token. |
-| `skip_tls_verify` | Nao | Quando `true`, desativa a validacao TLS apenas na chamada ao servico de token. Padrao: `false`. |
+| `require_token_sts` | Sim | Ativa ou desativa emissão de token. |
+| `skip_tls_verify` | Nao | Quando `true`, desativa a validação TLS apenas na chamada ao serviço de token. Padrão: `false`. |
 | `tokenService.token_authorization_url` | Sim | Endpoint OAuth/STS usado para emitir o token. Aceita `local`, `env`, `ssm`, `secret`, `s3`, `dynamodb` ou `${VAR}` inline. |
 | `tokenService.headers` | Nao | Headers enviados para o emissor do token, como `x-serial-number`. Os nomes sao preservados. |
 | `tokenService.credentials.client_id` | Sim | Client id, podendo vir inline, env, SSM ou Secrets Manager. |
@@ -70,9 +77,9 @@ export STS_CLIENT_ID="f47ac10b-58cc-4372-a567-0e02b2c3d479"
 export STS_CLIENT_SECRET="550e8400-e29b-41d4-a716-446655440000"
 ```
 
-> O token e cacheado ate perto da expiracao. Uma nova chamada so e feita quando nao ha token ou quando ele esta proximo de expirar.
+> O token e cacheado ate perto da expiração. Uma nova chamada so e feita quando nao ha token ou quando ele esta proximo de expirar.
 
-Use `skip_tls_verify: true` somente em ambientes privados onde o emissor do token usa certificado interno ou autoassinado e a cadeia de CA ainda nao esta disponivel na imagem/container. Em ambientes produtivos, prefira instalar a CA interna no container e manter a validacao TLS ativa.
+Use `skip_tls_verify: true` somente em ambientes privados onde o emissor do token usa certificado interno ou autoassinado e a cadeia de CA ainda nao esta disponível na imagem/container. Em ambientes produtivos, prefira instalar a CA interna no container e manter a validação TLS ativa.
 
 Exemplo de connector REST:
 
@@ -107,18 +114,18 @@ Exemplo de connector REST:
 
 Cada item de `connectors.json` liga um campo GraphQL a uma fonte externa.
 
-| Campo | Obrigatorio | Descricao |
+| Campo | Obrigatório | Descrição |
 |---|---:|---|
 | `field` | Sim | Nome do campo GraphQL que sera resolvido. |
 | `adapter` | Sim | Tipo de fonte: `rest`, `dynamodb`, `s3`, `rds` ou `redis`. |
-| `adapterConfig` | Sim | Configuracao especifica do adapter. |
+| `adapterConfig` | Sim | Configuração especifica do adapter. |
 | `keyPattern` | Condicional | Template usado como chave/endpoint/query. Para REST, se omitido, usa `adapterConfig.endpoint`. |
-| `timeoutMs` | Nao | Timeout por chamada. Padrao: 3000 ms. |
+| `timeoutMs` | Nao | Timeout por chamada. Padrão: 3000 ms. |
 | `retries` | Nao | Tentativas adicionais apos falha. |
 | `optional` | Nao | Se `true`, falhas da fonte nao derrubam a query. |
 | `responseTransform` | Nao | Normaliza respostas com wrappers como `data` e `errors`. |
 
-Variaveis entre `{}` sao substituidas pelos argumentos da query GraphQL:
+Variáveis entre `{}` sao substituídas pelos argumentos da query GraphQL:
 
 ```json
 {
@@ -137,12 +144,12 @@ Variaveis entre `{}` sao substituidas pelos argumentos da query GraphQL:
 }
 ```
 
-Fontes suportadas pelos paths de configuracao:
+Fontes suportadas pelos paths de configuração:
 
 | Prefixo | Uso |
 |---|---|
 | `local:` | Arquivo local relativo ao service.json. |
-| `env:` | Variavel de ambiente. |
+| `env:` | Variável de ambiente. |
 | `ssm:` | AWS Systems Manager Parameter Store. |
 | `secret:` ou `secrets:` | AWS Secrets Manager. |
 | `s3:` | Objeto no S3. |
