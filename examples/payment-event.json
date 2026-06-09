@@ -5,6 +5,5 @@
     "pedido_id": "PED-9988",
     "valor_pago": 150.0
   },
-  "correlation_id": "corr-payment-fulfillment-001",
   "received_at": "2026-05-20T12:00:00Z"
 }

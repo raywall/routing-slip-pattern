@@ -1,0 +1,44 @@
+{
+  "variants": [
+    {
+      "name": "slow-connector",
+      "request": { "method": "GET", "path": "/ecommerce/v1/delivery/policies/SP" },
+      "behavior": {
+        "delay_ms": 3500,
+        "status": 200
+      }
+    },
+    {
+      "name": "retry-success",
+      "request": { "method": "POST", "path": "/ecommerce/v1/logistics/carriers/selection" },
+      "behavior": {
+        "sequence": [
+          { "status": 500, "body": { "error": "temporary carrier outage" } },
+          { "status": 500, "body": { "error": "temporary carrier outage" } },
+          { "status": 200, "body": { "shipment_id": "SHP-1001", "carrier": "fastlog", "tracking_prefix": "FL" } }
+        ]
+      }
+    },
+    {
+      "name": "circuit-open",
+      "request": { "method": "GET", "path": "/ecommerce/v1/inventory/orders/ORD-1001" },
+      "behavior": {
+        "status": 503,
+        "body": { "error": "inventory unavailable" }
+      }
+    },
+    {
+      "name": "partial-data",
+      "request": { "method": "GET", "path": "/ecommerce/v1/inventory/orders/ORD-2001" },
+      "behavior": {
+        "status": 200,
+        "body": {
+          "data": [
+            { "sku": "SKU-BOOK-404", "available": 0, "reserved": 0, "warehouse": "WH-RJ-01" }
+          ],
+          "errors": []
+        }
+      }
+    }
+  ]
+}

@@ -1,4 +1,11 @@
-Um evento de metrica representa algo que aconteceu no processo.
+---
+sidebar_position: 5
+sidebar_label: "Eventos e consultas"
+---
+
+# Eventos e consultas
+
+Um evento de métrica representa algo que aconteceu no processo.
 
 ```json
 {
@@ -36,11 +43,11 @@ Consultas expostas pelo service:
 
 | Endpoint | Uso |
 |---|---|
-| `POST /v1/metrics` | Ingestao de eventos. |
+| `POST /v1/metrics` | Ingestão de eventos. |
 | `GET /v1/metrics/events` | Lista eventos crus filtrados. |
-| `GET /v1/metrics` | Retorna agregacoes/sumarios. |
+| `GET /v1/metrics` | Retorna agregações/sumários. |
 | `GET /v1/metrics/series` | Retorna serie temporal por bucket. |
-| `GET /v1/metrics/dimensions` | Lista dimensoes/tags disponiveis. |
+| `GET /v1/metrics/dimensions` | Lista dimensões/tags disponíveis. |
 | `GET /v1/dashboards` | Lista dashboards. |
 | `POST /v1/dashboards` | Salva dashboard. |
 | `DELETE /v1/dashboards/{id}` | Remove dashboard. |

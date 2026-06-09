@@ -18,8 +18,10 @@
     <link rel="stylesheet" href="./styles/routing-slip.studio.editor.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.lint.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.workspace.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.business-rules.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.documentation.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.execution.css" />
+    <link rel="stylesheet" href="./styles/routing-slip.studio.summary.css" />
     <link rel="stylesheet" href="./styles/routing-slip.studio.responsive.css" />
   </head>
   <body>
@@ -51,6 +53,7 @@
               <button id="open-workspace" class="icon-button" type="button" title="Abrir workspace" aria-label="Abrir workspace"><i data-lucide="folder-open"></i></button>
               <button id="new-service" class="icon-button" type="button" title="Novo microservico" aria-label="Novo microservico" disabled><i data-lucide="folder-plus"></i></button>
               <button id="new-workflow" class="icon-button" type="button" title="Novo workflow" aria-label="Novo workflow" disabled><i data-lucide="file-plus"></i></button>
+              <button id="new-business-rule" class="icon-button" type="button" title="Nova regra de negócio" aria-label="Nova regra de negócio" disabled><i data-lucide="list-plus"></i></button>
               <button id="save-workflow-file" class="icon-button" type="button" title="Salvar workflow" aria-label="Salvar workflow" disabled><i data-lucide="save"></i></button>
               <button id="export-workflow-file" class="icon-button" type="button" title="Exportar workflow composto" aria-label="Exportar workflow composto" disabled><i data-lucide="download"></i></button>
               <button id="refresh-workspace" class="icon-button" type="button" title="Atualizar workspace" aria-label="Atualizar workspace" disabled><i data-lucide="refresh-cw"></i></button>
@@ -86,12 +89,36 @@
             <input id="workflow-endpoint" type="url" value="http://localhost:8088/process" />
           </label>
           <label>
+            MCP endpoint
+            <input id="mcp-endpoint" type="url" value="http://localhost:9091/mcp" />
+          </label>
+          <label>
+            MCP API key
+            <input id="mcp-api-key" type="password" autocomplete="off" placeholder="Opcional" />
+          </label>
+          <label>
             External API URL
             <input id="external-api-url" type="url" value="https://mock.raysouz.studio" />
           </label>
           <div class="button-row">
-            <button id="load-example" type="button">Carregar</button>
-            <button id="send-rest" type="button">Enviar REST</button>
+            <button id="load-example" type="button" class="icon-button" title="Carregar">
+              <i class="fa-solid fa-display"></i>
+            </button>
+            <button id="send-rest" type="button" class="icon-button" title="Enviar REST">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+            <button id="mcp-validate" type="button" class="icon-button" title="Validar MCP">
+              <i class="fa-solid fa-check"></i>
+            </button>
+            <button id="mcp-explain" type="button" class="icon-button" title="Explicar MCP">
+              <i class="fa-solid fa-chalkboard-user"></i>
+            </button>
+            <button id="mcp-generate-rules" type="button" class="icon-button" title="Gerar por regras">
+              <i class="fa-solid fa-compass-drafting"></i>
+            </button>
+            <button id="mcp-diagnostics" type="button" class="icon-button" title="Diagnosticar conectores">
+              <i class="fa-solid fa-stethoscope"></i>
+            </button>
           </div>
         </div>
 
@@ -119,7 +146,8 @@
           <button id="format-yaml" class="editor-icon-button" type="button" title="Organizar" aria-label="Organizar"><i class="fa-solid fa-indent"></i></button>
           <button id="lint-now" class="editor-icon-button" type="button" title="Validar" aria-label="Validar"><i class="fa-solid fa-check"></i></button>
           <button id="clear-logs" class="editor-icon-button" type="button" title="Limpar logs" aria-label="Limpar logs"><i class="fa-solid fa-eraser"></i></button>
-          <button id="run-test" class="primary" type="button">Executar</button>
+          <button id="visualize-workflow" type="button">Diagrama</button>
+          <button id="run-test" class="primary" type="button">Processar</button>
           <button id="reprocess-test" class="secondary" type="button" disabled>Reprocessar</button>
         </footer>
       </section>
@@ -150,8 +178,54 @@
           <span id="result-panel-meta">Timeline</span>
         </div>
         <div id="timeline" class="timeline"></div>
+        <button id="scroll-log-top" class="scroll-log-top" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">
+          <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+        </button>
+        <div id="execution-loading" class="execution-loading" aria-hidden="true">
+          <div class="loading-card" role="status" aria-live="polite">
+            <div class="loading-orbit" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div>
+              <strong id="execution-loading-title">Processando workflow</strong>
+              <p id="execution-loading-copy">Executando etapas e consolidando logs.</p>
+            </div>
+            <div class="loading-bars" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
+    <div id="workflow-visualizer-modal" class="workflow-visualizer-modal" aria-hidden="true">
+      <section class="workflow-visualizer-dialog" role="dialog" aria-modal="true" aria-labelledby="workflow-visualizer-title">
+        <header class="workflow-visualizer-head">
+          <div>
+            <p class="eyebrow">Visualizacao</p>
+            <h2 id="workflow-visualizer-title">Workflow</h2>
+          </div>
+          <div class="workflow-visualizer-actions">
+            <button id="workflow-visualizer-toggle" class="workflow-view-toggle" type="button" aria-pressed="false">
+              <span>Macro</span>
+              <span>Micro</span>
+              <i aria-hidden="true"></i>
+            </button>
+            <button id="workflow-visualizer-reset" class="icon-button" type="button" title="Centralizar" aria-label="Centralizar"><i data-lucide="scan"></i></button>
+            <button id="workflow-visualizer-download" class="icon-button" type="button" title="Baixar imagem" aria-label="Baixar imagem"><i data-lucide="download"></i></button>
+            <button id="workflow-visualizer-close" class="icon-button" type="button" title="Fechar" aria-label="Fechar"><i data-lucide="x"></i></button>
+          </div>
+        </header>
+        <div class="workflow-visualizer-stage">
+          <svg id="workflow-visualizer-svg" class="workflow-visualizer-svg" role="img" aria-label="Diagrama do workflow"></svg>
+          <div class="workflow-visualizer-hint">Arraste o fundo para mover, os vértices para reorganizar e use a roda do mouse para zoom.</div>
+        </div>
+      </section>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -160,7 +234,6 @@
     
     <script>
       window.RoutingSlipStudioAssetVersion = String(Date.now());
-      document.write(`<script src="./docs/documentation.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
       document.write(`<script src="./docs/viewer.js?v=${window.RoutingSlipStudioAssetVersion}"><\/script>`);
     </script>
 
@@ -170,10 +243,14 @@
     <script src="./scripts/routing-slip.studio.editor.js"></script>
     <script src="./scripts/routing-slip.studio.sidebar.js"></script>
     <script src="./scripts/routing-slip.studio.workspace.js"></script>
+    <script src="./scripts/routing-slip.studio.business-rules.js"></script>
     <script src="./scripts/routing-slip.studio.lint.js"></script>
     <script src="./scripts/routing-slip.studio.payload.js"></script>
     <script src="./scripts/routing-slip.studio.runtime.js"></script>
+    <script src="./scripts/routing-slip.studio.visualizer.js"></script>
+    <script src="./scripts/routing-slip.studio.mcp.js"></script>
     <script src="./scripts/routing-slip.studio.logs.js"></script>
+    <script src="./scripts/routing-slip.studio.summary.js"></script>
     <script src="./scripts/routing-slip.studio.utils.js"></script>
     <script src="./scripts/routing-slip.studio.bootstrap.js"></script>
   </body>

@@ -1,0 +1,40 @@
+service:
+  name: routing-slip-lambda
+
+trigger:
+  connector: "${TRIGGER_CONNECTOR:-rest}"
+  mode: "${TRIGGER_MODE:-sync}"
+  rest:
+    addr: "${REST_ADDR:-:8088}"
+    path: "${REST_PATH:-/process}"
+
+features:
+  tracing_enabled: true
+  persistent_state_enabled: ${PERSISTENT_STATE_ENABLED:-false}
+  mcp_enabled: ${ROUTING_SLIP_MCP_ENABLED:-false}
+
+state_store:
+  type: "${STATE_STORE_TYPE:-memory}"
+  table: "${STATE_STORE_TABLE:-routing-slip-state}"
+  endpoint: "${STATE_STORE_ENDPOINT:-}"
+  region: "${AWS_REGION:-us-east-1}"
+  idempotency:
+    enabled: ${STATE_STORE_IDEMPOTENCY_ENABLED:-true}
+    key_template: "{workflow}:{message_id}:{step_index}:{step}"
+
+mcp:
+  enabled: ${ROUTING_SLIP_MCP_ENABLED:-false}
+  bind: "${ROUTING_SLIP_MCP_BIND:-127.0.0.1:9091}"
+  mode: "${ROUTING_SLIP_MCP_MODE:-readonly}"
+  auth:
+    type: "${ROUTING_SLIP_MCP_AUTH_TYPE:-none}"
+
+metrics:
+  endpoint: "${METRICS_ENDPOINT:-}"
+  segment: lambda
+  source: routing-slip-lambda
+
+integrations:
+  graphql_endpoint: "${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}"
+  external_api_url: "${EXTERNAL_API_URL:-}"
+  external_api_serial: "${EXTERNAL_API_SERIAL:-}"

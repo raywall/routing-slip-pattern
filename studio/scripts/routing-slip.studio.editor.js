@@ -198,12 +198,81 @@ function highlightWorkflowYaml(value) {
 
 function formatWorkflow() {
   try {
-    const workflow = parseWorkflow();
-    els.workflow.value = window.jsyaml.dump(workflow, { lineWidth: 140, noRefs: true });
+    parseWorkflow();
+    els.workflow.value = formatWorkflowYamlForEditor(els.workflow.value);
     markWorkflowDirty();
     lintWorkflow();
     scheduleStudioSave();
   } catch (err) {
     addLog("error", "Nao foi possivel organizar YAML", err.message);
   }
+}
+
+function formatWorkflowYamlForEditor(yaml) {
+  const lines = String(yaml || "").replace(/\s+$/g, "").split("\n");
+  const formatted = [];
+  let inSteps = false;
+  let stepsIndent = 0;
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    const indent = line.match(/^\s*/)[0].length;
+    const isSteps = /^steps\s*:/.test(trimmed);
+
+    if (isSteps) {
+      if (formatted.length && formatted[formatted.length - 1].trim() !== "") {
+        formatted.push("");
+      }
+      formatted.push(line);
+      inSteps = true;
+      stepsIndent = indent;
+      return;
+    }
+
+    if (inSteps && trimmed && indent <= stepsIndent && !trimmed.startsWith("- ")) {
+      inSteps = false;
+    }
+
+    if (inSteps && trimmed === "" && formatted.length && formatted[formatted.length - 1].trim().startsWith("#") && nextContentIsTopLevelStep(lines, index, stepsIndent)) {
+      return;
+    }
+
+    const isStepComment = inSteps && isCommentBlockStartForStep(lines, index, stepsIndent);
+    const isTopLevelStep = inSteps && /^-\s+(id|name)\s*:/.test(trimmed) && indent > stepsIndent;
+    const previousTrimmed = formatted.length ? formatted[formatted.length - 1].trim() : "";
+    if (isStepComment && previousTrimmed !== "" && !/^steps\s*:/.test(previousTrimmed) && !previousTrimmed.startsWith("#")) {
+      formatted.push("");
+    }
+    if (isTopLevelStep && previousTrimmed !== "" && !/^steps\s*:/.test(previousTrimmed) && !previousTrimmed.startsWith("#")) {
+      formatted.push("");
+    }
+    formatted.push(line);
+  });
+
+  return formatted.join("\n") + "\n";
+}
+
+function nextContentIsTopLevelStep(lines, index, stepsIndent) {
+  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+    const line = lines[cursor] || "";
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    const indent = line.match(/^\s*/)[0].length;
+    return indent > stepsIndent && /^-\s+(id|name)\s*:/.test(trimmed);
+  }
+  return false;
+}
+
+function isCommentBlockStartForStep(lines, index, stepsIndent) {
+  const line = lines[index] || "";
+  if (!line.trim().startsWith("#")) return false;
+  if (index > 0 && (lines[index - 1] || "").trim().startsWith("#")) return false;
+  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+    const next = lines[cursor] || "";
+    const trimmed = next.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const indent = next.match(/^\s*/)[0].length;
+    return indent > stepsIndent && /^-\s+(id|name)\s*:/.test(trimmed);
+  }
+  return false;
 }

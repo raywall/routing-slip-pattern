@@ -1,0 +1,79 @@
+name: order-context
+description: Enriquece o pedido com dados de pedido, cliente, estoque e politica de entrega.
+version: "1.0"
+error_policy: stop
+message_id_path: event_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: graphql-enrich
+    name: graphql_enrich
+    params:
+      endpoint: "${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}"
+      query: "query ($orderID: String!, $customerID: String!, $region: String!) { dataSources(orderID: $orderID, customerID: $customerID, region: $region) { order { id status channel total currency items { sku quantity category } } customer { id name tier risk_score notification_channel email phone } inventory { sku available reserved warehouse } deliveryPolicy { region promise_days carriers { id name priority } } } }"
+      variables:
+        orderID: "{order_id}"
+        customerID: "{customer_id}"
+        region: "{region}"
+      target: context
+      result_path: dataSources
+      timeout_ms: 2500
+      required: true
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 150
+        max_interval_ms: 1200
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: assert-order-ready
+    name: assert
+    params:
+      all:
+        - field: context.order.status
+          equals: CONFIRMED
+        - field: context.customer.id
+          equals: CUS-1001
+        - field: context.order.items
+          min_items: 1
+      message: Pedido fora dos criterios minimos de atendimento.
+
+  - id: filter-available-inventory
+    name: filter_array
+    params:
+      source: context.inventory
+      target: available_inventory
+      where:
+        all:
+          - field: item.available
+            greater_than: 0
+
+  - id: assert-inventory-available
+    name: assert
+    params:
+      field: available_inventory
+      min_items: 1
+      message: Nenhum item com disponibilidade de estoque.
+
+  - id: compute-high-priority
+    name: compute
+    params:
+      target: high_priority_order
+      value:
+        field: context.order.total
+        greater_than_or_equal: 500
+
+  - id: audit-context-loaded
+    name: audit
+    params:
+      event: ecommerce_order_fulfillment.context_loaded
+      fields:
+        - correlation_id
+        - order_id
+        - context.order.total
+        - context.customer.tier
+        - available_inventory_filtered_count
+        - available_inventory_removed_count

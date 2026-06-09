@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/config"
-	"github.com/raywall/routing-slip-pattern/handlers"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/config"
+	"github.com/raywall/routing-slip-pattern/app/handlers"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // ---------------------------------------------------------------------------
@@ -45,13 +45,17 @@ func buildRouterWithOptions(logger *slog.Logger, policy slip.ErrorPolicy, opts .
 	r.MustRegister(handlers.ComputeHandler{})
 	r.MustRegister(handlers.CELHandler{})
 	r.MustRegister(handlers.FilterArrayHandler{})
+	r.MustRegister(handlers.ArrayTransformHandler{})
 	r.MustRegister(handlers.TransformHandler{})
 	r.MustRegister(handlers.ConditionGate{})
 	r.MustRegister(handlers.JumpIfHandler{})
 	r.MustRegister(&handlers.NotificationHandler{}) // pointer because Send field may be set
+	r.MustRegister(handlers.LogHandler{})
 	r.MustRegister(handlers.AuditHandler{})
+	r.MustRegister(handlers.DatadogMetricHandler{})
 	r.MustRegister(handlers.GraphQLEnrichmentHandler{DefaultEndpoint: env("GRAPHQL_ENDPOINT", "http://localhost:8090/graphql")})
 	r.MustRegister(handlers.RESTCallHandler{})
+	r.MustRegister(handlers.AWSActionHandler{})
 
 	return r
 }
@@ -343,7 +347,7 @@ func runWorkflowScenarios(logger *slog.Logger) {
 					"pedido_id":    "PED-9988",
 					"valor_pago":   150.0,
 				},
-				"correlation_id": "corr-payment-fulfillment-001",
+				"correlation_id": newCorrelationUUID(),
 				"received_at":    "2026-05-13T21:55:00Z",
 			},
 			Steps: paymentFulfillmentSteps(),
@@ -356,7 +360,7 @@ func runWorkflowScenarios(logger *slog.Logger) {
 				"customer_id":    "cust-42",
 				"product_id":     "SKU-9000",
 				"quantity":       3,
-				"correlation_id": "corr-ok-001",
+				"correlation_id": newCorrelationUUID(),
 			},
 			Steps: standardEnrichedSteps(),
 		},
@@ -368,7 +372,7 @@ func runWorkflowScenarios(logger *slog.Logger) {
 				"customer_id":    "cust-blocked",
 				"product_id":     "SKU-LOCK",
 				"quantity":       1,
-				"correlation_id": "corr-stop-001",
+				"correlation_id": newCorrelationUUID(),
 			},
 			Steps: standardEnrichedSteps(),
 		},
@@ -380,7 +384,7 @@ func runWorkflowScenarios(logger *slog.Logger) {
 				"customer_id":    "cust-resume",
 				"product_id":     "SKU-RETRY",
 				"quantity":       2,
-				"correlation_id": "corr-resume-001",
+				"correlation_id": newCorrelationUUID(),
 			},
 			Steps:  resumableSteps(),
 			Resume: true,

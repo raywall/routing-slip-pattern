@@ -1,0 +1,12 @@
+{
+  "data": {
+    "id": "CUS-1001",
+    "name": "Aline Torres",
+    "tier": "GOLD",
+    "risk_score": 12,
+    "notification_channel": "email",
+    "email": "aline.torres@example.test",
+    "phone": "+5511999990000"
+  },
+  "errors": []
+}

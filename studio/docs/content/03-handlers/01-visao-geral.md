@@ -1,19 +1,30 @@
-Handlers sao unidades pequenas e combinaveis. Cada handler recebe o payload atual, seus `params` e decide se altera o payload, interrompe o fluxo, registra informacoes ou chama uma integracao.
+---
+sidebar_position: 1
+sidebar_label: "O que é um handler?"
+---
+
+# Visão geral
+
+Handlers sao unidades pequenas e combináveis. Cada handler recebe o payload atual, seus `params` e decide se altera o payload, interrompe o fluxo, registra informações ou chama uma integração.
 
 | Handler | Papel |
 |---|---|
-| `validate` | Verifica campos obrigatorios. |
+| `validate` | Verifica campos obrigatórios. |
 | `condition` | Para o fluxo de forma funcional quando uma regra nao bate. |
-| `assert` | Falha o workflow quando uma regra obrigatoria nao e atendida. |
+| `assert` | Falha o workflow quando uma regra obrigatória nao e atendida. |
 | `compute` | Calcula e grava valores no payload. |
-| `cel` | Avalia expressoes CEL e decide erro, salto, continuidade ou parada. |
-| `filter_array` | Remove itens de arrays que nao atendem a uma condicao. |
+| `cel` | Avalia expressões CEL e decide erro, salto, continuidade ou parada. |
+| `filter_array` | Remove itens de arrays que nao atendem a uma condição. |
+| `array_transform` | Filtra arrays, altera campos dos itens e transforma arrays aninhados. |
 | `jump_if` | Altera o cursor para uma etapa posterior. |
-| `enrich` | Injeta dados estaticos no payload. |
+| `enrich` | Injeta dados estáticos no payload. |
 | `transform` | Normaliza texto. |
 | `graphql_enrich` | Enriquece via GraphQL Connector. |
 | `rest_call` | Chama uma API REST e salva a resposta. |
+| `aws_action` | Executa comandos controlados em serviços AWS. |
+| `datadog_metric` | Envia metricas customizadas ao Datadog. |
+| `log` | Registra logs estruturados sob demanda. |
 | `audit` | Registra evidencia funcional. |
-| `notify` | Simula envio de notificacao. |
+| `notify` | Simula envio de notificação. |
 
-O runtime suporta CEL por meio do handler `cel`, usando `cel-go`. Use validacoes declarativas para regras simples e CEL quando a expressao deixar a regra mais clara.
+O runtime suporta CEL por meio do handler `cel`, usando `cel-go`. Use validações declarativas para regras simples e CEL quando a expressão deixar a regra mais clara.

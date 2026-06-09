@@ -1,134 +1,166 @@
 async function runLocalSimulation(options = {}) {
-  clearLogs();
+  if (studioExecutionRunning) return;
   const isReprocess = Boolean(options.reprocess);
-  if (isReprocess && !lastExecutionSnapshot) {
-    addLog("error", "Reprocessamento indisponivel", "Execute o workflow antes de reprocessar.");
-    return;
-  }
-  const issues = lintWorkflow();
-  if (issues.some((item) => item.level === "error")) {
-    addLog("error", "Lint bloqueou a execucao", "Corrija os erros do workflow antes de executar.");
-    return;
-  }
-
-  let payload;
+  setStudioProcessing(true, isReprocess ? "Reprocessando workflow" : "Processando workflow", isReprocess ? "Retomando o snapshot e executando etapas pendentes." : "Executando etapas e consolidando logs.");
   try {
-    payload = isReprocess ? structuredClone(lastExecutionSnapshot.payload) : JSON.parse(els.payload.value);
-  } catch (err) {
-    addLog("error", "Payload JSON invalido", err.message);
-    return;
-  }
+    clearLogs();
+    if (isReprocess && !lastExecutionSnapshot) {
+      addLog("error", "Reprocessamento indisponivel", "Execute o workflow antes de reprocessar.");
+      return;
+    }
+    const issues = lintWorkflow();
+    if (issues.some((item) => item.level === "error")) {
+      addLog("error", "Lint bloqueou a execucao", "Corrija os erros do workflow antes de executar.");
+      return;
+    }
 
-  let workflow;
-  try {
-    workflow = isReprocess ? structuredClone(lastExecutionSnapshot.workflow) : await expandWorkflowRefsForStudio(lastWorkflow);
-  } catch (err) {
-    addLog("error", "Falha ao compor workflows", err.message);
-    return;
-  }
-  activeRuntimeWorkflow = workflow;
-  const startCursor = isReprocess ? Math.min(lastExecutionSnapshot.resumeCursor || 0, workflow.steps.length) : 0;
-  const state = {
-    payload: structuredClone(payload),
-    history: [],
-    cursor: startCursor,
-    stopped: false,
-    errors: [],
-    reprocess: isReprocess ? {
-      previousDurationMs: lastExecutionSnapshot.durationMs,
-      previousCursor: lastExecutionSnapshot.resumeCursor,
-      previousStatus: lastExecutionSnapshot.status,
-    } : null,
-    metrics: {
-      startedAt: performance.now(),
-      integrations: [],
-    },
-  };
-  addLog("info", isReprocess ? "Reprocessamento iniciado" : "Workflow iniciado", `${workflow.name || "workflow"} com ${workflow.steps.length} etapa(s).`, {
-    message_id: getPath(state.payload, workflow.message_id_path),
-    correlation_id: getPath(state.payload, workflow.correlation_id_path),
-    cursor_inicial: startCursor,
-    execucao_anterior_ms: state.reprocess?.previousDurationMs,
-  });
-
-  if (isReprocess && startCursor > 0) {
-    addLog("info", "Etapas anteriores preservadas", `${startCursor} etapa(s) ja processada(s) antes do reprocessamento.`, {
-      cursor_retomada: startCursor,
-      etapas_preservadas: workflow.steps.slice(0, startCursor).map((step, index) => ({ index, id: step.id, name: step.name })),
-    });
-  }
-
-  for (let i = startCursor; i < workflow.steps.length; i += 1) {
-    state.cursor = i;
-    activeExecutionStepIndex = i;
-    const step = workflow.steps[i];
-    startStepGroup(i, step, workflow.steps.length);
-    const started = performance.now();
+    let payload;
     try {
-      addLog("info", `Executando ${step.name}`, `Etapa ${i + 1} de ${workflow.steps.length}.`, step.params || {});
-      const proceed = await executeStepWithResilience(step, state);
-      const duration = Math.round(performance.now() - started);
-      state.history.push({ step: step.name, duration_ms: duration, skipped: !proceed, attempt: state.__lastStepAttempt || 1 });
-      addLog("ok", `Etapa ${step.name} concluida`, `${duration} ms`, snapshot(state));
-      if (Number.isInteger(state.__jumpToIndex)) {
-        const jumpTo = state.__jumpToIndex;
-        delete state.__jumpToIndex;
-        addLog("warn", "Salto aplicado", `Proxima etapa: ${jumpTo + 1}.`, { cursor: jumpTo });
-        i = jumpTo - 1;
-        continue;
-      }
-      if (!proceed) {
-        state.stopped = true;
-        addLog("warn", "Workflow interrompido por gate", `Cursor parado apos a etapa ${i}.`);
-        break;
-      }
+      payload = isReprocess ? structuredClone(lastExecutionSnapshot.payload) : JSON.parse(els.payload.value);
     } catch (err) {
-      state.errors.push({ step: step.name, error: err.message, cursor: i });
-      addLog("error", `Falha em ${step.name}`, err.message, snapshot(state));
-      const action = String(step.resilience?.on_failure?.action || "").toLowerCase();
-      if (action === "continue" || action === "skip") {
+      addLog("error", "Payload JSON invalido", err.message);
+      return;
+    }
+
+    let workflow;
+    try {
+      workflow = isReprocess ? structuredClone(lastExecutionSnapshot.workflow) : await expandWorkflowRefsForStudio(lastWorkflow);
+    } catch (err) {
+      addLog("error", "Falha ao compor workflows", err.message);
+      return;
+    }
+    activeRuntimeWorkflow = workflow;
+    setupExecutionLogTabs(workflow);
+    if (!isReprocess) {
+      ensureCorrelationID(payload, workflow.correlation_id_path);
+      els.payload.value = JSON.stringify(payload, null, 2);
+      scheduleStudioSave();
+    }
+    const startCursor = isReprocess ? Math.min(lastExecutionSnapshot.resumeCursor || 0, workflow.steps.length) : 0;
+    const state = {
+      payload: structuredClone(payload),
+      history: [],
+      cursor: startCursor,
+      stopped: false,
+      errors: [],
+      trace_id: payload.trace_id || generateTraceID(),
+      correlation_id: getPath(payload, workflow.correlation_id_path),
+      message_id: getPath(payload, workflow.message_id_path),
+      reprocess: isReprocess ? {
+        previousDurationMs: lastExecutionSnapshot.durationMs,
+        previousCursor: lastExecutionSnapshot.resumeCursor,
+        previousStatus: lastExecutionSnapshot.status,
+      } : null,
+      metrics: {
+        startedAt: performance.now(),
+        integrations: [],
+      },
+    };
+    state.payload.trace_id = state.payload.trace_id || state.trace_id;
+    addLog("info", isReprocess ? "Reprocessamento iniciado" : "Workflow iniciado", `${workflow.name || "workflow"} com ${workflow.steps.length} etapa(s).`, {
+      message_id: state.message_id,
+      correlation_id: state.correlation_id,
+      trace_id: state.trace_id,
+      cursor_inicial: startCursor,
+      execucao_anterior_ms: state.reprocess?.previousDurationMs,
+    });
+
+    if (isReprocess && startCursor > 0) {
+      addLog("info", "Etapas anteriores preservadas", `${startCursor} etapa(s) ja processada(s) antes do reprocessamento.`, {
+        cursor_retomada: startCursor,
+        etapas_preservadas: workflow.steps.slice(0, startCursor).map((step, index) => ({ index, id: step.id, name: step.name })),
+      });
+    }
+
+    for (let i = startCursor; i < workflow.steps.length; i += 1) {
+      state.cursor = i;
+      activeExecutionStepIndex = i;
+      const step = workflow.steps[i];
+      startStepGroup(i, step, workflow.steps.length);
+      const started = performance.now();
+      try {
+        addLog("info", `Executando ${step.name}`, `Etapa ${i + 1} de ${workflow.steps.length}.`, step.params || {});
+        const proceed = await executeStepWithResilience(step, state);
         const duration = Math.round(performance.now() - started);
-        state.history.push({ step: step.name, duration_ms: duration, skipped: action === "skip", status: action === "skip" ? "skipped" : "failed", attempt: state.__lastStepAttempt || 1 });
-        continue;
-      }
-      if (action === "jump") {
-        const target = step.resilience?.on_failure?.to;
-        const jumpTo = findWorkflowStepIndex(target);
-        if (jumpTo >= 0) {
-          const duration = Math.round(performance.now() - started);
-          state.history.push({ step: step.name, duration_ms: duration, skipped: true, status: "jumped", attempt: state.__lastStepAttempt || 1 });
-          addLog("warn", "Fallback por resiliencia", `Falha redirecionada para ${target}.`, { cursor: jumpTo });
+        state.history.push(stepHistoryItem(step, duration, !proceed, state.__lastStepAttempt || 1, i));
+        addLog("ok", `Etapa ${step.name} concluida`, `${duration} ms`, snapshot(state));
+        if (Number.isInteger(state.__jumpToIndex)) {
+          const jumpTo = state.__jumpToIndex;
+          delete state.__jumpToIndex;
+          addLog("warn", "Salto aplicado", `Proxima etapa: ${jumpTo + 1}.`, { cursor: jumpTo });
           i = jumpTo - 1;
           continue;
         }
+        if (!proceed) {
+          state.stopped = true;
+          addLog("warn", "Workflow interrompido por gate", `Cursor parado apos a etapa ${i}.`);
+          break;
+        }
+      } catch (err) {
+        state.errors.push({ step: step.name, error: err.message, cursor: i, sourceKey: step.__sourceWorkflow || runtimeRootSourceKey });
+        addLog("error", `Falha em ${step.name}`, err.message, snapshot(state));
+        const action = String(step.resilience?.on_failure?.action || "").toLowerCase();
+        if (action === "continue" || action === "skip") {
+          const duration = Math.round(performance.now() - started);
+          state.history.push(stepHistoryItem(step, duration, action === "skip", state.__lastStepAttempt || 1, i, action === "skip" ? "skipped" : "failed"));
+          continue;
+        }
+        if (action === "jump") {
+          const target = step.resilience?.on_failure?.to;
+          const jumpTo = findWorkflowStepIndex(target);
+          if (jumpTo >= 0) {
+            const duration = Math.round(performance.now() - started);
+            state.history.push(stepHistoryItem(step, duration, true, state.__lastStepAttempt || 1, i, "jumped"));
+            addLog("warn", "Fallback por resiliencia", `Falha redirecionada para ${target}.`, { cursor: jumpTo });
+            i = jumpTo - 1;
+            continue;
+          }
+        }
+        if (String(workflow.error_policy || "stop").toLowerCase() === "stop") {
+          state.cursor = i;
+          addLog("warn", "Snapshot pronto para reprocessamento", `Reprocessamento deve retomar do cursor ${i}.`);
+          break;
+        }
+      } finally {
+        activeExecutionStepIndex = null;
       }
-      if (String(workflow.error_policy || "stop").toLowerCase() === "stop") {
-        state.cursor = i;
-        addLog("warn", "Snapshot pronto para reprocessamento", `Reprocessamento deve retomar do cursor ${i}.`);
-        break;
-      }
-    } finally {
-      activeExecutionStepIndex = null;
     }
-  }
 
-  const status = state.errors.length ? "com falha" : state.stopped ? "interrompido" : "concluido";
-  const totalDuration = Math.round(performance.now() - state.metrics.startedAt);
-  state.metrics.total_duration_ms = totalDuration;
-  const resumeCursor = resolveResumeCursor(state, workflow);
-  els.summary.textContent = `${workflow.name || "Workflow"} ${status}: ${state.history.length} etapa(s), ${state.errors.length} erro(s), ${formatDuration(totalDuration)}`;
-  addLog(state.errors.length ? "error" : "ok", `Workflow ${status}`, "Payload final da simulacao.", snapshot(state));
-  renderExecutionSummary(workflow, state, status);
-  lastExecutionSnapshot = {
-    workflow: structuredClone(workflow),
-    payload: structuredClone(state.payload),
-    resumeCursor,
-    durationMs: totalDuration,
+    const status = state.errors.length ? "com falha" : state.stopped ? "interrompido" : "concluido";
+    const totalDuration = Math.round(performance.now() - state.metrics.startedAt);
+    state.metrics.total_duration_ms = totalDuration;
+    const resumeCursor = resolveResumeCursor(state, workflow);
+    els.summary.textContent = `${status}: ${state.history.length} etapa(s), ${state.errors.length} erro(s), ${formatDuration(totalDuration)}`;
+    addLog(state.errors.length ? "error" : "ok", `Workflow ${status}`, "Payload final da simulacao.", snapshot(state));
+    renderExecutionSummary(workflow, state, status);
+    lastExecutionSnapshot = {
+      workflow: structuredClone(workflow),
+      payload: structuredClone(state.payload),
+      resumeCursor,
+      durationMs: totalDuration,
+      status,
+      executedAt: new Date().toISOString(),
+    };
+  } finally {
+    activeExecutionStepIndex = null;
+    activeRuntimeWorkflow = null;
+    setStudioProcessing(false);
+  }
+}
+
+function stepHistoryItem(step, duration, skipped, attempt, runtimeIndex, status = "") {
+  return {
+    step: step.name,
+    id: step.id || "",
+    duration_ms: duration,
+    skipped,
     status,
-    executedAt: new Date().toISOString(),
+    attempt,
+    runtimeIndex,
+    sourceKey: step.__sourceWorkflow || runtimeRootSourceKey || "workflow",
+    sourceLabel: step.__sourceLabel || step.__sourceWorkflow || "Workflow",
+    sourceStepIndex: Number.isInteger(step.__sourceStepIndex) ? step.__sourceStepIndex : runtimeIndex,
   };
-  els.reprocess.disabled = false;
-  activeRuntimeWorkflow = null;
 }
 
 async function executeStepWithResilience(step, state) {
@@ -184,12 +216,20 @@ async function executeStep(step, state) {
       return runCEL(params, state);
     case "filter_array":
       return runFilterArray(params, state);
+    case "array_transform":
+      return runArrayTransform(params, state);
     case "enrich":
       return runEnrich(params, state);
     case "transform":
       return runTransform(params, state);
+    case "log":
+      return runLog(params, state);
     case "audit":
       return runAudit(params, state);
+    case "datadog_metric":
+      return runDatadogMetric(params, state);
+    case "aws_action":
+      return runAWSAction(params, state);
     case "notify":
       return runNotify(params, state);
     case "graphql_enrich":
@@ -325,6 +365,94 @@ function evaluateFilterArrayItem(params, state, item, index) {
   return evaluateAssertConfig(params.where, itemState).matched;
 }
 
+function runArrayTransform(params, state) {
+  const source = params.source || params.field;
+  if (!source) throw new Error("array_transform: source is required");
+  const target = params.target || source;
+  const items = getPath(state.payload, source);
+  if (!Array.isArray(items)) throw new Error(`array_transform: source "${source}" must be an array`);
+
+  const transformed = transformArrayItems(params, state, items, null);
+  setPath(state.payload, target, transformed);
+  state.payload[`${target}_transformed_count`] = transformed.length;
+  addLog("info", "Array transformado", `${transformed.length} item(ns) mantido(s).`, {
+    source,
+    target,
+    transformed_count: transformed.length,
+  });
+  return true;
+}
+
+function transformArrayItems(params, state, items, parent) {
+  return items
+    .map((item, index) => structuredCloneSafe(item))
+    .filter((item, index) => evaluateArrayTransformFilters(params, state, item, index, parent))
+    .map((item, index) => {
+      applyArrayTransformUpdates(params, state, item, index, parent);
+      applyNestedArrayTransforms(params, state, item);
+      return item;
+    });
+}
+
+function evaluateArrayTransformFilters(params, state, item, index, parent) {
+  const filters = params.filters || params.where;
+  if (!filters) return true;
+  return evaluateArrayTransformCondition(filters, state, item, index, parent);
+}
+
+function applyArrayTransformUpdates(params, state, item, index, parent) {
+  for (const update of params.updates || []) {
+    if (update.when && !evaluateArrayTransformCondition(update.when, state, item, index, parent)) continue;
+    for (const [path, value] of Object.entries(update.set || {})) {
+      setPath(item, path, resolveArrayTransformValue(value, state, item, index, parent));
+    }
+  }
+}
+
+function applyNestedArrayTransforms(params, state, item) {
+  for (const nested of params.nested || []) {
+    const source = nested.source || nested.field;
+    if (!source) throw new Error("array_transform: nested.source is required");
+    const target = nested.target || source;
+    const items = getPath(item, source);
+    if (items === undefined) continue;
+    if (!Array.isArray(items)) throw new Error(`array_transform: nested source "${source}" must be an array`);
+    setPath(item, target, transformArrayItems(nested, state, items, item));
+  }
+}
+
+function evaluateArrayTransformCondition(condition, state, item, index, parent) {
+  const payload = {
+    ...state.payload,
+    item,
+    index,
+    parent,
+    today: new Date().toISOString().slice(0, 10),
+    end_of_current_month_plus_2: endOfCurrentMonthPlus(2),
+  };
+  if (typeof condition === "string") return evaluateCELExpression(condition, payload);
+  if (condition.expr || condition.expression) return evaluateCELExpression(condition.expr || condition.expression, payload);
+  const itemState = { ...state, payload };
+  if (Array.isArray(condition)) return condition.every((entry) => evaluateConditionConfig(entry, itemState));
+  return evaluateAssertConfig(condition, itemState).matched;
+}
+
+function resolveArrayTransformValue(value, state, item, index, parent) {
+  if (value && typeof value === "object" && !Array.isArray(value) && value.from) {
+    return getPath({ ...state.payload, item, index, parent }, value.from);
+  }
+  return value;
+}
+
+function structuredCloneSafe(value) {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+function endOfCurrentMonthPlus(months) {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + months + 1, 0).toISOString().slice(0, 10);
+}
+
 function evaluateCELExpression(expression, payload) {
   const translated = String(expression)
     .replace(/\bhas\s*\(([^)]+)\)/g, (_, path) => `celHas(payload, ${JSON.stringify(path.trim())})`)
@@ -380,6 +508,72 @@ function runAudit(params, state) {
     fields[field] = getPath(state.payload, field);
   });
   addLog("info", `Audit ${params.event || "audit"}`, "Campos auditados.", fields);
+  return true;
+}
+
+function runLog(params, state) {
+  const fields = {};
+  (params.fields || []).forEach((field) => {
+    const value = getPath(state.payload, field);
+    if (value === undefined && params.required !== false) throw new Error(`log: field ${field} not found`);
+    fields[field] = value;
+  });
+  const data = interpolateAny(params.data || {}, state.payload);
+  addLog(params.level || "info", interpolateString(params.message || "routing-slip log", state.payload), "Log estruturado registrado.", {
+    ...fields,
+    data,
+  });
+  state.payload.last_log_message = interpolateString(params.message || "routing-slip log", state.payload);
+  state.payload.last_log_level = params.level || "info";
+  return true;
+}
+
+function runDatadogMetric(params, state) {
+  const metric = params.metric;
+  if (!metric) throw new Error("datadog_metric: metric is required");
+  const integration = recordIntegration(state, {
+    type: "datadog",
+    mode: "simulated",
+    target: metric,
+    status: "ok",
+  });
+  state.payload.last_datadog_metric = metric;
+  state.payload.last_datadog_metric_at = new Date().toISOString();
+  addLog("info", `Datadog metric ${metric}`, "Metrica registrada na simulacao local.", {
+    value: params.value ?? 1,
+    type: params.type || "count",
+    tags: interpolateAny(params.tags || {}, state.payload),
+    integration,
+  });
+  return true;
+}
+
+function runAWSAction(params, state) {
+  if (!params.service || !params.action) throw new Error("aws_action: service and action are required");
+  const target = params.target || "aws_result";
+  const result = {
+    simulated: true,
+    service: params.service,
+    action: params.action,
+    region: params.region || "us-east-1",
+    endpoint: params.endpoint,
+  };
+  if (params.table) result.table = params.table;
+  if (params.bucket) result.bucket = params.bucket;
+  if (params.key) result.key = interpolateString(String(params.key), state.payload);
+  if (params.queue_url) result.queue_url = params.queue_url;
+  if (params.topic_arn) result.topic_arn = params.topic_arn;
+  if (params.name) result.name = params.name;
+  if (params.secret_id) result.secret_id = params.secret_id;
+  setPath(state.payload, target, result);
+  state.payload[`${target}_executed_at`] = new Date().toISOString();
+  recordIntegration(state, {
+    type: "aws",
+    mode: "simulated",
+    target: `${params.service}:${params.action}`,
+    status: "ok",
+  });
+  addLog("warn", `AWS ${params.service}:${params.action} simulado`, "No Studio local, efeitos AWS sao simulados.", result);
   return true;
 }
 
@@ -512,6 +706,8 @@ async function runRestCall(params, state) {
 }
 
 async function sendToRestEndpoint() {
+  if (studioExecutionRunning) return;
+  setStudioProcessing(true, "Enviando para REST", "Aguardando resposta do endpoint configurado.");
   clearLogs();
   try {
     const payload = JSON.parse(els.payload.value);
@@ -525,6 +721,8 @@ async function sendToRestEndpoint() {
     addLog(response.ok ? "ok" : "error", `REST retornou ${response.status}`, response.statusText, body);
   } catch (err) {
     addLog("error", "Falha ao enviar REST", err.message);
+  } finally {
+    setStudioProcessing(false);
   }
 }
 
@@ -540,11 +738,67 @@ function mockGraphQLValue(params) {
       itens: [{ produto_id: "SKU-1", quantidade: 1 }],
     };
   }
+  const mockedDataSources = {
+    custodias: [
+      {
+        operacaoId: "2699999999",
+        situacaoOperacao: "ATIVA",
+        codigoSituacaoOperacao: 1,
+        siglaCustodia: "SF",
+        codigoEmpresaContabil: "0341",
+        saldoDevedor: 48000,
+        meioRecebimentoOperacaoCredito: "CONTA_CORRENTE",
+        codigoMeioRecebimentoOperacaoCredito: 1,
+        convenio: { codigoConvenio: "133341" },
+        cliente: { numeroBeneficio: "1234567890" },
+        produto: {
+          codigoProdutoOperacional: 1234,
+          codigoProdutoFinanceiro: 5678,
+          codigoProdutoCreditoLimite: 0,
+        },
+        parcelas: [
+          {
+            numeroParcela: 5,
+            situacaoParcela: "aberta",
+            codigoSituacaoParcela: 1,
+            dataVencimento: "2026-05-15",
+            numeroPlanoAmortizacao: 1,
+            valorParcelaPrincipal: 1200.5,
+            valorJuroParcelaPrincipal: 300.25,
+            valorParcelaOriginal: 1500.75,
+            valorSaldoPrincipal: 45000,
+            valorSaldoPrincipalTotal: 48000,
+          },
+        ],
+      },
+    ],
+    saldos: [
+      {
+        saldo: {
+          saldo_liquido_operacao: 47500,
+          quantidade_dia_atraso: 0,
+          saldo_devedor_operacao_sem_desconto: 48000,
+          saldo_parcelas: [
+            {
+              numero_plano_amortizacao_contratacao: 1,
+              numero_parcela_amortizacao: 5,
+              valor_parcela_amortizacao: 1500.75,
+              valor_liquidacao_antecipada: 1450.75,
+              valor_desconto_abatimento: 50.75,
+            },
+          ],
+        },
+      },
+    ],
+  };
+  if (path === "dataSources.custodias") {
+    return mockedDataSources.custodias;
+  }
+  if (path === "dataSources.saldos") {
+    return mockedDataSources.saldos;
+  }
   if (path.includes("dataSources")) {
-    return {
-      custodias: [{ operacaoId: "2699999999", situacaoOperacao: "ATIVA", siglaCustodia: "SF", saldoDevedor: 48000 }],
-      saldos: [{ saldo: { saldo_liquido_operacao: 47500 } }],
-    };
+    return mockedDataSources;
   }
   return { simulated: true };
 }

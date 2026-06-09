@@ -1,0 +1,10 @@
+{
+  "event_id": "evt-order-2001",
+  "event_name": "ORDER_CONFIRMED",
+  "correlation_id": "4cef51e6-a911-4fc9-932b-d12410995e9c",
+  "order_id": "ORD-2001",
+  "customer_id": "CUS-2001",
+  "region": "RJ",
+  "channel": "marketplace",
+  "occurred_at": "2026-05-27T10:05:00Z"
+}

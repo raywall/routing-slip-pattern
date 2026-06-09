@@ -68,6 +68,7 @@
 .timeline--docs {
   padding: 0;
   background: var(--surface);
+  overflow-y: auto !important;
 }
 
 .doc-view {
@@ -77,13 +78,13 @@
 }
 
 .doc-view h1 {
-  margin: 0 0 8px;
+  margin: 0 0 40px;
   font-size: 24px;
   letter-spacing: 0;
 }
 
 .doc-view h2 {
-  margin: 24px 0 8px;
+  margin: 50px 0 18px;
   font-size: 16px;
 }
 
@@ -102,15 +103,19 @@
 .doc-view ul,
 .doc-view ol {
   max-width: 78ch;
-  margin: 0 0 14px 20px;
+  margin: 15px 0 15px 20px;
   padding: 0;
   color: var(--text);
   line-height: 1.62;
 }
 
+.doc-view ul li,
+.doc-view ol li {
+    margin-left:18px !important;
+}
+
 .doc-view li + li {
   margin-top: 3px;
-  margin-left: 18px;
 }
 
 .doc-view blockquote {
@@ -219,8 +224,8 @@
 }
 
 .doc-view .mermaid {
-  max-width: 100%;
-  margin: 12px 0 18px;
+  max-width: 80%;
+  margin: 30px 0;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;

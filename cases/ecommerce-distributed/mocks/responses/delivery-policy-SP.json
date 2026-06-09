@@ -1,0 +1,11 @@
+{
+  "data": {
+    "region": "SP",
+    "promise_days": 2,
+    "carriers": [
+      { "id": "fastlog", "name": "FastLog", "priority": 1 },
+      { "id": "urbanpack", "name": "Urban Pack", "priority": 2 }
+    ]
+  },
+  "errors": []
+}

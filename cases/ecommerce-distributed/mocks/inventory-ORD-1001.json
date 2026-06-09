@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/ecommerce/v1/inventory/orders/ORD-1001"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "data": [
+        { "sku": "SKU-BOOK-001", "available": 12, "reserved": 0, "warehouse": "WH-SP-01" },
+        { "sku": "SKU-ELEC-010", "available": 4, "reserved": 1, "warehouse": "WH-SP-02" }
+      ],
+      "errors": []
+    }
+  }
+}

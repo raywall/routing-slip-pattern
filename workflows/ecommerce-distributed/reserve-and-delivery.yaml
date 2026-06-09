@@ -1,0 +1,103 @@
+name: reserve-and-delivery
+description: Reserva estoque, calcula promessa de entrega e seleciona transportadora.
+version: "1.0"
+error_policy: stop
+message_id_path: event_id
+correlation_id_path: correlation_id
+
+steps:
+  - id: reserve-inventory
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/inventory/reservations
+      method: POST
+      target: inventory_reservation
+      timeout_ms: 1800
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        correlation_id: "{correlation_id}"
+        items: "{context.order.items}"
+        available_inventory: "{available_inventory}"
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 200
+        max_interval_ms: 1500
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: assert-reservation
+    name: assert
+    params:
+      field: inventory_reservation.status
+      equals: RESERVED
+      message: Reserva de estoque nao confirmada.
+
+  - id: calculate-delivery-promise
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/delivery/promises
+      method: POST
+      target: delivery_promise
+      timeout_ms: 1800
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        region: "{region}"
+        promise_days: "{context.deliveryPolicy.promise_days}"
+        priority: "{high_priority_order}"
+    resilience:
+      retry:
+        attempts: 2
+        backoff: fixed
+        initial_interval_ms: 300
+        max_interval_ms: 900
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: choose-carrier
+    name: rest_call
+    params:
+      base_url: "${EXTERNAL_API_URL:-https://mock.raysouz.studio}"
+      endpoint: /ecommerce/v1/logistics/carriers/selection
+      method: POST
+      target: shipment
+      timeout_ms: 1800
+      required: true
+      headers:
+        X-Serial-Number: "${EXTERNAL_API_SERIAL:-b7af3a9e-6d1a-4b15-9837-3e0f0b47e5b4}"
+      body:
+        order_id: "{order_id}"
+        region: "{region}"
+        carriers: "{context.deliveryPolicy.carriers}"
+        estimated_date: "{delivery_promise.estimated_date}"
+    resilience:
+      retry:
+        attempts: 3
+        backoff: exponential
+        initial_interval_ms: 250
+        max_interval_ms: 1200
+        jitter: true
+      on_failure:
+        action: stop
+
+  - id: audit-delivery-planned
+    name: audit
+    params:
+      event: ecommerce_order_fulfillment.delivery_planned
+      fields:
+        - correlation_id
+        - order_id
+        - inventory_reservation.status
+        - delivery_promise.estimated_date
+        - shipment.carrier

@@ -1,14 +1,21 @@
+---
+sidebar_position: 10
+sidebar_label: "GraphQL enrich"
+---
+
+# GraphQL enrich
+
 Use `graphql_enrich` para buscar dados no go-graphql-connector.
 
 ## Sintaxe
 
-| Parametro | Obrigatorio | Descricao |
+| Parâmetro | Obrigatório | Descrição |
 |---|---:|---|
-| `endpoint` | Nao | URL do GraphQL Connector. Se omitido, usa configuracao do runtime. |
-| `query` | Sim | Query GraphQL. Pode usar variaveis GraphQL. |
-| `variables` | Nao | Mapa de variaveis, com interpolacao por `{path.do.payload}`. |
+| `endpoint` | Nao | URL do GraphQL Connector. Se omitido, usa configuração do runtime. |
+| `query` | Sim | Query GraphQL. Pode usar variáveis GraphQL. |
+| `variables` | Nao | Mapa de variáveis, com interpolação por `{path.do.payload}`. |
 | `target` | Sim | Campo onde o resultado sera gravado no payload. |
-| `result_path` | Nao | Caminho dentro da resposta GraphQL a ser extraido. |
+| `result_path` | Nao | Caminho dentro da resposta GraphQL a ser extraído. |
 | `timeout_ms` | Nao | Timeout da chamada. |
 | `required` | Nao | Se `true`, falhas interrompem o workflow. Se `false`, marca parcialidade e segue. |
 
@@ -23,7 +30,7 @@ Use `graphql_enrich` para buscar dados no go-graphql-connector.
     required: true
 ```
 
-Com variaveis interpoladas:
+Com variáveis interpoladas:
 
 ```yaml
 - name: graphql_enrich
@@ -86,7 +93,7 @@ Depois da etapa, o payload passa a ter:
 
 ## Boas praticas
 
-- Prefira variaveis GraphQL em vez de concatenar valores dentro da query.
-- Use `required: true` para dados obrigatorios ao processo.
+- Prefira variáveis GraphQL em vez de concatenar valores dentro da query.
+- Use `required: true` para dados obrigatórios ao processo.
 - Use `required: false` para enriquecimentos complementares.
-- Combine `graphql_enrich` com `assert`, `condition`, `filter_array` ou `cel` para decidir os proximos passos.
+- Combine `graphql_enrich` com `assert`, `condition`, `filter_array` ou `cel` para decidir os próximos passos.

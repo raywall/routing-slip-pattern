@@ -13,11 +13,16 @@ function loadExample(key, options = {}) {
   if (workflowDirty && !confirm("Descartar alteracoes nao salvas no workflow atual?")) return;
   invalidateExecutionSnapshot();
   const example = examples[key] || examples.payment;
+  const payload = withFreshCorrelationID(structuredClone(example.payload || {}));
   els.example.value = key;
   els.workflow.value = example.workflow;
-  els.payload.value = JSON.stringify(example.payload, null, 2);
+  els.payload.value = JSON.stringify(payload, null, 2);
   currentWorkspaceFile = { handle: null, serviceName: "", fileName: "" };
+  currentProjectEnvelope = null;
+  currentBusinessRules = [];
+  activeBusinessRuleID = "";
   workflowDirty = false;
+  projectDirty = false;
   renderWorkspace();
   clearLogs();
   lintWorkflow();
@@ -32,8 +37,11 @@ function currentStudioState() {
     example: els.example.value,
     graphqlEndpoint: els.graphqlEndpoint.value,
     workflowEndpoint: els.workflowEndpoint.value,
+    mcpEndpoint: els.mcpEndpoint.value,
+    mcpApiKey: els.mcpApiKey.value,
     externalApiUrl: els.externalApiUrl.value,
     executeIntegrations: els.integrations.checked,
+    businessRules: currentBusinessRules,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -46,8 +54,11 @@ async function restoreStudioState() {
   if (state.example && examples[state.example]) els.example.value = state.example;
   if (state.graphqlEndpoint) els.graphqlEndpoint.value = state.graphqlEndpoint;
   if (state.workflowEndpoint) els.workflowEndpoint.value = state.workflowEndpoint;
+  if (state.mcpEndpoint) els.mcpEndpoint.value = state.mcpEndpoint;
+  if (state.mcpApiKey) els.mcpApiKey.value = state.mcpApiKey;
   if (state.externalApiUrl) els.externalApiUrl.value = state.externalApiUrl;
   els.integrations.checked = Boolean(state.executeIntegrations);
+  currentBusinessRules = Array.isArray(state.businessRules) ? state.businessRules : [];
   return els.workflow.value.trim() !== "";
 }
 

@@ -1,4 +1,11 @@
-Use `assert` quando a regra e **obrigatoria** e deve falhar o workflow se nao for atendida.
+---
+sidebar_position: 2
+sidebar_label: "Assert"
+---
+
+# Assert
+
+Use `assert` quando a regra e **obrigatória** e deve falhar o workflow se nao for atendida.
 
 ```yaml
 - name: assert
@@ -11,7 +18,7 @@ Use `assert` quando a regra e **obrigatoria** e deve falhar o workflow se nao fo
     message: Produto fora dos criterios.
 ```
 
-Tambem e possivel validar uma condicao simples:
+Também e possível validar uma condição simples:
 
 ```yaml
 - name: assert
@@ -34,7 +41,7 @@ Ou aceitar qualquer regra de uma lista:
     message: Tipo de entrega nao suportado.
 ```
 
-Validacao de colecao:
+Validação de coleção:
 
 ```yaml
 - name: assert
@@ -44,16 +51,16 @@ Validacao de colecao:
     message: Pedido sem itens.
 ```
 
-Operadores disponiveis:
+Operadores disponíveis:
 
 | Operador | Uso |
 |---|---|
 | `equals` | Igualdade. |
-| `not_equals` | Diferenca. |
+| `not_equals` | Diferença. |
 | `less_than` | Menor que. |
 | `less_than_or_equal` | Menor ou igual. |
 | `greater_than` | Maior que. |
 | `greater_than_or_equal` | Maior ou igual. |
-| `min_items` | Tamanho minimo de lista, mapa ou string. |
-| `max_items` | Tamanho maximo de lista, mapa ou string. |
-| `exists` | Existencia de path. |
+| `min_items` | Tamanho mínimo de lista, mapa ou string. |
+| `max_items` | Tamanho máximo de lista, mapa ou string. |
+| `exists` | Existência de path. |

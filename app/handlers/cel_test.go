@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 func TestCELHandlerPassesWithTopLevelPayloadVariables(t *testing.T) {

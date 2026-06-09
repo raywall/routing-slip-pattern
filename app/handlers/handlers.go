@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ type ValidationHandler struct{}
 func (ValidationHandler) Name() string { return "validate" }
 
 func (ValidationHandler) Handle(ctx context.Context, msg *slip.Message, params map[string]any) (bool, error) {
-	required, _ := params["required"].([]string)
+	required := stringListParam(params["required"])
 	stopOnFailure := true
 	if v, ok := params["stop_on_failure"].(bool); ok {
 		stopOnFailure = v
@@ -53,6 +53,23 @@ func (ValidationHandler) Handle(ctx context.Context, msg *slip.Message, params m
 	return true, nil
 }
 
+func stringListParam(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text := strings.TrimSpace(fmt.Sprint(item)); text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 // ---------------------------------------------------------------------------
 // EnrichmentHandler
 // ---------------------------------------------------------------------------
@@ -73,7 +90,7 @@ func (EnrichmentHandler) Handle(ctx context.Context, msg *slip.Message, params m
 
 	for k, v := range data {
 		key := prefix + k
-		msg.Set(key, v)
+		msg.Set(key, interpolateAny(v, msg))
 	}
 	// Always stamp enrichment time
 	msg.Set(prefix+"enriched_at", time.Now().Format(time.RFC3339))

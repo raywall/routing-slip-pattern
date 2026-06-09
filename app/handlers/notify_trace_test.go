@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 func TestNotificationHandlerPropagatesTraceHeaders(t *testing.T) {

@@ -1,0 +1,9 @@
+{
+  "key": "ORD-1001",
+  "headers": {
+    "content-type": "application/json",
+    "source": "ecommerce-checkout",
+    "event_name": "ORDER_CONFIRMED"
+  },
+  "payload_file": "../payloads/happy-path.json"
+}

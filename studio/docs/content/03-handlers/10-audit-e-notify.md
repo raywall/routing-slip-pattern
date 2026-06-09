@@ -1,3 +1,10 @@
+---
+sidebar_position: 3
+sidebar_label: "Audit e notify"
+---
+
+# Audit e Notify
+
 Use `audit` para registrar evidencia funcional.
 
 ```yaml
@@ -10,7 +17,7 @@ Use `audit` para registrar evidencia funcional.
       - entrega.status
 ```
 
-Use `notify` para simular uma notificacao.
+Use `notify` para simular uma notificação.
 
 ```yaml
 - name: notify
@@ -20,4 +27,4 @@ Use `notify` para simular uma notificacao.
     template: "Pedido {pedido_id} processado com status {entrega.status}"
 ```
 
-Em producao, `notify` pode receber uma funcao de envio real no registro do handler.
+Em produção, `notify` pode receber uma função de envio real no registro do handler.

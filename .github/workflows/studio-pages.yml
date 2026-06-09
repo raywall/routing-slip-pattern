@@ -52,23 +52,30 @@ jobs:
 
           node <<'NODE'
           const fs = require('fs');
-          const vm = require('vm');
           const path = require('path');
-          const source = fs.readFileSync('studio/docs/documentation.js', 'utf8');
-          const sandbox = { window: {} };
-          vm.runInNewContext(source, sandbox);
-          let count = 0;
-          for (const section of sandbox.window.RoutingSlipDocs || []) {
-            for (const item of section.items || []) {
-              count++;
-              const file = path.join('studio/docs', item.file || '');
-              if (!item.file || !fs.existsSync(file)) {
-                throw new Error(`Arquivo de documentacao nao encontrado: ${file}`);
-              }
+          const root = 'studio/docs/content';
+          const files = [];
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (/\.md$/i.test(entry.name)) files.push(full);
             }
           }
-          if (count === 0) throw new Error('Manifesto de documentacao sem itens');
-          console.log(`documentacao validada: ${count} itens`);
+          walk(root);
+          if (!files.length) throw new Error('Documentacao sem arquivos Markdown');
+          const sections = new Set(files.map((file) => path.dirname(file)));
+          for (const section of sections) {
+            const index = path.join(section, 'index.md');
+            if (!fs.existsSync(index)) throw new Error(`Secao sem index.md: ${section}`);
+          }
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            if (!/^---\n[\s\S]*?\n---\n/.test(text)) {
+              throw new Error(`Arquivo sem front matter: ${file}`);
+            }
+          }
+          console.log(`documentacao validada: ${files.length} arquivos Markdown`);
           NODE
 
   deploy:

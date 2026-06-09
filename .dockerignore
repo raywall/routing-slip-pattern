@@ -1,0 +1,10 @@
+.git
+.gocache
+.DS_Store
+*.log
+coverage.out
+tmp
+dist
+bin
+bruno
+.assets

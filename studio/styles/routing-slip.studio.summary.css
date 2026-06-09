@@ -1,0 +1,146 @@
+.execution-summary {
+  margin: 16px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.execution-summary-head {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.execution-summary-eyebrow {
+  margin: 0 0 3px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.execution-summary h3,
+.execution-summary h4 {
+  margin: 0;
+}
+
+.execution-summary h3 {
+  font-size: 14px;
+}
+
+.execution-summary-head > span {
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 18px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.execution-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+
+.summary-metric {
+  min-height: 64px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.summary-metric span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.summary-metric strong {
+  color: var(--text);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.summary-metric-title {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.summary-metric-subtitle {
+  margin: -2px 0 4px;
+  font-size: 0.95em;
+}
+
+.execution-summary-identifiers {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  background: var(--surface);
+}
+
+.summary-identifier {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.summary-identifier span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.summary-identifier input {
+  height: 30px;
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+}
+
+.execution-summary-integrations {
+  padding: 12px 14px 14px;
+}
+
+.execution-summary-integrations h4 {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.integration-row {
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 82px 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.integration-row span,
+.integration-row strong {
+  color: var(--text);
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.integration-row em {
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

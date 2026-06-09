@@ -1,0 +1,64 @@
+meta {
+  name: Consultar contexto ecommerce
+  type: graphql
+  seq: 1
+}
+
+post {
+  url: {{graphql_url}}/graphql
+  body: graphql
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:graphql {
+  query ($orderID: String!, $customerID: String!, $region: String!) {
+    dataSources(orderID: $orderID, customerID: $customerID, region: $region) {
+      order {
+        id
+        status
+        channel
+        total
+        currency
+        items {
+          sku
+          quantity
+          category
+        }
+      }
+      customer {
+        id
+        name
+        tier
+        risk_score
+        notification_channel
+      }
+      inventory {
+        sku
+        available
+        reserved
+        warehouse
+      }
+      deliveryPolicy {
+        region
+        promise_days
+        carriers {
+          id
+          name
+          priority
+        }
+      }
+    }
+  }
+}
+
+body:graphql:vars {
+  {
+    "orderID": "ORD-1001",
+    "customerID": "CUS-1001",
+    "region": "SP"
+  }
+}

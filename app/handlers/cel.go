@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/cel-go/cel"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 type CELHandler struct{}

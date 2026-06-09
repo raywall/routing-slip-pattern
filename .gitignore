@@ -1,3 +1,6 @@
 .DS_Store
 .gocache/
 .assets/
+cases/ecommerce-distributed/results/*.json
+cases/ecommerce-distributed/results/*.md
+cases/ecommerce-distributed/results/*.ndjson

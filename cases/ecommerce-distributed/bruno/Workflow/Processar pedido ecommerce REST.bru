@@ -1,0 +1,28 @@
+meta {
+  name: Processar pedido ecommerce REST
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{workflow_url}}/process
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "event_id": "evt-order-1001",
+    "event_name": "ORDER_CONFIRMED",
+    "correlation_id": "53983d13-b351-4cd5-97ad-dcc144ce97ad",
+    "order_id": "ORD-1001",
+    "customer_id": "CUS-1001",
+    "region": "SP",
+    "channel": "web",
+    "occurred_at": "2026-05-27T10:00:00Z"
+  }
+}

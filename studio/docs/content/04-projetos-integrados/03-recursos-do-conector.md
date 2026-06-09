@@ -1,6 +1,13 @@
-O `go-graphql-connector` permite compor uma fachada de dados sem espalhar logica de integracao dentro do workflow.
+---
+sidebar_position: 3
+sidebar_label: "Recursos do conector"
+---
 
-## Transformacao de resposta
+# Recursos de um conector
+
+O `go-graphql-connector` permite compor uma fachada de dados sem espalhar logica de integração dentro do workflow.
+
+## Transformação de resposta
 
 Use `responseTransform.unwrapPath` para retornar somente o trecho relevante:
 
@@ -41,7 +48,7 @@ para:
 
 ## Backoff, jitter e circuit breaker
 
-Alem do retry simples, cada connector pode definir uma politica de resiliência:
+Além do retry simples, cada connector pode definir uma politica de resiliência:
 
 ```json
 {
@@ -65,7 +72,7 @@ O circuit breaker evita insistir em uma integração que já demonstrou estar in
 
 ## Token STS
 
-O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando habilitado, o runtime:
+O conector suporta emissão de token STS/OAuth por `client_credentials`. Quando habilitado, o runtime:
 
 1. chama o endpoint definido em `token_authorization_url`;
 2. envia `grant_type=client_credentials`, `client_id` e `client_secret`;
@@ -92,20 +99,20 @@ O conector suporta emissao de token STS/OAuth por `client_credentials`. Quando h
 }
 ```
 
-### Opcoes
+### Opções
 
-| Campo | Descricao |
+| Campo | Descrição |
 |---|---|
-| `require_token_sts` | Liga/desliga autenticacao centralizada. |
-| `skip_tls_verify` | Desativa validacao TLS do emissor de token quando `true`. Use apenas em ambientes privados controlados. |
+| `require_token_sts` | Liga/desliga autenticação centralizada. |
+| `skip_tls_verify` | Desativa validação TLS do emissor de token quando `true`. Use apenas em ambientes privados controlados. |
 | `token_authorization_url` | URL do emissor de token. |
 | `headers` | Headers enviados somente para a chamada de token. |
-| `credentials.client_id` | Identificador da aplicacao cliente. |
-| `credentials.client_secret` | Segredo da aplicacao cliente. |
+| `credentials.client_id` | Identificador da aplicação cliente. |
+| `credentials.client_secret` | Segredo da aplicação cliente. |
 
 ### Quando usar
 
-Use token STS quando varias APIs integradas exigem o mesmo `Bearer token`. O workflow continua chamando apenas GraphQL, enquanto o conector gerencia autenticacao e renovacao.
+Use token STS quando varias APIs integradas exigem o mesmo `Bearer token`. O workflow continua chamando apenas GraphQL, enquanto o conector gerencia autenticação e renovação.
 
 ```mermaid
 flowchart LR
@@ -118,7 +125,7 @@ flowchart LR
 
 ### Cuidados
 
-- Se um connector REST ja possuir `Authorization` em `adapterConfig.headers`, o token automatico nao sobrescreve esse valor.
-- Mantenha `client_secret` em Secrets Manager, SSM seguro ou variavel de ambiente protegida.
-- Prefira instalar a CA interna na imagem do container. Use `skip_tls_verify` como excecao temporaria ou para laboratorios controlados.
+- Se um connector REST ja possuir `Authorization` em `adapterConfig.headers`, o token automático nao sobrescreve esse valor.
+- Mantenha `client_secret` em Secrets Manager, SSM seguro ou variável de ambiente protegida.
+- Prefira instalar a CA interna na imagem do container. Use `skip_tls_verify` como exceção temporária ou para laboratórios controlados.
 - Configure `timeoutMs` e `retries` por fonte para evitar que uma API lenta degrade todo o workflow.

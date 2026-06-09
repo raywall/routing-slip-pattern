@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "sku": "SKU-BOOK-001", "available": 12, "reserved": 0, "warehouse": "WH-SP-01" },
+    { "sku": "SKU-ELEC-010", "available": 4, "reserved": 1, "warehouse": "WH-SP-02" }
+  ],
+  "errors": []
+}
