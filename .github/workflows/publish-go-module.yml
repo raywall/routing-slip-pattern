@@ -1,0 +1,97 @@
+name: Publish Go Framework
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+
+concurrency:
+  group: publish-go-framework-main
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate framework
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+      - name: Validate module and tests
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          go test ./...
+          go vet ./...
+
+  publish:
+    name: Tag and publish framework
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+      - name: Create next semantic version
+        id: version
+        shell: bash
+        run: |
+          existing="$(git tag --points-at HEAD --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [ -n "$existing" ]; then
+            version="${existing#app/}"
+            should_push=false
+          else
+            latest="$(git tag --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+            if [ -z "$latest" ]; then
+              version="v0.1.0"
+            else
+              current="${latest#app/v}"
+              IFS=. read -r major minor patch <<< "$current"
+              version="v${major}.${minor}.$((patch + 1))"
+            fi
+            should_push=true
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=app/$version" >> "$GITHUB_OUTPUT"
+          echo "should_push=$should_push" >> "$GITHUB_OUTPUT"
+
+      - name: Push version tag
+        if: steps.version.outputs.should_push == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Request module from Go proxy
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          module="$(cd app && go list -m)"
+          curl --fail --retry 12 --retry-delay 10 \
+            "https://proxy.golang.org/${module}/@v/${VERSION}.info"
+          curl --silent --show-error --location \
+            "https://pkg.go.dev/${module}@${VERSION}" >/dev/null || true

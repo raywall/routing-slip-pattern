@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // WorkflowConfig is the top-level configuration structure.

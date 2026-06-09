@@ -259,8 +259,8 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/raywall/routing-slip-pattern/handlers"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/handlers"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1183,3 +1183,25 @@ Atalhos:
 - Habilite state store em fluxos que precisam de retomada.
 - Evite side effects em etapas de enriquecimento.
 - Teste com payloads simples antes de ligar integracoes reais.
+
+## Publicacao do framework Go
+
+O framework localizado em `app` e publicado como:
+
+```text
+github.com/raywall/routing-slip-pattern/app
+```
+
+Pull requests para `main` executam `go mod tidy`, testes e `go vet`. Depois do merge, o workflow
+`Publish Go Framework` cria automaticamente a proxima versao patch SemVer, iniciando em `v0.1.0`,
+publica uma tag no formato `app/vX.Y.Z` e solicita a versao ao Go Module Proxy para indexacao no
+`pkg.go.dev`.
+
+Exemplo de consumo:
+
+```bash
+go get github.com/raywall/routing-slip-pattern/app@latest
+```
+
+Uma reexecucao da Action para o mesmo commit reutiliza a tag existente. O prefixo `app/` na tag e
+obrigatorio para que o Go reconheca corretamente o modulo mantido no subdiretorio.

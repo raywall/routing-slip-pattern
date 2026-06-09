@@ -49,6 +49,6 @@ terraform apply \
 
 Uma Lambda Go e compilada em um binario. Por isso, a layer nao injeta pacotes Go no build automaticamente. O uso recomendado e:
 
-1. importar `github.com/raywall/routing-slip-pattern/slip` e `github.com/raywall/routing-slip-pattern/handlers` no codigo da Lambda;
+1. importar `github.com/raywall/routing-slip-pattern/app/slip` e `github.com/raywall/routing-slip-pattern/app/handlers` no codigo da Lambda;
 2. anexar esta layer para disponibilizar configuracoes, workflows e assets em `/opt/routing-slip`;
 3. usar `ROUTING_SLIP_CONFIG_PATH` e `ROUTING_SLIP_WORKFLOW_PATH` para localizar os arquivos em runtime.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // LogHandler writes an explicit structured log entry when the workflow needs a

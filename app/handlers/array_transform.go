@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 type ArrayTransformHandler struct{}

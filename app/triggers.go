@@ -19,7 +19,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 	"github.com/segmentio/kafka-go"
 )
 

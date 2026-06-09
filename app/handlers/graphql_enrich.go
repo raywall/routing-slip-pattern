@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // GraphQLEnrichmentHandler enriches the payload with data returned by a GraphQL

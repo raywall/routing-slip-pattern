@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 	"gopkg.in/yaml.v3"
 )
 

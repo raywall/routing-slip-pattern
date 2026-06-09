@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/config"
-	"github.com/raywall/routing-slip-pattern/handlers"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/config"
+	"github.com/raywall/routing-slip-pattern/app/handlers"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // ---------------------------------------------------------------------------

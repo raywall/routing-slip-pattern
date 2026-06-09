@@ -272,26 +272,26 @@ func validateBusinessRuleCoverage(workflow *WorkflowConfig, rules []mcpBusinessR
 	for _, rule := range rules {
 		tokens := businessRuleTokens(rule)
 		if !containsAnyToken(text, tokens) {
-			issues = append(issue(issues, "warn", fmt.Sprintf("regra ativa %q ainda nao esta referenciada no workflow", rule.ID)))
+			issues = issue(issues, "warn", fmt.Sprintf("regra ativa %q ainda nao esta referenciada no workflow", rule.ID))
 		}
 		for _, field := range rule.RequiredFields {
 			if !workflowRequiresField(workflow, field) && !strings.Contains(text, strings.ToLower(field)) {
-				issues = append(issue(issues, "warn", fmt.Sprintf("regra %q espera o campo %q, mas ele nao aparece no workflow", rule.ID, field)))
+				issues = issue(issues, "warn", fmt.Sprintf("regra %q espera o campo %q, mas ele nao aparece no workflow", rule.ID, field))
 			}
 		}
 		for _, metric := range rule.CustomMetrics {
 			if !workflowHasDatadogMetric(workflow, metric) {
-				issues = append(issue(issues, "warn", fmt.Sprintf("regra %q declara metrica %q, mas nao ha datadog_metric correspondente", rule.ID, metric)))
+				issues = issue(issues, "warn", fmt.Sprintf("regra %q declara metrica %q, mas nao ha datadog_metric correspondente", rule.ID, metric))
 			}
 		}
 		for _, marker := range rule.LogMarkers {
 			if !workflowHasLogMarker(workflow, marker) {
-				issues = append(issue(issues, "warn", fmt.Sprintf("regra %q declara log marker %q, mas nao ha log correspondente", rule.ID, marker)))
+				issues = issue(issues, "warn", fmt.Sprintf("regra %q declara log marker %q, mas nao ha log correspondente", rule.ID, marker))
 			}
 		}
 		for _, dependency := range rule.Dependencies {
 			if dependency != "" && !ruleExists(rules, dependency) {
-				issues = append(issue(issues, "warn", fmt.Sprintf("regra %q depende de %q, que nao esta ativa no projeto", rule.ID, dependency)))
+				issues = issue(issues, "warn", fmt.Sprintf("regra %q depende de %q, que nao esta ativa no projeto", rule.ID, dependency))
 			}
 		}
 	}

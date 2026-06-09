@@ -1,4 +1,4 @@
-module github.com/raywall/routing-slip-pattern
+module github.com/raywall/routing-slip-pattern/app
 
 go 1.25.6
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 // RESTCallHandler calls an HTTP endpoint and stores the decoded JSON response

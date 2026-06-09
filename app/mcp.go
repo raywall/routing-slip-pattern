@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 	"gopkg.in/yaml.v3"
 )
 
@@ -339,10 +339,10 @@ func validateWorkflowDiagnostics(workflow *WorkflowConfig) []map[string]string {
 		return []map[string]string{{"level": "error", "message": "workflow ausente"}}
 	}
 	if strings.TrimSpace(workflow.Name) == "" {
-		issues = append(issue(issues, "error", "campo name e obrigatorio"))
+		issues = issue(issues, "error", "campo name e obrigatorio")
 	}
 	if len(workflow.Steps) == 0 {
-		issues = append(issue(issues, "error", "workflow sem steps"))
+		issues = issue(issues, "error", "workflow sem steps")
 	}
 	targets := map[string]bool{}
 	for _, step := range workflow.Steps {
@@ -354,18 +354,18 @@ func validateWorkflowDiagnostics(workflow *WorkflowConfig) []map[string]string {
 	for index, step := range workflow.Steps {
 		label := fmt.Sprintf("steps[%d]", index)
 		if !handlers[step.Name] {
-			issues = append(issue(issues, "error", label+".name nao registrado: "+step.Name))
+			issues = issue(issues, "error", label+".name nao registrado: "+step.Name)
 		}
 		if step.Name == "jump_if" {
 			to := firstString(step.Params, "to")
 			if to == "" || !targets[to] {
-				issues = append(issue(issues, "error", label+".params.to nao aponta para step conhecido"))
+				issues = issue(issues, "error", label+".params.to nao aponta para step conhecido")
 			}
 		}
 		if step.Resilience.OnFailure.Action == "jump" {
 			to := step.Resilience.OnFailure.To
 			if to == "" || !targets[to] {
-				issues = append(issue(issues, "error", label+".resilience.on_failure.to nao aponta para step conhecido"))
+				issues = issue(issues, "error", label+".resilience.on_failure.to nao aponta para step conhecido")
 			}
 		}
 	}

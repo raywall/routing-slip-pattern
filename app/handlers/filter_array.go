@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 )
 
 type FilterArrayHandler struct{}
