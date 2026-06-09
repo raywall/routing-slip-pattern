@@ -83,8 +83,8 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/raywall/routing-slip-pattern/handlers"
-	"github.com/raywall/routing-slip-pattern/slip"
+	"github.com/raywall/routing-slip-pattern/app/handlers"
+	"github.com/raywall/routing-slip-pattern/app/slip"
 	"gopkg.in/yaml.v3"
 )
 
