@@ -1,0 +1,8 @@
+name: lambda-product-processing
+message_id_path: event_id
+correlation_id_path: correlation_id
+steps:
+  - id: validate
+    name: validate
+    params:
+      required: [event_id, product_id]

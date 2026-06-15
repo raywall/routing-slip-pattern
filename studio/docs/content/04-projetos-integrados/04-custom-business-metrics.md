@@ -7,6 +7,29 @@ sidebar_label: "Custom Business Metrics"
 
 O `custom-business-metrics` e a camada usada para observar o processamento em tempo real com métricas de negocio, eventos de etapa e dashboards configuráveis.
 
+## Agent importável
+
+O runtime pode receber uma instância do agent em vez de enviar métricas
+diretamente para um endpoint:
+
+```go
+agent, err := metrics.New(metrics.Config{
+    ServiceEndpoint: "http://metrics-service:8080/v1/metrics",
+    BatchSize: 100,
+    BufferSize: 5000,
+})
+go agent.Run(ctx)
+```
+
+O agent realiza buffer e envio em lote. A mesma instância pode ser utilizada
+pelo routing slip, pelo GraphQL connector e pela aplicação hospedeira.
+
+## MCP Analytics
+
+O metrics service expõe tools MCP para buscar processos, recuperar uma execução
+por `correlation_id` ou `trace_id` e consultar resumos por workflow. Em ambientes
+compartilhados, configure `MCP_SERVER_API_KEY`.
+
 Ele complementa logs técnicos: em vez de responder apenas "a aplicação esta de pe?", ele ajuda a responder "onde esta cada processamento?", "qual etapa falhou?", "quanto falta?" e "qual fluxo esta demorando mais?".
 
 ![Visão geral da interface do CBM](docs/images/cbm-interface.jpg)

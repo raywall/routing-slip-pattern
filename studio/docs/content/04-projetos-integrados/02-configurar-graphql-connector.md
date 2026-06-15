@@ -5,6 +5,20 @@ sidebar_label: "Configuração do conector"
 
 # Configurações de um conector
 
+O módulo `github.com/raywall/create-graphql-config/generator` pode gerar
+programaticamente a configuração inicial:
+
+```go
+result, err := generator.Generate(example, generator.Options{
+    Adapter: "rest",
+    Field: "product",
+})
+```
+
+O resultado contém as estruturas correspondentes a `schema.json`,
+`connectors.json` e `service.json`. A CLI continua disponível para geração
+interativa e automações de desenvolvimento.
+
 O conector usa tres configurações principais:
 
 | Arquivo | Finalidade |

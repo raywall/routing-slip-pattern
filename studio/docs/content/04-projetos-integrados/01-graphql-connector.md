@@ -7,6 +7,34 @@ sidebar_label: "GraphQL Connector"
 
 O `go-graphql-connector` e a camada de integração usada para enriquecer payloads do routing slip sem acoplar o workflow diretamente a APIs, bancos, caches ou serviços externos.
 
+O conector também pode ser importado por uma aplicação Go. A aplicação informa
+a origem do `service.json`, instancia o endpoint GraphQL, injeta o metrics agent
+e decide se deseja expor o MCP Admin.
+
+```go
+config, err := graphql.LoadConfigFrom(ctx, graphql.ReferenceSource{
+    Reference: "s3:us-east-1:integration-config:graphql/service.json",
+    Region:    "us-east-1",
+})
+
+api, err := graphql.NewWithOptions(
+    config,
+    resources,
+    "us-east-1",
+    "",
+    graphql.Options{MetricsEmitter: agent},
+)
+
+err = api.Serve(ctx, graphql.ServerOptions{
+    Addr: ":8090",
+    MCPAddr: ":9092",
+    MCPAPIKey: os.Getenv("GRAPHQL_MCP_API_KEY"),
+})
+```
+
+O `service.json`, schemas, connectors e mocks podem ser carregados de arquivo
+local, ambiente, S3, Secrets Manager, Parameter Store ou DynamoDB.
+
 Ele funciona como uma **Anti-Corruption Layer**: o workflow conhece uma query GraphQL estável, enquanto o conector resolve como buscar os dados nas fontes configuradas.
 
 | Papel | Beneficio |

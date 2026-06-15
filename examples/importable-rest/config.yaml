@@ -1,0 +1,20 @@
+service:
+  name: product-processing
+
+rest:
+  addr: ":8088"
+  path: /process
+
+mcp:
+  enabled: true
+  addr: ":9091"
+
+state_store:
+  type: file
+  path: .routing-slip-state
+
+idempotency:
+  enabled: true
+  key_template: "{workflow}:{message_id}:{step_index}:{step}"
+
+graphql_endpoint: http://localhost:8090/graphql
