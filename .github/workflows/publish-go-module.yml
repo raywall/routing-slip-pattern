@@ -45,14 +45,25 @@ jobs:
         example: [examples/importable-rest, examples/importable-lambda]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        if: matrix.example == 'examples/importable-rest'
+        with:
+          repository: raywall/custom-business-metrics
+          path: .deps/custom-business-metrics
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25.x"
           cache: false
       - working-directory: ${{ matrix.example }}
         run: |
+          if [ "${{ matrix.example }}" = "examples/importable-rest" ]; then
+            if grep -q '^replace github.com/raywall/custom-business-metrics/agent' go.mod; then
+              echo "Do not commit cross-repository replace directives in importable examples."
+              exit 1
+            fi
+            go mod edit -replace=github.com/raywall/custom-business-metrics/agent=../../.deps/custom-business-metrics/agent
+          fi
           go mod tidy
-          git diff --exit-code -- go.mod go.sum
           go test ./...
           go vet ./...
 
@@ -75,14 +86,14 @@ jobs:
         id: version
         shell: bash
         run: |
-          existing="$(git tag --points-at HEAD --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          existing="$(git tag --points-at HEAD --list 'app/v*' --sort=-v:refname | grep -E '^app/v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
           if [ -n "$existing" ]; then
             version="${existing#app/}"
             should_push=false
           else
-            latest="$(git tag --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+            latest="$(git tag --list 'app/v*' --sort=-v:refname | grep -E '^app/v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
             if [ -z "$latest" ]; then
-              version="v0.1.0"
+              version="v1.0.0"
             else
               current="${latest#app/v}"
               IFS=. read -r major minor patch <<< "$current"

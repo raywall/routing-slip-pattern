@@ -72,3 +72,17 @@ finalizados não são repetidos quando a idempotência está habilitada.
 O MCP server permite explicar o workflow, listar regras de negócio, recuperar
 uma execução por `message_id` e buscar execuções por `correlation_id`,
 `trace_id`, status ou workflow.
+
+## Versão pública
+
+O runtime é publicado no Go Module Proxy como
+`github.com/raywall/routing-slip-pattern/app`. Depois de cada merge em `main`,
+o workflow de publicação cria uma tag `app/vX.Y.Z` e incrementa a versão patch.
+A linha pública estável começa em `app/v1.0.0`.
+
+```bash
+go get github.com/raywall/routing-slip-pattern/app@latest
+```
+
+Tags `app/v0.x.x` permanecem disponíveis como histórico, mas novas aplicações
+devem consumir a linha `v1.x.x`.

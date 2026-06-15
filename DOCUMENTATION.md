@@ -1193,9 +1193,12 @@ github.com/raywall/routing-slip-pattern/app
 ```
 
 Pull requests para `main` executam `go mod tidy`, testes e `go vet`. Depois do merge, o workflow
-`Publish Go Framework` cria automaticamente a proxima versao patch SemVer, iniciando em `v0.1.0`,
+`Publish Go Framework` cria automaticamente a proxima versao patch SemVer estavel, iniciando em `v1.0.0`,
 publica uma tag no formato `app/vX.Y.Z` e solicita a versao ao Go Module Proxy para indexacao no
 `pkg.go.dev`.
+
+Tags `app/v0.x.x` anteriores permanecem como historico. A linha `app/v1.x.x` representa o contrato
+publico estavel usado pelos exemplos importaveis e por novas aplicacoes.
 
 Exemplo de consumo:
 

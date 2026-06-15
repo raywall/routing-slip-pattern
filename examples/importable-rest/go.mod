@@ -3,8 +3,8 @@ module github.com/raywall/routing-slip-pattern-example/rest
 go 1.25.6
 
 require (
-	github.com/raywall/custom-business-metrics/agent v0.0.0
-	github.com/raywall/routing-slip-pattern/app v0.0.0
+	github.com/raywall/custom-business-metrics/agent v1.0.0
+	github.com/raywall/routing-slip-pattern/app v1.0.0
 )
 
 require (
@@ -50,7 +50,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/raywall/custom-business-metrics/agent => ../../../custom-business-metrics/agent
 
 replace github.com/raywall/routing-slip-pattern/app => ../../app

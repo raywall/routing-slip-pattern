@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/aws/aws-lambda-go v1.48.0
-	github.com/raywall/routing-slip-pattern/app v0.0.0
+	github.com/raywall/routing-slip-pattern/app v1.0.0
 )
 
 require (
