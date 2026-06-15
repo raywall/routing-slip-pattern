@@ -86,3 +86,7 @@ go get github.com/raywall/routing-slip-pattern/app@latest
 
 Tags `app/v0.x.x` permanecem disponíveis como histórico, mas novas aplicações
 devem consumir a linha `v1.x.x`.
+
+A publicação valida a tag diretamente no Git antes de solicitar sua indexação.
+Como o Go Module Proxy possui consistência eventual, um atraso temporário na
+indexação gera um aviso sem invalidar uma release cuja tag já esteja disponível.
