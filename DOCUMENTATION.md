@@ -1218,6 +1218,10 @@ obrigatorio para que o Go reconheca corretamente o modulo mantido no subdiretori
 O Studio desenha e testa workflows. Aplicacoes de producao importam
 `github.com/raywall/routing-slip-pattern/app/framework`.
 
+Ao carregar configuracoes e workflows, o runtime expande apenas referencias de ambiente entre
+chaves, como `${GRAPHQL_ENDPOINT}` ou `${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}`.
+Variaveis GraphQL como `$codigoCliente` permanecem intactas.
+
 ```go
 agent, err := metrics.New(metrics.Config{
 	ServiceEndpoint: "http://metrics-service:8080/v1/metrics",
