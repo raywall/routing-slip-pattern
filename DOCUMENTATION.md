@@ -1200,6 +1200,10 @@ publica uma tag no formato `app/vX.Y.Z` e solicita a versao ao Go Module Proxy p
 Tags `app/v0.x.x` anteriores permanecem como historico. A linha `app/v1.x.x` representa o contrato
 publico estavel usado pelos exemplos importaveis e por novas aplicacoes.
 
+A Action valida a tag diretamente no Git antes de solicitar a indexacao. Como o Go Module Proxy
+possui consistencia eventual, uma versao valida que ainda esteja propagando gera um aviso em vez de
+invalidar a release.
+
 Exemplo de consumo:
 
 ```bash

@@ -119,9 +119,31 @@ jobs:
       - name: Request module from Go proxy
         env:
           VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
         run: |
           module="$(cd app && go list -m)"
-          curl --fail --retry 12 --retry-delay 10 \
-            "https://proxy.golang.org/${module}/@v/${VERSION}.info"
+
+          echo "Validating ${module}@${VERSION} directly from Git..."
+          GOPROXY=direct go list -m "${module}@${VERSION}"
+
+          available=false
+          for attempt in $(seq 1 12); do
+            latest="$(curl --fail --silent --show-error \
+              "https://proxy.golang.org/${module}/@latest" || true)"
+            if echo "$latest" | grep -q "\"Version\":\"${VERSION}\""; then
+              available=true
+              break
+            fi
+            echo "Go proxy has not indexed ${module}@${VERSION} yet (attempt ${attempt}/12)."
+            sleep 10
+          done
+
+          if [ "$available" != true ]; then
+            echo "::warning::${module}@${VERSION} is valid in Git but is still propagating to the Go proxy."
+          fi
+
+          curl --fail --silent --show-error \
+            "https://proxy.golang.org/${module}/@v/${VERSION}.mod" >/dev/null || \
+            echo "::warning::Version metadata is not available yet for ${module}@${VERSION}."
           curl --silent --show-error --location \
             "https://pkg.go.dev/${module}@${VERSION}" >/dev/null || true
