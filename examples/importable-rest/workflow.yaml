@@ -1,0 +1,22 @@
+name: product-processing
+description: Validates and enriches a product processing request.
+message_id_path: event_id
+correlation_id_path: correlation_id
+business_rules:
+  - id: product-id-required
+    name: Product identifier is required
+    description: Requests without a product identifier cannot be processed.
+    status: active
+steps:
+  - id: validate-input
+    name: validate
+    params:
+      required:
+        - event_id
+        - product_id
+
+  - id: enrich-status
+    name: enrich
+    params:
+      data:
+        processing_status: accepted

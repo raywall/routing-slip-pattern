@@ -1193,9 +1193,16 @@ github.com/raywall/routing-slip-pattern/app
 ```
 
 Pull requests para `main` executam `go mod tidy`, testes e `go vet`. Depois do merge, o workflow
-`Publish Go Framework` cria automaticamente a proxima versao patch SemVer, iniciando em `v0.1.0`,
+`Publish Go Framework` cria automaticamente a proxima versao patch SemVer estavel, iniciando em `v1.0.0`,
 publica uma tag no formato `app/vX.Y.Z` e solicita a versao ao Go Module Proxy para indexacao no
 `pkg.go.dev`.
+
+Tags `app/v0.x.x` anteriores permanecem como historico. A linha `app/v1.x.x` representa o contrato
+publico estavel usado pelos exemplos importaveis e por novas aplicacoes.
+
+A Action valida a tag diretamente no Git antes de solicitar a indexacao. Como o Go Module Proxy
+possui consistencia eventual, uma versao valida que ainda esteja propagando gera um aviso em vez de
+invalidar a release.
 
 Exemplo de consumo:
 
@@ -1205,3 +1212,35 @@ go get github.com/raywall/routing-slip-pattern/app@latest
 
 Uma reexecucao da Action para o mesmo commit reutiliza a tag existente. O prefixo `app/` na tag e
 obrigatorio para que o Go reconheca corretamente o modulo mantido no subdiretorio.
+
+## Runtime importavel
+
+O Studio desenha e testa workflows. Aplicacoes de producao importam
+`github.com/raywall/routing-slip-pattern/app/framework`.
+
+```go
+agent, err := metrics.New(metrics.Config{
+	ServiceEndpoint: "http://metrics-service:8080/v1/metrics",
+})
+go agent.Run(ctx)
+
+runtime, err := routing.New(ctx, routing.Options{
+	ConfigSource:   source.Local{Path: "config.yaml"},
+	WorkflowSource: source.Local{Path: "workflow.yaml"},
+	MetricsAgent:   agent,
+})
+```
+
+`source.Local`, `source.Inline` e `source.AWS` permitem recuperar configuração
+e workflow de arquivo local, S3, Secrets Manager, Parameter Store ou DynamoDB.
+`source.AWS.Endpoint` permite LocalStack e endpoints privados.
+
+Use `runtime.Run(ctx)` em ECS, EKS, VM ou local; `runtime.Process(ctx, payload)`
+em Lambda e consumidores de eventos; e `runtime.Handler()` para integrar com
+ALB, API Gateway ou um servidor existente. `runtime.MCPHandler()` expõe
+workflows, regras e execuções para clientes MCP.
+
+O runtime adquire processing lease, preserva `correlation_id`, salva snapshots
+e impede a repetição de steps concluídos. Exemplos compiláveis estão em
+`examples/importable-rest`, `examples/importable-lambda` e
+`examples/aws-sources`.

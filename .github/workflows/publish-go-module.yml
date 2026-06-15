@@ -37,10 +37,40 @@ jobs:
           go test ./...
           go vet ./...
 
+  validate-examples:
+    name: Validate importable examples
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example: [examples/importable-rest, examples/importable-lambda]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        if: matrix.example == 'examples/importable-rest'
+        with:
+          repository: raywall/custom-business-metrics
+          path: .deps/custom-business-metrics
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: false
+      - working-directory: ${{ matrix.example }}
+        run: |
+          if [ "${{ matrix.example }}" = "examples/importable-rest" ]; then
+            if grep -q '^replace github.com/raywall/custom-business-metrics/agent' go.mod; then
+              echo "Do not commit cross-repository replace directives in importable examples."
+              exit 1
+            fi
+            go mod edit -replace=github.com/raywall/custom-business-metrics/agent=../../.deps/custom-business-metrics/agent
+          fi
+          go mod tidy
+          go test ./...
+          go vet ./...
+
   publish:
     name: Tag and publish framework
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: validate
+    needs: [validate, validate-examples]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -56,14 +86,14 @@ jobs:
         id: version
         shell: bash
         run: |
-          existing="$(git tag --points-at HEAD --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          existing="$(git tag --points-at HEAD --list 'app/v*' --sort=-v:refname | grep -E '^app/v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
           if [ -n "$existing" ]; then
             version="${existing#app/}"
             should_push=false
           else
-            latest="$(git tag --list 'app/v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+            latest="$(git tag --list 'app/v*' --sort=-v:refname | grep -E '^app/v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
             if [ -z "$latest" ]; then
-              version="v0.1.0"
+              version="v1.0.0"
             else
               current="${latest#app/v}"
               IFS=. read -r major minor patch <<< "$current"
@@ -89,9 +119,31 @@ jobs:
       - name: Request module from Go proxy
         env:
           VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
         run: |
           module="$(cd app && go list -m)"
-          curl --fail --retry 12 --retry-delay 10 \
-            "https://proxy.golang.org/${module}/@v/${VERSION}.info"
+
+          echo "Validating ${module}@${VERSION} directly from Git..."
+          GOPROXY=direct go list -m "${module}@${VERSION}"
+
+          available=false
+          for attempt in $(seq 1 12); do
+            latest="$(curl --fail --silent --show-error \
+              "https://proxy.golang.org/${module}/@latest" || true)"
+            if echo "$latest" | grep -q "\"Version\":\"${VERSION}\""; then
+              available=true
+              break
+            fi
+            echo "Go proxy has not indexed ${module}@${VERSION} yet (attempt ${attempt}/12)."
+            sleep 10
+          done
+
+          if [ "$available" != true ]; then
+            echo "::warning::${module}@${VERSION} is valid in Git but is still propagating to the Go proxy."
+          fi
+
+          curl --fail --silent --show-error \
+            "https://proxy.golang.org/${module}/@v/${VERSION}.mod" >/dev/null || \
+            echo "::warning::Version metadata is not available yet for ${module}@${VERSION}."
           curl --silent --show-error --location \
             "https://pkg.go.dev/${module}@${VERSION}" >/dev/null || true

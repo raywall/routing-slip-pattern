@@ -5,6 +5,17 @@ sidebar_label: "MCP e planner assistido"
 
 # MCP e planner assistido
 
+O ecossistema disponibiliza três MCP servers complementares:
+
+| Servidor | Responsabilidade |
+| --- | --- |
+| Routing MCP | Workflows, regras de negócio, snapshots e explicação de execuções. |
+| GraphQL MCP Admin | Diagnóstico seguro de configuração e circuit breakers. |
+| Metrics MCP Analytics | Pesquisa por correlation/trace e resumos operacionais. |
+
+Os endpoints devem ser protegidos com API key em ambientes compartilhados. As
+tools são orientadas a leitura e não retornam tokens, secrets ou credenciais.
+
 O MCP Gateway expõe capacidades internas do ecossistema como ferramentas consultáveis por Studio, agentes e automações de suporte. A ideia nao e substituir o runtime, mas criar uma camada padronizada para investigar, validar e explicar workflows sem acessar diretamente arquivos, logs ou bancos.
 
 No `routing-slip-pattern`, o gateway MCP roda separado do endpoint REST do workflow:
