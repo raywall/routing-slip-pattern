@@ -39,6 +39,10 @@ O campo `Endpoint` permite usar LocalStack ou endpoints privados. Composição
 por `workflow_ref` usa a mesma origem e resolve referências relativamente ao
 workflow principal.
 
+O carregamento expande referências de ambiente explícitas como
+`${GRAPHQL_ENDPOINT}` e `${GRAPHQL_ENDPOINT:-http://localhost:8090/graphql}`.
+Variáveis GraphQL como `$codigoCliente` são preservadas dentro das queries.
+
 ## Ambientes de execução
 
 Para ECS, EKS, VM ou local:

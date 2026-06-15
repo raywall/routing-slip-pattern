@@ -300,7 +300,7 @@ func loadYAML(ctx context.Context, src source.Source, target any) error {
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal([]byte(os.ExpandEnv(string(data))), target)
+	return yaml.Unmarshal([]byte(expandEnvironment(string(data))), target)
 }
 
 func loadWorkflow(ctx context.Context, src source.Source, workflow *Workflow, stack map[string]bool) error {
@@ -312,7 +312,7 @@ func loadWorkflow(ctx context.Context, src source.Source, workflow *Workflow, st
 		WorkflowScript *Workflow      `yaml:"workflow_script"`
 		BusinessRules  []BusinessRule `yaml:"business_rules"`
 	}
-	data = []byte(os.ExpandEnv(string(data)))
+	data = []byte(expandEnvironment(string(data)))
 	if err := yaml.Unmarshal(data, &project); err != nil {
 		return err
 	}
